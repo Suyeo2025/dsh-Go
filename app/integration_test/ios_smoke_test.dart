@@ -348,7 +348,16 @@ Future<void> _smoke(WidgetTester tester, IntegrationTestWidgetsFlutterBinding bi
       // Phone: the chat header's ≡. Wide window (iPad) with the sessions folded
       // into the rail: the rail's ≡ brings the sidebar back.
       final rail = find.byKey(const ValueKey('rail-menu'));
-      await tapAndSettle(rail.hitTestable().evaluate().isNotEmpty ? rail : find.byKey(const ValueKey('chat-menu')));
+      final menu = find.byKey(const ValueKey('chat-menu'));
+      // A page pushed over the chat (a tap that landed on a card while the sidebar folded into
+      // the rail, on iPad): back to the chat first.
+      if (rail.hitTestable().evaluate().isEmpty && menu.hitTestable().evaluate().isEmpty && rootNav().canPop()) {
+        steps.add({'step': 'openDrawer: popped ${_routeName(rootNav())} back to the chat', 'ok': true});
+        rootNav().popUntil((r) => r.isFirst);
+        await frames(1200);
+        if (find.byType(SessionsDrawer).hitTestable().evaluate().isNotEmpty) return;
+      }
+      await tapAndSettle(rail.hitTestable().evaluate().isNotEmpty ? rail : menu);
       if (!await waitFor(find.byType(SessionsDrawer))) throw StateError('drawer did not open');
     }
 
@@ -616,6 +625,10 @@ Future<void> _smoke(WidgetTester tester, IntegrationTestWidgetsFlutterBinding bi
           }
         }
         if (table == null) throw _Skip('no wide markdown table in the first ${keys.take(12).length} conversations');
+        // Wide window (iPad): the sessions are a sidebar beside the chat, no swipe-out drawer.
+        if (find.byKey(const ValueKey('persistent-sidebar')).evaluate().isNotEmpty) {
+          throw const _Skip('sidebar layout: the sessions are a sidebar, not a swipe-out drawer');
+        }
         if (drawerOut()) throw StateError('drawer already out before the swipes');
         final rect = tester.getRect(find.byElementPredicate((e) => e is StatefulElement && e.state == table));
         final max = table.position.maxScrollExtent;
@@ -742,7 +755,7 @@ Future<void> _smoke(WidgetTester tester, IntegrationTestWidgetsFlutterBinding bi
     /// 设置 › 外观 › 字体 (the page must be on top): the row tapped, its sheet up.
     Future<void> openFontSheet() async {
       final tile = find.byType(FontEntryTile);
-      if (!await reveal(tile)) throw StateError('no 字体 row on 外观');
+      if (!await reveal(tile)) throw StateError('no 字体 row on the settings hub');
       // Mid-screen: at the top it sits under the page's floating title bar.
       await Scrollable.ensureVisible(tester.element(tile.first), alignment: 0.5);
       await frames(600);
@@ -760,7 +773,7 @@ Future<void> _smoke(WidgetTester tester, IntegrationTestWidgetsFlutterBinding bi
     await step('font-wenkai', () async {
       _fontRequests.clear();
       await home();
-      unawaited(rootNav().push(MaterialPageRoute<void>(builder: (_) => settingsPage(SettingsPageId.appearance))));
+      unawaited(rootNav().push(MaterialPageRoute<void>(builder: (_) => settingsPage(SettingsPageId.hub))));
       await frames(1500);
       await openFontSheet();
       await tapAndSettle(find.byKey(const ValueKey('font-wenkai')), 500);
@@ -810,7 +823,7 @@ Future<void> _smoke(WidgetTester tester, IntegrationTestWidgetsFlutterBinding bi
     }, shoot: false);
     await step('font-system', () async {
       await home();
-      unawaited(rootNav().push(MaterialPageRoute<void>(builder: (_) => settingsPage(SettingsPageId.appearance))));
+      unawaited(rootNav().push(MaterialPageRoute<void>(builder: (_) => settingsPage(SettingsPageId.hub))));
       await frames(1500);
       await openFontSheet();
       await tapAndSettle(find.byKey(const ValueKey('font-system')), 1500);
@@ -890,4 +903,15 @@ Future<void> _smoke(WidgetTester tester, IntegrationTestWidgetsFlutterBinding bi
     debugPrint('SMOKE steps=${steps.length} failed=${failed.length} errors=${errors.length} shots=$shot');
     if (failed.isNotEmpty) errors.add('failed steps: ${failed.join(', ')}');
   }
+}
+
+/// The top route's page type, for the report.
+String _routeName(NavigatorState nav) {
+  Route<dynamic>? top;
+  nav.popUntil((r) {
+    top = r;
+    return true;
+  });
+  final route = top;
+  return route is ModalRoute ? '${route.settings.name ?? route.runtimeType}' : '$route';
 }

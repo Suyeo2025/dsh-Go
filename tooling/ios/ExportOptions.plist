@@ -16,6 +16,8 @@
 	<dict>
 		<key>com.colex.dshgo</key>
 		<string>dg com.colex.dshgo</string>
+		<key>com.colex.dshgo.share</key>
+		<string>dg com.colex.dshgo.share</string>
 	</dict>
 	<key>uploadSymbols</key>
 	<true/>

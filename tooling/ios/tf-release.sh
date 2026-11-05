@@ -8,6 +8,11 @@
 # Options: --no-upload (archive + export only)   --validate (archive + export + altool --validate-app)
 #          --build-name X.Y.Z (default: pubspec version)
 #          --build-number N (default: yyyyMMddHHmm, local time)
+#          --share / --no-share: with or without the share extension (default: with it only when both
+#          App Store profiles carry the App Group group.com.colex.dshgo, which needs the developer
+#          portal; see README "Share extension signing"). Without it, this archive alone leaves the
+#          extension out (the project is edited for the archive and restored) and signs the app
+#          without the App Group entitlement; the target and its code stay as they are.
 # Steps: keychain -> profile.mjs -> flutter --config-only -> xcodebuild archive (manual signing via
 # Signing.xcconfig + --keychain) -> export -> altool upload -> testflight.mjs (wait for processing,
 # compliance, internal group, read back).
@@ -15,13 +20,15 @@ set -uo pipefail
 HERE=${0:A:h}
 source $HERE/env.sh
 
-UPLOAD=1; VALIDATE=0; BN=$(date +%Y%m%d%H%M); BNAME=""
+UPLOAD=1; VALIDATE=0; SHARE=auto; BN=$(date +%Y%m%d%H%M); BNAME=""
 while (( $# )); do
   case $1 in
     --no-upload) UPLOAD=0 ;;
     --validate) UPLOAD=0; VALIDATE=1 ;;
     --build-number) BN=$2; shift ;;
     --build-name) BNAME=$2; shift ;;
+    --share) SHARE=on ;;
+    --no-share) SHARE=off ;;
     *) echo "unknown arg $1" >&2; exit 2 ;;
   esac
   shift
@@ -35,7 +42,7 @@ step() { echo "--- $* $(date '+%F %T')"; }
 die() { echo "FAILED: $*"; echo "TF_RC=1"; exit 1; }
 
 {
-step "start build=$BN upload=$UPLOAD validate=$VALIDATE"
+step "start build=$BN upload=$UPLOAD validate=$VALIDATE share=$SHARE"
 
 step preflight
 # App Store validation (ITMS-90035) treats any bundled file starting with "#!" as unsigned script
@@ -55,7 +62,52 @@ security set-keychain-settings "$DG_KC"
 security find-identity -v -p codesigning "$DG_KC" | grep -q "Apple Distribution: .*($DG_TEAM)" || die "no Apple Distribution identity in $DG_KC"
 
 step profile
-(cd $HERE && node profile.mjs --store) || die "profile"
+PROFILE_OUT=$(cd $HERE && node profile.mjs --store) || { print -r -- "$PROFILE_OUT"; die "profile"; }
+print -r -- "$PROFILE_OUT"
+# The share extension hands shares over through the App Group; both App Store profiles must carry it.
+GROUP=group.com.colex.dshgo
+grouped() { print -r -- "$PROFILE_OUT" | grep -q "^APP_GROUPS $1 .*$GROUP"; }
+if grouped "dg $DG_BUNDLE_ID" && grouped "dg $DG_BUNDLE_ID.share"; then HAVE_GROUP=1; else HAVE_GROUP=0; fi
+if [[ $SHARE == auto ]]; then SHARE=$( (( HAVE_GROUP )) && echo on || echo off ); fi
+[[ $SHARE == on ]] && (( ! HAVE_GROUP )) && die "--share: the App Store profiles don't carry $GROUP (README: Share extension signing)"
+echo "share extension: $SHARE (profiles carry $GROUP: $HAVE_GROUP)"
+
+XCCONFIG=$HERE/Signing.xcconfig
+EXPORT_OPTIONS=$HERE/ExportOptions.plist
+if [[ $SHARE == off ]]; then
+  # This archive only: no extension embedded or built, the app without the App Group entitlement.
+  PBX=$DG_APP/ios/Runner.xcodeproj/project.pbxproj
+  cp $PBX $DG_BUILD/project.pbxproj.share-$BN
+  trap 'cp $DG_BUILD/project.pbxproj.share-$BN $PBX && rm -f $DG_BUILD/project.pbxproj.share-$BN' EXIT
+  python3 - $PBX <<'PY' || die "no-share project edit"
+import re, sys
+p = sys.argv[1]
+s = open(p, encoding='utf-8').read()
+embed = re.search(r'\t+(\w+) /\* ShareExtension\.appex in Embed Foundation Extensions \*/,\n', s)
+target = re.search(r'(\w+) /\* ShareExtension \*/ = \{\n\t+isa = PBXNativeTarget;', s)
+assert embed and target, 'share extension not found in the project'
+s = s.replace(embed.group(0), '', 1)
+# The Runner dependency whose proxy points at the extension target.
+for dep in re.finditer(r'(\w+) /\* PBXTargetDependency \*/ = \{[^}]*?target = ' + target.group(1), s):
+    s = re.sub(r'\t+' + dep.group(1) + r' /\* PBXTargetDependency \*/,\n', '', s, count=1)
+open(p, 'w', encoding='utf-8').write(s)
+PY
+  grep -q 'ShareExtension.appex in Embed Foundation Extensions \*/,' $PBX && die "extension still embedded"
+  NOSHARE_ENT=$DG_BUILD/Runner-noshare.entitlements
+  cp $DG_APP/ios/Runner/Runner-Release.entitlements $NOSHARE_ENT
+  # (plutil -remove would read the dots of the key as a key path.)
+  python3 -c "import plistlib,sys; p=sys.argv[1]; d=plistlib.load(open(p,'rb')); d.pop('com.apple.security.application-groups'); plistlib.dump(d,open(p,'wb'))" $NOSHARE_ENT \
+    || die "no-share entitlements"
+  XCCONFIG=$DG_BUILD/Signing-noshare.xcconfig
+  {
+    echo "#include \"$HERE/Signing.xcconfig\""
+    echo "DG_ENT_Runner = $NOSHARE_ENT"
+    echo 'CODE_SIGN_ENTITLEMENTS = $(DG_ENT_$(TARGET_NAME))'
+  } > $XCCONFIG
+  EXPORT_OPTIONS=$DG_BUILD/ExportOptions-noshare.plist
+  cp $HERE/ExportOptions.plist $EXPORT_OPTIONS
+  python3 -c "import plistlib,sys; p=sys.argv[1]; d=plistlib.load(open(p,'rb')); d['provisioningProfiles'].pop(sys.argv[2],None); plistlib.dump(d,open(p,'wb'))" $EXPORT_OPTIONS $DG_BUNDLE_ID.share
+fi
 
 step "flutter config-only"
 cd $DG_APP || die "no $DG_APP"
@@ -71,13 +123,15 @@ cd $DG_APP/ios
 xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Release \
   -destination 'generic/platform=iOS' -archivePath "$A" \
   -clonedSourcePackagesDirPath $DG_APP/build/ios/SourcePackages \
-  -xcconfig $HERE/Signing.xcconfig OTHER_CODE_SIGN_FLAGS="--keychain $DG_KC" \
+  -xcconfig $XCCONFIG OTHER_CODE_SIGN_FLAGS="--keychain $DG_KC" \
   archive || die "archive"
 plutil -p "$A/Products/Applications/Runner.app/Info.plist" | grep -E 'CFBundle(Identifier|ShortVersionString|Version)"'
 codesign -dvv "$A/Products/Applications/Runner.app" 2>&1 | grep -E '^(Authority|TeamIdentifier)=' | head -2
+echo "plugins: $(ls $A/Products/Applications/Runner.app/PlugIns 2>/dev/null | tr '\n' ' ')"
+codesign -d --entitlements - --xml "$A/Products/Applications/Runner.app" 2>/dev/null | plutil -p - | grep -E 'aps-environment|application-groups' -A1
 
 step "export -> $E"
-xcodebuild -exportArchive -archivePath "$A" -exportOptionsPlist $HERE/ExportOptions.plist -exportPath "$E" || die "export"
+xcodebuild -exportArchive -archivePath "$A" -exportOptionsPlist $EXPORT_OPTIONS -exportPath "$E" || die "export"
 IPA=$(ls $E/*.ipa | head -1)
 [[ -f $IPA ]] || die "no ipa"
 ls -la $E

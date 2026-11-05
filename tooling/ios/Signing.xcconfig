@@ -5,4 +5,6 @@ CODE_SIGN_STYLE = Manual
 CODE_SIGN_IDENTITY = Apple Distribution
 DEVELOPMENT_TEAM = 4JV8BHB2KW
 DG_PROFILE_Runner = dg com.colex.dshgo
+// The share extension (app/ios/ShareExtension): its own App ID and profile, App Group group.com.colex.dshgo.
+DG_PROFILE_ShareExtension = dg com.colex.dshgo.share
 PROVISIONING_PROFILE_SPECIFIER = $(DG_PROFILE_$(TARGET_NAME))

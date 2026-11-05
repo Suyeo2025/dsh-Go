@@ -39,6 +39,26 @@ import UserNotifications
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "DshPushChannel") {
       PushChannel.shared.attach(messenger: registrar.messenger())
     }
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "DshLinksChannel") {
+      LinksChannel.shared.attach(messenger: registrar.messenger())
+    }
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "DshShareChannel") {
+      ShareChannel.shared.attach(messenger: registrar.messenger())
+    }
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "DshIslandsChannel") {
+      IslandsChannel.attach(messenger: registrar.messenger())
+    }
+  }
+
+  // MARK: Links (dsh/links)
+
+  /// Fallback for a URL that reaches the app delegate (the scene delegate takes them first;
+  /// LinksChannel counts one URL reported twice once).
+  override func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:])
+    -> Bool
+  {
+    if LinksChannel.shared.take(url) { return true }
+    return super.application(app, open: url, options: options)
   }
 
   // MARK: Remote notifications (dsh/push)

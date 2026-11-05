@@ -805,7 +805,7 @@ class _Tour {
     });
     await part('settings-font', () async {
       await home();
-      unawaited(rootNav().push(MaterialPageRoute<void>(builder: (_) => settingsPage(SettingsPageId.appearance))));
+      unawaited(rootNav().push(MaterialPageRoute<void>(builder: (_) => settingsPage(SettingsPageId.hub))));
       await frames(1500);
       final tile = find.byType(FontEntryTile);
       if (!await reveal(tile)) throw StateError('no 字体 row');
