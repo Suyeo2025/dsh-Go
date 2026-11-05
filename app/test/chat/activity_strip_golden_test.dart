@@ -243,7 +243,7 @@ void main() {
       }
       expect(whale().shownForm, 2);
       expect(whale().rate, moreOrLessEquals(0.3, epsilon: 0.01));
-      expect(tester.binding.hasScheduledFrame, isTrue, reason: 'ticking');
+      expect(whale().stepping, isTrue, reason: 'still stepping');
     });
 
     testWidgets('still: the still frame, no ticker', (tester) async {

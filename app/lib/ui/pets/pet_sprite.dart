@@ -55,7 +55,11 @@ class PetSprite extends StatefulWidget {
     this.bundle,
     this.still = false,
     this.paused = false,
+    this.rest = false,
   });
+
+  /// How long a looping animation plays with [rest] on before it settles.
+  static const restAfter = Duration(seconds: 8);
 
   final PetPack pack;
   final PetAnimation anim;
@@ -80,6 +84,11 @@ class PetSprite extends StatefulWidget {
   /// Unlike [still], this does not reset the frame or restart the animation.
   final bool paused;
 
+  /// A quiet loop (idle, asleep): after [restAfter] of play it finishes the
+  /// pass and holds its first frame, without timers, so a pet left alone
+  /// asks for no frames. A new animation, or [rest] turning off, plays again.
+  final bool rest;
+
   @override
   State<PetSprite> createState() => PetSpriteState();
 }
@@ -103,9 +112,17 @@ class PetSpriteState extends State<PetSprite> with WidgetsBindingObserver {
   bool _ended = false;
   int _generation = 0;
 
+  /// Play time of the current animation, summed frame by frame.
+  int _playedMs = 0;
+  bool _resting = false;
+
   /// Index into the animation's frames now showing.
   @visibleForTesting
   int get frame => _frame;
+
+  /// Holding a still frame after [PetSprite.restAfter] ([PetSprite.rest]).
+  @visibleForTesting
+  bool get resting => _resting;
 
   /// The animation on screen (null until its sheet is decoded).
   @visibleForTesting
@@ -154,9 +171,17 @@ class PetSpriteState extends State<PetSprite> with WidgetsBindingObserver {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.anim != widget.anim || oldWidget.pack != widget.pack || oldWidget.still != widget.still) {
       _start();
-    } else if (oldWidget.paused != widget.paused) {
-      _pauseChanged();
+    } else {
+      if (oldWidget.paused != widget.paused) _pauseChanged();
+      if (!widget.rest && _resting) _wake();
     }
+  }
+
+  /// Plays again from a rest.
+  void _wake() {
+    _resting = false;
+    _playedMs = 0;
+    _schedule();
   }
 
   @override
@@ -195,6 +220,8 @@ class PetSpriteState extends State<PetSprite> with WidgetsBindingObserver {
     _image = image;
     _shown = anim;
     _frame = 0;
+    _playedMs = 0;
+    _resting = false;
     _repaint.value++;
     _schedule();
     widget.onShown?.call();
@@ -206,7 +233,7 @@ class PetSpriteState extends State<PetSprite> with WidgetsBindingObserver {
   void _schedule() {
     _cancelTimer();
     final anim = _shown;
-    if (anim == null || anim != widget.anim || _ended) return;
+    if (anim == null || anim != widget.anim || _ended || _resting) return;
     if (_still) {
       if (_frame != 0) {
         _frame = 0;
@@ -264,12 +291,15 @@ class PetSpriteState extends State<PetSprite> with WidgetsBindingObserver {
     final anim = _shown;
     if (anim == null || !mounted) return;
     final previousCell = anim.frames[_frame].i;
+    _playedMs += anim.frames[_frame].ms;
     if (_frame + 1 >= anim.frames.length) {
       if (!anim.loop) {
         _end();
         return;
       }
       _frame = 0;
+      // A quiet loop that has played long enough settles at the end of a pass.
+      if (widget.rest && _playedMs >= PetSprite.restAfter.inMilliseconds) _resting = true;
     } else {
       _frame++;
     }
