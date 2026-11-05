@@ -1898,6 +1898,26 @@
   "brandOppoOs": "OPPO / 一加 / realme（ColorOS）",
   "brandSamsungOs": "三星（One UI）",
   "brandZhihu": "知乎",
+  "busySendTitle": "生成中发送",
+  "busySendKeywords": "生成中发送,插话,排队,发送方式,AI 工作时发送,busyEnter",
+  "busySendFollowHost": "跟随主机",
+  "busySendFollowHostHint": "与网页版「AI 工作时发送」一致；{host}",
+  "@busySendFollowHostHint": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "busySendAlwaysSteer": "总是插话",
+  "busySendAlwaysSteerHint": "不打断，AI 下一步会看到",
+  "busySendAlwaysQueue": "总是排队",
+  "busySendAlwaysQueueHint": "等本轮结束后再发",
+  "busySendHostQueue": "主机当前：排队",
+  "busySendHostSteer": "主机当前：插话",
+  "busySendHostUnknown": "主机未提供，按插话",
+  "busySendDefaultMark": " · 默认",
+  "busySendGeneratingQueueHint": "生成中 · 发送将排队，长按发送键可改",
   "catalogCurrentChat": "当前对话",
   "catalogChatDetails": "对话详情",
   "catalogChatDetailsSummary": "轨迹、改动与进度",
@@ -2934,6 +2954,10 @@
   "directSignInBadReply": "登录返回的信息不对，请确认登录地址",
   "directManualEntry": "手动填写网址和 token",
   "directOnboardingGoogleHint": "服务器用 Google 账号保护：登录后自动完成连接",
+  "drawerFixesCopyId": "复制会话 ID",
+  "drawerFixesIdCopied": "已复制会话 ID",
+  "drawerFixesArchivedTitle": "已归档的对话",
+  "drawerFixesNoArchived": "还没有归档过的对话",
   "engineNewChatDefaultsLast": "新对话默认（上次选择）",
   "engineNewChatDefaultsFixed": "新对话默认（固定）",
   "engineNewChatUseLast": "沿用上次",
@@ -4583,6 +4607,10 @@
   "searchKwFont": "字体,楷体,文楷,霞鹜,落霞,霞鹜文楷,字形,换字体",
   "hostDetailsConnectionType": "连接方式",
   "hostDetailsSshNetworkHint": "通过 SSH 隧道连接。此连接不提供 LAN / P2P 路径检测或延迟测量。",
+  "hostParityPresetTitle": "Agent 预设",
+  "hostParityPresetDefault": "默认",
+  "hostParityPresetBroken": "不可用",
+  "hostParityDeepSeekKeyTitle": "DeepSeek API Key",
   "hubSessionDetails": "对话详情",
   "hubTerminal": "终端",
   "hubSessionNoTurns": "还没有完整的一轮",
@@ -4921,6 +4949,26 @@
   "hubQuickPanelSwipeHint": "在对话里从右向左滑。代码块、表格这些能横向滚动的内容不受影响。",
   "hubQuickPanelItems": "显示的入口",
   "hubQuickPanelItemsNone": "没有选择，左滑不会打开",
+  "inlineCodeOpenFile": "打开文件 {path}",
+  "@inlineCodeOpenFile": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "ipadDiffSideBySide": "左右对比",
+  "ipadDiffUnified": "统一视图",
+  "ipadShortcutsTitle": "键盘快捷键",
+  "ipadShortcutNewChat": "新对话",
+  "ipadShortcutSearch": "搜索对话",
+  "ipadShortcutPrevSession": "上一条对话",
+  "ipadShortcutNextSession": "下一条对话",
+  "ipadShortcutStop": "停止生成",
+  "ipadShortcutSettings": "设置",
+  "ipadShortcutToggleList": "折叠 / 展开对话列表",
+  "ipadShortcutToggleDetails": "折叠 / 展开对话详情",
+  "ipadShortcutHelp": "快捷键速查",
   "launchScreenTitle": "启动画面",
   "launchDefault": "默认",
   "launchCustom": "自定义",
@@ -8975,6 +9023,8 @@
   "shellDeleteProtocolError": "删除结果未确认，请刷新对话列表后再操作。",
   "shellDeleteNotAttempted": "未执行，请核对对话列表后重试。",
   "shellDeleteFailed": "主机无法确认删除结果，请刷新后再决定是否重试。",
+  "settingsIosHostLacks": "主机未提供",
+  "settingsIosNotInstalled": "未安装",
   "setupAppearanceTitle": "选择外观",
   "setupAppearanceMessage": "随时可以在设置里更改",
   "setupLightMode": "轻量模式",

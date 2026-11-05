@@ -46,7 +46,8 @@ class IslandHost extends ChangeNotifier {
   IslandDevice get device => _device;
   IslandDevice _device = IslandDevice.unknown;
 
-  /// The Kotlin side answered (Android with the islands plugin).
+  /// The native side answered `device` (Android's islands plugin, iOS's
+  /// IslandsChannel); unknown (no answer) keeps islands off.
   bool get supported => _device.totalMem > 0;
 
   /// Overrides the tier (the PoC opens three on a 2 GB emulator).
@@ -90,7 +91,7 @@ class IslandHost extends ChangeNotifier {
   /// The live island for [spec], or a new one (closing others the policy
   /// ranks lower), already counted as shown by the caller's view (release it
   /// with [detachView]). Null when it can't be had: no room, no recipe, no
-  /// way to it, the renderer lost, not on Android.
+  /// way to it, the renderer lost, no native side.
   Future<IslandHandle?> acquire(
     IslandSpec spec, {
     required Uri url,
@@ -292,7 +293,11 @@ final islandHostProvider = Provider<IslandHost>((ref) {
 /// rebuilt whenever the pool changes.
 final liveIslandBudgetProvider = Provider<IslandBudget>((ref) {
   final host = ref.watch(islandHostProvider);
-  void changed() => ref.invalidateSelf();
+  // Not at once: the pool changes while an island's view is torn down (the
+  // tree is locked then), and invalidating marks ProviderScope for a build.
+  void changed() => scheduleMicrotask(() {
+    if (ref.mounted) ref.invalidateSelf();
+  });
   host.addListener(changed);
   ref.onDispose(() => host.removeListener(changed));
   final active = ref.watch(activeHostProvider);

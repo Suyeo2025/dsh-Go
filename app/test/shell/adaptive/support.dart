@@ -22,6 +22,7 @@ import 'package:dsh_app/state/workspaces_state.dart';
 import 'package:dsh_app/ui/chat/chat_screen.dart';
 import 'package:dsh_app/ui/chat/empty_state.dart' show chatClock;
 import 'package:dsh_app/ui/chat/widgets/live_clock.dart' show runClock;
+import 'package:dsh_app/ui/shell/adaptive/adaptive_layout.dart' show LayoutSide;
 import 'package:dsh_app/ui/shell/home_shell.dart';
 import 'package:dsh_client/dsh_client.dart';
 import 'package:flutter/material.dart';
@@ -48,7 +49,8 @@ void useWindow(WidgetTester tester, Size size, {double left = 0, double right = 
   addTearDown(tester.view.reset);
 }
 
-/// Fixed choices; toggles change them for the test's run only.
+/// Fixed choices; toggles change them for the test's run only (unfolding a
+/// side prefers it, as the real controller does).
 class FixedLayoutPrefs extends LayoutPrefsController {
   FixedLayoutPrefs(this.initial);
 
@@ -58,10 +60,12 @@ class FixedLayoutPrefs extends LayoutPrefsController {
   LayoutPrefs build() => initial;
 
   @override
-  Future<void> setPanelOpen(bool open) async => state = state.copyWith(panelOpen: open);
+  Future<void> setPanelOpen(bool open) async =>
+      state = state.copyWith(panelOpen: open, prefer: open ? LayoutSide.panel : null);
 
   @override
-  Future<void> setSidebarOpen(bool open) async => state = state.copyWith(sidebarOpen: open);
+  Future<void> setSidebarOpen(bool open) async =>
+      state = state.copyWith(sidebarOpen: open, prefer: open ? LayoutSide.sidebar : null);
 
   @override
   Future<void> togglePanel() => setPanelOpen(!state.panelOpen);
@@ -129,9 +133,14 @@ const sampleUsage = SessionUsage(
   turns: 2,
 );
 
+/// The panel opened last: both columns asked for, the panel shows and the
+/// sidebar folds where the two don't fit (layout_precedence_test.dart has
+/// the first-launch default).
+const panelFirst = LayoutPrefs(loaded: true, prefer: LayoutSide.panel);
+
 List<Override> homeOverrides({
   String? session = 's1',
-  LayoutPrefs prefs = const LayoutPrefs(loaded: true),
+  LayoutPrefs prefs = panelFirst,
   ChatState Function(String id)? chat,
 }) => [
   activeConnectionProvider.overrideWithValue(AsyncData<HostConnection?>(fakeConnection)),
@@ -162,7 +171,7 @@ List<Override> homeOverrides({
 Widget homeApp({
   Brightness brightness = Brightness.light,
   String? session = 's1',
-  LayoutPrefs prefs = const LayoutPrefs(loaded: true),
+  LayoutPrefs prefs = panelFirst,
   ChatState Function(String id)? chat,
 }) => testApp(
   HomeShell(chatBuilder: (openDrawer) => ChatScreen(onOpenDrawer: openDrawer, backdrop: false)),

@@ -5,19 +5,34 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../platform/platform_caps.dart';
 import '../ui/shell/drawer/drawer_destination.dart';
 
 class QuickPanelPrefs {
-  const QuickPanelPrefs({this.swipe = true, this.items = defaultItems});
+  /// [items] null: what an install that never chose anything lists
+  /// ([defaultItems]).
+  // ignore: prefer_initializing_formals
+  const QuickPanelPrefs({this.swipe = true, List<DrawerDestination>? items}) : _items = items;
 
-  /// What an install that never chose anything lists.
-  static const defaultItems = [DrawerDestination.plugins, DrawerDestination.engine, DrawerDestination.settings];
+  /// What an install that never chose anything lists. A remote-only build
+  /// (iOS) has no engine page to list, so it gets its hosts and features
+  /// instead; Android's list is unchanged.
+  static List<DrawerDestination> get defaultItems => isRemoteOnlyPlatform
+      ? const [
+          DrawerDestination.remote,
+          DrawerDestination.plugins,
+          DrawerDestination.features,
+          DrawerDestination.settings,
+        ]
+      : const [DrawerDestination.plugins, DrawerDestination.engine, DrawerDestination.settings];
 
   /// A left swipe over the chat opens the panel.
   final bool swipe;
 
+  final List<DrawerDestination>? _items;
+
   /// What the panel lists, in order.
-  final List<DrawerDestination> items;
+  List<DrawerDestination> get items => _items ?? defaultItems;
 
   /// [items] this build has ([DrawerDestination.available]).
   List<DrawerDestination> get shown => [
@@ -29,7 +44,7 @@ class QuickPanelPrefs {
   bool get available => swipe && shown.isNotEmpty;
 
   QuickPanelPrefs copyWith({bool? swipe, List<DrawerDestination>? items}) =>
-      QuickPanelPrefs(swipe: swipe ?? this.swipe, items: items ?? this.items);
+      QuickPanelPrefs(swipe: swipe ?? this.swipe, items: items ?? _items);
 }
 
 class QuickPanelController extends Notifier<QuickPanelPrefs> {
@@ -52,9 +67,7 @@ class QuickPanelController extends Notifier<QuickPanelPrefs> {
       state = QuickPanelPrefs(
         swipe: prefs.getBool(swipeKey) ?? true,
         // An id no destination answers to (one that was removed) is dropped.
-        items: stored == null
-            ? QuickPanelPrefs.defaultItems
-            : {for (final id in stored) ?DrawerDestination.values.asNameMap()[id]}.toList(),
+        items: stored == null ? null : {for (final id in stored) ?DrawerDestination.values.asNameMap()[id]}.toList(),
       );
     } catch (_) {
       // No preferences backend: the defaults, for this run.

@@ -77,6 +77,7 @@ AdaptiveLayout _layoutFor(WidgetTester tester, {bool panelOpen = true, bool side
     hasSession: session,
     sidebarOpen: sidebarOpen,
     panelOpen: panelOpen,
+    prefer: LayoutSide.panel,
   );
 }
 
@@ -300,10 +301,11 @@ void main() {
     var open = true;
     await _pump(tester, () => _layoutFor(tester, panelOpen: open));
     AdaptiveChrome chrome() => tester.widget<AdaptiveChrome>(find.byType(AdaptiveChrome));
-    // Rail: its own ≡ key, the header's goes; the panel shows.
+    // Rail: its own ≡ key, the header's goes; the panel shows. ≡ unfolds
+    // the sidebar (folding the panel: no room for both).
     expect(chrome().showsMenuKey, isFalse);
     expect(chrome().showsPanelKey, isFalse);
-    expect(chrome().menuTooltip, '对话列表');
+    expect(chrome().menuTooltip, '展开对话列表');
 
     open = false;
     tester.state<_HostState>(find.byType(_Host)).rebuild();

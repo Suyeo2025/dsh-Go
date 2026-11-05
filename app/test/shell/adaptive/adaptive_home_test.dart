@@ -34,7 +34,7 @@ Future<void> _pumpHome(
   double right = 0,
   double left = 0,
   Brightness brightness = Brightness.light,
-  LayoutPrefs prefs = const LayoutPrefs(loaded: true),
+  LayoutPrefs prefs = panelFirst,
   String? session = 's1',
 }) async {
   useWindow(tester, size, left: left, right: right);
@@ -163,12 +163,18 @@ void main() {
       expect(find.byType(SessionsDrawer), findsNothing);
     });
 
-    testWidgets('no room for the sidebar: ≡ on the rail pulls the drawer', (tester) async {
+    testWidgets('no room for both: ≡ on the rail unfolds the sidebar, folding the panel', (tester) async {
       await _pumpHome(tester);
       await tester.tap(find.byKey(const ValueKey('rail-menu')));
       await pumpFrames(tester, 8);
-      expect(find.byType(SessionsDrawer), findsOneWidget);
-      expect(tester.getRect(find.byType(SessionsDrawer)).left, _near(0));
+      expect(find.byKey(const ValueKey('persistent-sidebar')), findsOneWidget);
+      expect(tester.getRect(find.byKey(const ValueKey('persistent-sidebar'))).left, _near(0));
+      expect(find.byKey(const ValueKey('panel-collapse')), findsNothing);
+      // The header's key unfolds the panel again, folding the sidebar.
+      await tester.tap(find.byKey(const ValueKey('chat-panel-key')));
+      await pumpFrames(tester, 8);
+      expect(find.byKey(const ValueKey('persistent-sidebar')), findsNothing);
+      expect(find.byKey(const ValueKey('panel-collapse')), findsOneWidget);
     });
 
     testWidgets('a navigation bar on the right: the panel keeps clear', (tester) async {

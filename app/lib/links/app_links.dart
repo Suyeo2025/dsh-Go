@@ -1,7 +1,8 @@
 // Incoming app links (`dshgo://…`, the https landing
 // links once App Links are verified) and files opened with / shared to the
 // app, routed to the feature that owns them. Native side:
-// android/.../links/LinksPlugin.kt (MethodChannel `dsh/links`).
+// android/.../links/LinksPlugin.kt (MethodChannel `dsh/links`); on iOS
+// ios/Runner/LinksChannel.swift (fed by SceneDelegate.swift).
 //
 // ── For features ────────────────────────────────────────────────────────────
 //

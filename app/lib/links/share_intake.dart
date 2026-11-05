@@ -3,6 +3,8 @@
 // android/.../share/ShareActivity.kt (the share-sheet target) and
 // share/SharePlugin.kt (MethodChannel `dsh/share`), which copies the files
 // into the app cache first (photos scaled like the composer's own picker).
+// On iOS: ios/ShareExtension (the share-sheet target, writes to the App
+// Group inbox) and ios/Runner/ShareChannel.swift (MethodChannel `dsh/share`).
 //
 // Where a share goes is decided in lib/ui/shell/system_entry_host.dart: a
 // lone `.dshgo` file or a share link to the share-code importer, a hosted

@@ -238,6 +238,7 @@ final hostLinkProvider = Provider.autoDispose.family<HostLink?, HostRef>((ref, h
         saveCookie: (cookie) => hosts.saveDirectCookie(host.id, cookie),
         clientFactory: ref.read(directClientFactoryProvider),
         kicks: ref.read(networkKicksProvider),
+        awayFor: () => appSuspension.lastAway,
       );
       ref.listen(hostsProvider.select((s) => s.directById(host.id)), (_, next) {
         if (next != null) link.updateConfig(next);

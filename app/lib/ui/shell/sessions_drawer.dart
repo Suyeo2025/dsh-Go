@@ -27,6 +27,7 @@ import '../bots/bots_page.dart' show BotsPage, UnreadBadge;
 import '../chat/media/media_format.dart' show chatTitleShown;
 import '../common/app_dialog.dart';
 import '../common/app_sheet.dart';
+import '../common/brief_notice.dart';
 import '../common/empty_view.dart';
 import '../common/pressable.dart';
 import '../common/smooth_size.dart';
@@ -566,6 +567,11 @@ class _SessionList extends ConsumerWidget {
                       onTap: () => Navigator.pop(sheet, 'share'),
                     ),
                     ListTile(
+                      leading: const Icon(AppIcons.copy),
+                      title: Text(context.l10n.drawerFixesCopyId),
+                      onTap: () => Navigator.pop(sheet, 'copy-id'),
+                    ),
+                    ListTile(
                       leading: const Icon(AppIcons.multiSelect),
                       title: Text(context.l10n.shellMultiSelect),
                       onTap: () => Navigator.pop(sheet, 'select'),
@@ -606,6 +612,10 @@ class _SessionList extends ConsumerWidget {
         }
       case 'share':
         await shareConversation(context, s.sessionId);
+      case 'copy-id':
+        // Local only: no connection needed.
+        await Clipboard.setData(ClipboardData(text: s.sessionId));
+        messenger?.showBriefNotice(appL10n.drawerFixesIdCopied);
       case 'folder':
         await moveToFolderFlow(context, ref, [s.sessionId]);
       case 'select':

@@ -9,6 +9,7 @@ import 'package:dsh_app/state/balance_state.dart';
 import 'package:dsh_app/state/chat_state.dart';
 import 'package:dsh_app/state/commands_state.dart';
 import 'package:dsh_app/state/connection_state.dart';
+import 'package:dsh_app/state/features_state.dart' show agentPresetsProvider;
 import 'package:dsh_app/state/models_state.dart';
 import 'package:dsh_app/state/sessions_state.dart';
 import 'package:dsh_app/state/settings_state.dart';
@@ -422,6 +423,8 @@ class ChatHarness {
       return balance;
     }),
     hostCommandsProvider.overrideWith((ref, sessionId) async => testHostCommands),
+    // The empty state's preset chip reads the Host's presets; none here.
+    agentPresetsProvider.overrideWith((ref) async => null),
     sessionUsageProvider.overrideWith2((id) => FakeUsage(id, usage[id] ?? SessionUsage.empty)),
     sessionsProvider.overrideWith(() => sessions),
     currentSessionProvider.overrideWith(() => FixedSession(session)),

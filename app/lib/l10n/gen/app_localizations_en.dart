@@ -3038,6 +3038,47 @@ class L10nEn extends L10n {
   String get brandZhihu => 'Zhihu';
 
   @override
+  String get busySendTitle => 'Send while generating';
+
+  @override
+  String get busySendKeywords => 'send while generating,steer,queue,send mode,send while AI is working,busyEnter';
+
+  @override
+  String get busySendFollowHost => 'Follow host';
+
+  @override
+  String busySendFollowHostHint(String host) {
+    return 'Same as the web app\'s “Send while AI is working”; $host';
+  }
+
+  @override
+  String get busySendAlwaysSteer => 'Always steer';
+
+  @override
+  String get busySendAlwaysSteerHint => 'The AI sees it next step, without interrupting';
+
+  @override
+  String get busySendAlwaysQueue => 'Always queue';
+
+  @override
+  String get busySendAlwaysQueueHint => 'Sent after this turn ends';
+
+  @override
+  String get busySendHostQueue => 'host: queue';
+
+  @override
+  String get busySendHostSteer => 'host: steer';
+
+  @override
+  String get busySendHostUnknown => 'host has none, so steer';
+
+  @override
+  String get busySendDefaultMark => ' · default';
+
+  @override
+  String get busySendGeneratingQueueHint => 'Generating · Send queues; hold Send for other options';
+
+  @override
   String get catalogCurrentChat => 'Current chat';
 
   @override
@@ -4909,6 +4950,18 @@ class L10nEn extends L10n {
 
   @override
   String get directOnboardingGoogleHint => 'For a server behind a Google sign-in: sign in and you’re connected';
+
+  @override
+  String get drawerFixesCopyId => 'Copy chat ID';
+
+  @override
+  String get drawerFixesIdCopied => 'Chat ID copied';
+
+  @override
+  String get drawerFixesArchivedTitle => 'Archived chats';
+
+  @override
+  String get drawerFixesNoArchived => 'No archived chats yet';
 
   @override
   String get engineNewChatDefaultsLast => 'New chat defaults (last choice)';
@@ -7497,6 +7550,18 @@ class L10nEn extends L10n {
       'Uses an SSH tunnel. LAN / P2P route inspection and latency measurements are not available for this connection.';
 
   @override
+  String get hostParityPresetTitle => 'Agent preset';
+
+  @override
+  String get hostParityPresetDefault => 'Default';
+
+  @override
+  String get hostParityPresetBroken => 'Unavailable';
+
+  @override
+  String get hostParityDeepSeekKeyTitle => 'DeepSeek API key';
+
+  @override
   String get hubSessionDetails => 'Chat details';
 
   @override
@@ -8083,6 +8148,47 @@ class L10nEn extends L10n {
 
   @override
   String get hubQuickPanelItemsNone => 'Nothing chosen: a left swipe won\'t open it';
+
+  @override
+  String inlineCodeOpenFile(String path) {
+    return 'Open file $path';
+  }
+
+  @override
+  String get ipadDiffSideBySide => 'Side by side';
+
+  @override
+  String get ipadDiffUnified => 'Unified view';
+
+  @override
+  String get ipadShortcutsTitle => 'Keyboard shortcuts';
+
+  @override
+  String get ipadShortcutNewChat => 'New chat';
+
+  @override
+  String get ipadShortcutSearch => 'Search chats';
+
+  @override
+  String get ipadShortcutPrevSession => 'Previous chat';
+
+  @override
+  String get ipadShortcutNextSession => 'Next chat';
+
+  @override
+  String get ipadShortcutStop => 'Stop generating';
+
+  @override
+  String get ipadShortcutSettings => 'Settings';
+
+  @override
+  String get ipadShortcutToggleList => 'Show / hide the chat list';
+
+  @override
+  String get ipadShortcutToggleDetails => 'Show / hide chat details';
+
+  @override
+  String get ipadShortcutHelp => 'Keyboard shortcuts';
 
   @override
   String get launchScreenTitle => 'Launch screen';
@@ -15120,6 +15226,12 @@ class L10nEn extends L10n {
 
   @override
   String get shellDeleteFailed => 'The host could not confirm deletion. Refresh before retrying.';
+
+  @override
+  String get settingsIosHostLacks => 'Not on this host';
+
+  @override
+  String get settingsIosNotInstalled => 'Not installed';
 
   @override
   String get setupAppearanceTitle => 'Choose a look';

@@ -1,0 +1,14 @@
+{
+  "ipadDiffSideBySide": "Side by side",
+  "ipadDiffUnified": "Unified view",
+  "ipadShortcutsTitle": "Keyboard shortcuts",
+  "ipadShortcutNewChat": "New chat",
+  "ipadShortcutSearch": "Search chats",
+  "ipadShortcutPrevSession": "Previous chat",
+  "ipadShortcutNextSession": "Next chat",
+  "ipadShortcutStop": "Stop generating",
+  "ipadShortcutSettings": "Settings",
+  "ipadShortcutToggleList": "Show / hide the chat list",
+  "ipadShortcutToggleDetails": "Show / hide chat details",
+  "ipadShortcutHelp": "Keyboard shortcuts"
+}

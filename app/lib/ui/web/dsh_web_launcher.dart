@@ -91,6 +91,45 @@ class DshWebOpenScope extends InheritedWidget {
   bool updateShouldNotify(DshWebOpenScope oldWidget) => false;
 }
 
+/// The page that shows the active host's official DSH Web, landing on
+/// [target]: the local engine's, an SSH host's forward or a direct host's own
+/// URL. When the host has none right now ([NoDshWeb]) a SnackBar says why and
+/// this returns null.
+Widget? dshWebPage(BuildContext context, WidgetRef ref, {DshWebTarget target = const DshWebTarget()}) {
+  // A plugin's entry id is no name its card has: name its bundle.
+  if (target.pluginItem.isNotEmpty) target = target.withPluginNames(ref.read(installedPluginsProvider).value);
+  switch (ref.read(dshWebAccessProvider)) {
+    case LocalDshWeb():
+      return LocalWebScreen(target: target);
+    case SshDshWeb(:final url, :final hostName):
+      return WebViewPage(
+        url: url,
+        title: context.l10n.webTitle,
+        subtitle: hostName,
+        externalDisabledReason: context.l10n.webSshAppOnly,
+        // Android suspends the page in the background and its socket drops.
+        reloadAfterBackground: const Duration(seconds: 60),
+        dshWeb: true,
+        phoneLayout: ref.read(settingsProvider).webPhoneLayout,
+        openTarget: target,
+      );
+    case DirectDshWeb(:final url, :final hostName):
+      return WebViewPage(
+        url: url,
+        title: context.l10n.webTitle,
+        subtitle: hostName,
+        externalDisabledReason: context.l10n.directWebAppOnly,
+        reloadAfterBackground: const Duration(seconds: 60),
+        dshWeb: true,
+        phoneLayout: ref.read(settingsProvider).webPhoneLayout,
+        openTarget: target,
+      );
+    case NoDshWeb(:final reason):
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(reason)));
+      return null;
+  }
+}
+
 /// Opens the active host's official DSH Web, landing on [target]. In
 /// 网页模式 the home page itself goes there (no second page on top). Inside
 /// a [DshWebOpenScope] the page around decides.
@@ -105,36 +144,7 @@ void openDshWeb(BuildContext context, WidgetRef ref, {DshWebTarget target = cons
     ref.read(webOpenProvider.notifier).request(target);
     return;
   }
-  final Widget page;
-  switch (ref.read(dshWebAccessProvider)) {
-    case LocalDshWeb():
-      page = LocalWebScreen(target: target);
-    case SshDshWeb(:final url, :final hostName):
-      page = WebViewPage(
-        url: url,
-        title: context.l10n.webTitle,
-        subtitle: hostName,
-        externalDisabledReason: context.l10n.webSshAppOnly,
-        // Android suspends the page in the background and its socket drops.
-        reloadAfterBackground: const Duration(seconds: 60),
-        dshWeb: true,
-        phoneLayout: ref.read(settingsProvider).webPhoneLayout,
-        openTarget: target,
-      );
-    case DirectDshWeb(:final url, :final hostName):
-      page = WebViewPage(
-        url: url,
-        title: context.l10n.webTitle,
-        subtitle: hostName,
-        externalDisabledReason: context.l10n.directWebAppOnly,
-        reloadAfterBackground: const Duration(seconds: 60),
-        dshWeb: true,
-        phoneLayout: ref.read(settingsProvider).webPhoneLayout,
-        openTarget: target,
-      );
-    case NoDshWeb(:final reason):
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(reason)));
-      return;
-  }
+  final page = dshWebPage(context, ref, target: target);
+  if (page == null) return;
   Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
 }

@@ -21,7 +21,6 @@ import '../../theme/app_icons.dart';
 import '../../theme/theme.dart';
 import '../settings_widgets.dart';
 import 'app_icon_picker.dart';
-import 'font_picker.dart';
 import 'icon_shortcut_sheet.dart';
 import 'launch_screen_section.dart';
 import 'tile_style_picker.dart';
@@ -89,8 +88,6 @@ class AppearancePage extends ConsumerWidget {
             if (wallpaper != null) _WallpaperRow(wallpaper: wallpaper, on: appearance.source == AccentSource.wallpaper),
           ],
         ),
-        // 字体: the system sans or 霞鹜文楷 (downloaded the first time), in a sheet.
-        const SettingsSection(children: [FontEntryTile()]),
         SettingsSection(
           title: l10n.pluginsFeatureIcons,
           children: [SpotAnchor(spot: Spots.tileStyle, child: const TileStylePicker())],

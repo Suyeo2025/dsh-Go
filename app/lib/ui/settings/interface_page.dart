@@ -20,7 +20,8 @@ import '../shell/page_frame.dart';
 import '../shell/quick_panel.dart';
 import '../theme/app_icons.dart';
 import '../theme/theme.dart';
-import '../web/local_web_screen.dart';
+import '../web/dsh_web_launcher.dart';
+import 'busy_send_tile.dart';
 import 'quick_panel_items_sheet.dart';
 import 'settings_widgets.dart';
 
@@ -81,7 +82,8 @@ class InterfacePage extends ConsumerWidget {
               // In 网页模式 the web app is the home underneath.
               onTap: () => mode == UiMode.web
                   ? Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst)
-                  : Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const LocalWebScreen())),
+                  // The active host's web app: the local engine's, or a remote host's own.
+                  : openDshWeb(context, ref),
             ),
             SettingsSwitchTile(
               spot: Spots.webPhoneLayout,
@@ -100,6 +102,7 @@ class InterfacePage extends ConsumerWidget {
               value: settings.hardwareEnterSends,
               onChanged: (v) => unawaited(ref.read(settingsProvider.notifier).setHardwareEnterSends(v)),
             ),
+            BusySendTile(spot: Spots.busySend),
           ],
         ),
         SettingsSection(

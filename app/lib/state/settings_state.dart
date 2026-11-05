@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/l10n.dart';
 import '../performance/performance_state.dart';
+import 'busy_send_state.dart' show BusySendOverride;
 import 'provider_keys.dart';
 import 'read_list_epoch.dart';
 
@@ -21,6 +22,7 @@ class AppSettings {
     this.phoneStorage = false,
     this.webPhoneLayout = true,
     this.hardwareEnterSends = false,
+    this.busySendOverride = BusySendOverride.followHost,
     this.chatTextScale = 1.0,
     this.foldCompletedTurns = true,
     this.visualReplies = true,
@@ -50,6 +52,9 @@ class AppSettings {
 
   /// Hardware Enter sends; Shift+Enter and the software keyboard still insert newlines.
   final bool hardwareEnterSends;
+
+  /// What a plain send does while a turn runs: the host's choice by default.
+  final BusySendOverride busySendOverride;
 
   /// Size of chat content relative to the system setting (header and
   /// composer keep theirs). One of [chatTextScales].
@@ -84,6 +89,7 @@ class AppSettings {
     bool? phoneStorage,
     bool? webPhoneLayout,
     bool? hardwareEnterSends,
+    BusySendOverride? busySendOverride,
     double? chatTextScale,
     bool? foldCompletedTurns,
     bool? visualReplies,
@@ -98,6 +104,7 @@ class AppSettings {
     phoneStorage: phoneStorage ?? this.phoneStorage,
     webPhoneLayout: webPhoneLayout ?? this.webPhoneLayout,
     hardwareEnterSends: hardwareEnterSends ?? this.hardwareEnterSends,
+    busySendOverride: busySendOverride ?? this.busySendOverride,
     chatTextScale: chatTextScale ?? this.chatTextScale,
     foldCompletedTurns: foldCompletedTurns ?? this.foldCompletedTurns,
     visualReplies: visualReplies ?? this.visualReplies,
@@ -122,6 +129,7 @@ class SettingsController extends Notifier<AppSettings> {
   static const _phoneStorageKey = 'phone_storage';
   static const _webPhoneLayoutKey = 'web_phone_layout';
   static const _hardwareEnterKey = 'hardware_enter_sends';
+  static const _busySendKey = 'busy_send_override';
   static const _chatTextScaleKey = 'chat_text_scale';
   static const _foldTurnsKey = 'fold_completed_turns';
   static const _visualRepliesKey = 'visual_replies';
@@ -168,6 +176,10 @@ class SettingsController extends Notifier<AppSettings> {
       phoneStorage: prefs.getBool(_phoneStorageKey) ?? false,
       webPhoneLayout: prefs.getBool(_webPhoneLayoutKey) ?? true,
       hardwareEnterSends: prefs.getBool(_hardwareEnterKey) ?? false,
+      busySendOverride: BusySendOverride.values.firstWhere(
+        (o) => o.name == prefs.getString(_busySendKey),
+        orElse: () => BusySendOverride.followHost,
+      ),
       chatTextScale: _knownScale(prefs.getDouble(_chatTextScaleKey)),
       foldCompletedTurns: prefs.getBool(_foldTurnsKey) ?? true,
       visualReplies: prefs.getBool(_visualRepliesKey) ?? true,
@@ -253,6 +265,14 @@ class SettingsController extends Notifier<AppSettings> {
     state = state.copyWith(hardwareEnterSends: value);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_hardwareEnterKey, value);
+  }
+
+  Future<void> setBusySendOverride(BusySendOverride value) async {
+    await _loaded;
+    if (!ref.mounted) return;
+    state = state.copyWith(busySendOverride: value);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_busySendKey, value.name);
   }
 
   Future<void> setAutoStartLocal(bool value) async {

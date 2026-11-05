@@ -1,8 +1,9 @@
 // The window classes and the column plan of the home
 // screen on tablets and foldables. Geometry follows DSH Web's AppFrame
 // (`@deepseek-ai/dsh-client-ui-layout`): the right panel gives way first to
-// keep the chat column wide enough, and opening it folds a sidebar that no
-// longer fits into the rail.
+// keep the chat column wide enough. When the sidebar and the panel are both
+// asked for and the chat would get too narrow between them, the side opened
+// last stays and the other folds (the sidebar into the rail, the panel away).
 
 import 'dart:math' as math;
 
@@ -60,6 +61,10 @@ enum LeftPane {
   sidebar,
 }
 
+/// One of the two columns beside the chat: the one opened last wins when
+/// both don't fit with a comfortable chat between them.
+enum LayoutSide { sidebar, panel }
+
 /// What the ≡ key does in the current layout.
 enum MenuAction {
   /// Pull the drawer over everything (phones, or no room for the sidebar).
@@ -100,6 +105,12 @@ abstract final class AdaptiveMetrics {
   /// The sidebar stays unfolded only while the chat keeps this much.
   static const chatComfort = 600.0;
 
+  /// Between the sidebar and the panel both, the chat keeps its whole
+  /// reading width (720, `AppSpace.readingWidth`, and its 12 margins), or one
+  /// of them folds: three columns on a 13" iPad in landscape (1376) would
+  /// leave it 644.
+  static const chatBesideBoth = 720.0 + 2 * edge;
+
   /// Snapped to the 4dp grid.
   static double panelIdeal(double windowWidth) {
     final raw = (windowWidth * panelFraction / 4).roundToDouble() * 4;
@@ -139,12 +150,20 @@ class AdaptiveLayout {
 
   /// [window] is the whole window, [padding] the system insets (status and
   /// navigation bars, cutouts). [hasSession]: no conversation, no panel.
+  ///
+  /// [prefer]: the side opened last. When the sidebar and the panel are both
+  /// open but all three columns would leave the chat under
+  /// [AdaptiveMetrics.chatBesideBoth], the other side folds: [LayoutSide.panel]
+  /// folds the sidebar into the rail; [LayoutSide.sidebar] or null (nothing
+  /// chosen yet) folds the panel away (still [panelAvailable], so the
+  /// header's key unfolds it).
   factory AdaptiveLayout.resolve({
     required Size window,
     EdgeInsets padding = EdgeInsets.zero,
     required bool hasSession,
     bool sidebarOpen = true,
     bool panelOpen = true,
+    LayoutSide? prefer,
   }) {
     final windowClass = WindowClass.ofSize(window);
     if (windowClass != WindowClass.expanded) {
@@ -155,18 +174,24 @@ class AdaptiveLayout {
     final room = inner - AdaptiveMetrics.railWidth - AdaptiveMetrics.chatMin;
     final width = math.min(AdaptiveMetrics.panelIdeal(window.width), room);
     final available = hasSession && width >= AdaptiveMetrics.panelMin;
-    final shown = available && panelOpen;
-    final used = shown ? width : 0.0;
-    final fits = inner - AdaptiveMetrics.sidebarWidth - used >= AdaptiveMetrics.chatComfort;
+    final wantPanel = available && panelOpen;
+    // The sidebar with the panel folded away, and beside the panel.
+    final fitsAlone = inner - AdaptiveMetrics.sidebarWidth >= AdaptiveMetrics.chatComfort;
+    final fitsBeside = inner - AdaptiveMetrics.sidebarWidth - width >= AdaptiveMetrics.chatBesideBoth;
+    // Both asked for, room for one: the side opened last stays.
+    final contested = sidebarOpen && wantPanel && fitsAlone && !fitsBeside;
+    final shown = contested ? prefer == LayoutSide.panel : wantPanel;
+    final sidebar = sidebarOpen && (shown ? fitsBeside : fitsAlone);
     return AdaptiveLayout(
       windowClass: windowClass,
       window: window,
       padding: padding,
-      left: sidebarOpen && fits ? LeftPane.sidebar : LeftPane.rail,
+      left: sidebar ? LeftPane.sidebar : LeftPane.rail,
       panelWidth: available ? width : 0,
       panelAvailable: available,
       panelShown: shown,
-      sidebarFits: fits,
+      // Unfolding it folds a panel the two don't fit beside.
+      sidebarFits: fitsAlone,
     );
   }
 
@@ -184,7 +209,8 @@ class AdaptiveLayout {
   /// The panel is on screen (available and not folded away).
   final bool panelShown;
 
-  /// The sidebar would fit next to the chat (and the panel, when shown).
+  /// The sidebar fits next to a comfortable chat, the panel folding away
+  /// for it when the two don't fit together: ≡ on the rail unfolds it.
   final bool sidebarFits;
 
   bool get isExpanded => windowClass == WindowClass.expanded;

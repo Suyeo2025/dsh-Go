@@ -26,6 +26,14 @@ abstract final class IslandProbeMetrics {
   static const height = 640.0;
 }
 
+/// How a WebView the island keeps out of sight is painted. Android lays a
+/// WebView out whether or not it is painted, so 0 hides it. On iOS an
+/// `Opacity(0)` skips painting the platform view, the WKWebView is never
+/// composited and keeps a 0×0 frame: DSH Web lays itself out for nothing and
+/// no slot ever appears. The least visible alpha keeps it composited, at its
+/// real size, under the skeleton.
+double get islandHiddenOpacity => defaultTargetPlatform == TargetPlatform.iOS ? 1 / 255 : 0;
+
 /// Panel islands: the panel's height range (logical px).
 abstract final class IslandPanelMetrics {
   static const minHeight = 72.0;
@@ -302,7 +310,7 @@ class _IslandViewState extends ConsumerState<IslandView> {
       IslandForm.overlay => IgnorePointer(
         ignoring: !ready,
         child: Opacity(
-          opacity: ready ? 1 : 0,
+          opacity: ready ? 1 : islandHiddenOpacity,
           child: IslandHitRegion(rects: handle.hitRects, child: web),
         ),
       ),
@@ -317,7 +325,7 @@ class _IslandViewState extends ConsumerState<IslandView> {
             maxWidth: IslandProbeMetrics.width,
             minHeight: IslandProbeMetrics.height,
             maxHeight: IslandProbeMetrics.height,
-            child: Opacity(opacity: 0, child: IgnorePointer(child: web)),
+            child: Opacity(opacity: islandHiddenOpacity, child: IgnorePointer(child: web)),
           ),
         ),
       ),
@@ -337,7 +345,7 @@ class _IslandViewState extends ConsumerState<IslandView> {
     children: [
       IgnorePointer(
         ignoring: !ready,
-        child: Opacity(opacity: ready ? 1 : 0, child: web),
+        child: Opacity(opacity: ready ? 1 : islandHiddenOpacity, child: web),
       ),
       IgnorePointer(
         child: AnimatedOpacity(

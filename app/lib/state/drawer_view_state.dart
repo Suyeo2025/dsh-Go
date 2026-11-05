@@ -659,6 +659,32 @@ final class FilteredBlock extends DrawerBlock {
   final DrawerFilter filter;
 }
 
+/// Whether [s] is listed under [filter]: the one rule both the list
+/// ([drawerBlocks]) and the capsules' numbers ([drawerFilterCounts]) use.
+/// [pending] and [unread] are keyed by top-level conversation id.
+bool drawerFilterMatches(
+  DrawerFilter filter,
+  SessionSummary s,
+  Map<String, PendingKind> pending,
+  Set<String> unread,
+) => switch (filter) {
+  DrawerFilter.all => true,
+  DrawerFilter.running => s.running,
+  DrawerFilter.pending => pending.containsKey(s.sessionId),
+  DrawerFilter.unread => unread.contains(s.sessionId),
+};
+
+/// How many of [sessions] each filter lists: always the row count
+/// [drawerBlocks] gives that filter over the same inputs.
+Map<DrawerFilter, int> drawerFilterCounts({
+  required List<SessionSummary> sessions,
+  required Map<String, PendingKind> pending,
+  required Set<String> unread,
+}) => {
+  for (final filter in DrawerFilter.values)
+    filter: sessions.where((s) => drawerFilterMatches(filter, s, pending, unread)).length,
+};
+
 /// The drawer list as blocks. Every conversation shows once: in its folder
 /// if it has one, else under 置顶 if pinned, else under its day.
 List<DrawerBlock> drawerBlocks({
@@ -680,16 +706,10 @@ List<DrawerBlock> drawerBlocks({
       return byKey != 0 ? byKey : a.sessionId.compareTo(b.sessionId);
     });
   if (filter != DrawerFilter.all) {
-    bool matches(SessionSummary s) => switch (filter) {
-      DrawerFilter.running => s.running,
-      DrawerFilter.pending => pending.containsKey(s.sessionId),
-      DrawerFilter.unread => unread.contains(s.sessionId),
-      DrawerFilter.all => true,
-    };
     return [
       FilteredBlock(filter, [
         for (final s in sorted)
-          if (matches(s)) s,
+          if (drawerFilterMatches(filter, s, pending, unread)) s,
       ]),
     ];
   }
@@ -741,20 +761,37 @@ List<String> drawerSelectableIds(List<DrawerBlock> blocks) => [
 /// Clock for day grouping (tests override it).
 final drawerClockProvider = Provider<DateTime Function()>((ref) => DateTime.now);
 
+/// What the filters see of the live providers: a cached (read-only) list has
+/// no pending or unread marks.
+({Map<String, PendingKind> pending, Set<String> unread}) _watchDrawerMarks(WidgetRef ref, DrawerScope scope) => (
+  pending: scope.readOnly ? const {} : ref.watch(pendingInteractionsProvider),
+  unread: scope.readOnly ? const {} : ref.watch(unreadSessionIdsProvider),
+);
+
 /// [drawerBlocks] over the live providers; null while the list loads.
 List<DrawerBlock>? watchDrawerBlocks(WidgetRef ref, {DateTime? now}) {
   final scope = ref.watch(drawerScopeProvider);
   if (scope == null) return null;
   final view = ref.watch(drawerViewProvider);
+  final marks = _watchDrawerMarks(ref, scope);
   return drawerBlocks(
     sessions: scope.sessions,
     pinnedIds: ref.watch(workspacesProvider.select((s) => s.pinnedSessionIds)),
     view: view,
     filter: ref.watch(drawerFilterProvider),
-    pending: scope.readOnly ? const {} : ref.watch(pendingInteractionsProvider),
-    unread: scope.readOnly ? const {} : ref.watch(unreadSessionIdsProvider),
+    pending: marks.pending,
+    unread: marks.unread,
     createdAt: view.sort == DrawerSort.created ? ref.watch(sessionCreatedProvider) : const {},
     now: now ?? ref.watch(drawerClockProvider)(),
     scoped: scope.scoped,
   );
+}
+
+/// [drawerFilterCounts] over the same providers as [watchDrawerBlocks];
+/// null while the list loads.
+Map<DrawerFilter, int>? watchDrawerFilterCounts(WidgetRef ref) {
+  final scope = ref.watch(drawerScopeProvider);
+  if (scope == null) return null;
+  final marks = _watchDrawerMarks(ref, scope);
+  return drawerFilterCounts(sessions: scope.sessions, pending: marks.pending, unread: marks.unread);
 }

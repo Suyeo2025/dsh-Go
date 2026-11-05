@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../runtime/runtime_state.dart';
 import 'connection_state.dart';
 import 'hosts_state.dart';
+import 'new_chat_preset_state.dart';
 import 'read_list_cache.dart';
 import 'read_list_identity.dart';
 import 'settings_state.dart';
@@ -567,6 +568,7 @@ class SessionsController extends AsyncNotifier<List<SessionSummary>> {
       conn.client,
       await workspaceForNewSession(ref),
       cwd: conn.isLocal ? localWorkspaceDir : conn.workingDirectory,
+      agentPreset: ref.read(newChatPresetProvider.notifier).take(),
     );
     // Safe mode keeps the default preset: the agent there repairs the engine
     // with a full shell already, and every command should still be asked.

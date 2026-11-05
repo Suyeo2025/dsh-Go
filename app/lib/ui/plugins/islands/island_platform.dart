@@ -11,15 +11,22 @@ class IslandDevice {
   /// Unknown: assume the smallest tier.
   static const unknown = IslandDevice(totalMem: 0);
 
-  /// `ActivityManager.MemoryInfo.totalMem`, bytes.
+  /// `ActivityManager.MemoryInfo.totalMem` (iOS: `physicalMemory`), bytes.
   final int totalMem;
   final int availMem;
 
-  /// `ActivityManager.isLowRamDevice()`.
+  /// `ActivityManager.isLowRamDevice()` (iOS: under 3 GB).
   final bool lowRam;
 
-  /// The WebView provider's package and version, for diagnostics.
+  /// The WebView provider's package and version, for diagnostics;
+  /// [wkWebView] on iOS.
   final String? webView;
+
+  /// What iOS reports as [webView].
+  static const wkWebView = 'WKWebView';
+
+  /// Every island is a WKWebView with a WebContent process of its own (iOS).
+  bool get isWkWebView => webView == wkWebView;
 
   static IslandDevice fromJson(Object? json) {
     if (json is! Map) return unknown;
@@ -57,8 +64,10 @@ final class IslandTrimMemory extends IslandPlatformEvent {
   bool get low => level >= 10;
 }
 
-/// The Android side of the islands (`islands/IslandsPlugin.kt`): what
-/// webview_flutter doesn't do. Every call is best effort and never throws.
+/// The native side of the islands: what webview_flutter doesn't do. Android
+/// has all of it (`islands/IslandsPlugin.kt`); iOS only `device`
+/// (`ios/Runner/IslandsChannel.swift`), the rest answers not-implemented and
+/// comes back as null / false. Every call is best effort and never throws.
 abstract class IslandPlatform {
   static IslandPlatform instance = MethodChannelIslandPlatform();
 
@@ -116,7 +125,7 @@ class MethodChannelIslandPlatform extends IslandPlatform {
   }
 
   Future<T?> _call<T>(String method, [Map<String, Object?>? args]) async {
-    if (defaultTargetPlatform != TargetPlatform.android || kIsWeb) return null;
+    if (!_hasNativeSide) return null;
     _listen();
     try {
       return await _channel.invokeMethod<T>(method, args);
@@ -155,7 +164,11 @@ class MethodChannelIslandPlatform extends IslandPlatform {
 
   @override
   Stream<IslandPlatformEvent> get events {
-    if (defaultTargetPlatform == TargetPlatform.android && !kIsWeb) _listen();
+    if (_hasNativeSide) _listen();
     return _events.stream;
   }
+
+  /// Android and iOS have a `dsh/islands`; elsewhere nothing answers.
+  static bool get _hasNativeSide =>
+      !kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS);
 }

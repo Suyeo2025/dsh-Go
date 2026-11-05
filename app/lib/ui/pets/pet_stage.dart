@@ -4,7 +4,10 @@
 // link in the same frame, hops when that changes, walks about now and then,
 // sleeps when left alone, reacts to taps, drags and long presses, and raises a
 // bubble when a turn ends or something waits in another conversation. Only its
-// body takes touches.
+// body takes touches. It keeps out of the text, keys and capsules: it fades out
+// while the conversation scrolls behind it ([petContentBehindProvider]),
+// steps aside from the jump-to-bottom key ([PetAvoid]) and from narrow pills,
+// which are kept out of rather than stood on.
 //
 // Interaction: tap left / right, a quick run of taps tickles, drag, sleep
 // after 60 s idle. The overlay twin lives in Kotlin.
@@ -290,7 +293,7 @@ class PetLayer extends ConsumerStatefulWidget {
   ConsumerState<PetLayer> createState() => PetLayerState();
 }
 
-class PetLayerState extends ConsumerState<PetLayer> with TickerProviderStateMixin {
+class PetLayerState extends ConsumerState<PetLayer> with TickerProviderStateMixin, WidgetsBindingObserver {
   // ── Where it stands ──
   PerchSpot? _spot;
   Size _stage = Size.zero;
@@ -301,6 +304,11 @@ class PetLayerState extends ConsumerState<PetLayer> with TickerProviderStateMixi
   /// Its foot point at the last check, in stage coordinates (a hop starts there).
   Offset? _lastFoot;
   bool _polling = false;
+
+  /// Checks in a row that found nothing changed; at [_settleAfter] the
+  /// checks stop until something asks again ([_schedulePoll]).
+  int _quietPolls = 0;
+  static const _settleAfter = 30;
 
   late final AnimationController _hop = AnimationController(vsync: this, value: 1, duration: PetMetrics.hop)
     ..addListener(_tick);
@@ -363,7 +371,12 @@ class PetLayerState extends ConsumerState<PetLayer> with TickerProviderStateMixi
   void initState() {
     super.initState();
     widget.registry.addListener(_schedulePoll);
+    WidgetsBinding.instance.addObserver(this);
   }
+
+  /// The window or its insets changed (keyboard, rotation, split screen).
+  @override
+  void didChangeMetrics() => _schedulePoll();
 
   @override
   void deactivate() {
@@ -390,6 +403,7 @@ class PetLayerState extends ConsumerState<PetLayer> with TickerProviderStateMixi
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     widget.registry.removeListener(_schedulePoll);
     widget.registry.occupied.value = null;
     _reactionTimer?.cancel();
@@ -409,21 +423,37 @@ class PetLayerState extends ConsumerState<PetLayer> with TickerProviderStateMixi
   // ── Geometry ───────────────────────────────────────────────────────────────
 
   void _schedulePoll() {
+    _quietPolls = 0;
     if (_polling || !mounted) return;
     _polling = true;
     SchedulerBinding.instance.addPostFrameCallback(_poll);
     SchedulerBinding.instance.ensureVisualUpdate();
   }
 
-  /// After every frame that happens: which perch is topmost, how wide it
-  /// is, what to keep out of. Changes rebuild; the vertical position needs
-  /// none (the layer link carries it, without a frame of lag).
+  /// After the frames that follow a change: which perch is topmost, how
+  /// wide it is, what to keep out of. Changes rebuild; the vertical position
+  /// needs none (the layer link carries it, without a frame of lag). Once
+  /// [_settleAfter] checks in a row found nothing new it stops: a pet at rest
+  /// costs no work per frame, and the perches, a rebuild or the window's
+  /// metrics start it again.
   void _poll(Duration _) {
     _polling = false;
     if (!mounted || !_active) return;
     final stage = context.findRenderObject();
     if (stage is! RenderBox || !stage.hasSize || !stage.attached) return;
-    var spots = widget.registry.spots(stage);
+    final all = widget.registry.spots(stage);
+    // A narrow capsule (the permission pill, the auto-approve pill: small and
+    // left-aligned) is no place to stand: it is kept out of instead, and the
+    // pet stands on the capsule below, beside it. A banner across the row
+    // still is a perch.
+    final narrow = [
+      for (final s in all)
+        if (_isNarrow(s, all, stage.size)) s,
+    ];
+    var spots = [
+      for (final s in all)
+        if (!narrow.contains(s)) s,
+    ];
     if (widget.aside) {
       spots = [
         for (final s in spots)
@@ -434,7 +464,10 @@ class PetLayerState extends ConsumerState<PetLayer> with TickerProviderStateMixi
     for (final s in spots) {
       if (top == null || s.rect.top < top.rect.top - 0.5) top = s;
     }
-    final avoid = [for (final r in widget.registry.avoids(stage)) r.inflate(PetMetrics.avoidGap)];
+    final avoid = [
+      for (final r in widget.registry.avoids(stage)) r.inflate(PetMetrics.avoidGap),
+      for (final s in narrow) s.rect.inflate(PetMetrics.avoidGap),
+    ];
     final covered = widget.registry.covered;
     final global = stage.localToGlobal(Offset.zero);
     final old = _spot;
@@ -472,19 +505,41 @@ class PetLayerState extends ConsumerState<PetLayer> with TickerProviderStateMixi
     _lastFoot = spot == null ? null : spot.rect.topLeft + Offset(_footX(spot), 0);
     final shown = _visible && _ready;
     // Perches lead their links once there is a pet to draw (and keep leading
-    // while it fades out when covered or hidden).
+    // while it fades out when covered, hidden or with the conversation
+    // scrolling behind it).
     final leading = _ready && _pack != null;
     if (widget.registry.leading.value != leading) widget.registry.leading.value = leading;
+    // Faded out, it stands on nothing: the strip shows its own whale tail.
     final occupied = shown ? spot?.kind : null;
     if (widget.registry.occupied.value != occupied) widget.registry.occupied.value = occupied;
     ref.read(petLayerShownProvider.notifier).set(shown);
     final pack = _pack;
+    // The list keeps the room while the pet only stepped away for the text
+    // scrolling behind it: taking it back would shift the lines being read.
     ref
         .read(petHeadroomProvider.notifier)
-        .set(shown && pack != null ? (pack.baseline - pack.contentBox.top) * _scale : 0);
-    // Keep watching while frames come (keyboard, strips rising).
+        .set(_present && _ready && pack != null ? (pack.baseline - pack.contentBox.top) * _scale : 0);
+    // Keep watching while frames come and things move (strips rising).
+    _quietPolls = changed ? 0 : _quietPolls + 1;
+    if (_quietPolls >= _settleAfter) return;
     _polling = true;
     SchedulerBinding.instance.addPostFrameCallback(_poll);
+  }
+
+  /// A narrow capsule is a banner less than this share of the row wide.
+  static const _narrowShare = 0.6;
+
+  /// [s] is a small banner (a pill), not one across the row. The row is the
+  /// composer's width (the column the capsules share, narrower than the stage
+  /// on a wide window), or the stage's without one.
+  static bool _isNarrow(PerchSpot s, List<PerchSpot> all, Size stage) {
+    if (s.kind != PerchKind.banner) return false;
+    var row = 0.0;
+    for (final o in all) {
+      if (o.kind == PerchKind.composer && o.rect.width > row) row = o.rect.width;
+    }
+    if (row <= 0) row = stage.width;
+    return s.rect.width < row * _narrowShare;
   }
 
   static bool _sameRects(List<Rect> a, List<Rect> b) {
@@ -556,7 +611,9 @@ class PetLayerState extends ConsumerState<PetLayer> with TickerProviderStateMixi
     return _clear(spot, (share * spot.rect.width).clamp(lo, hi));
   }
 
-  bool get _visible {
+  /// On the page, panels aside: everything but the conversation scrolling
+  /// behind it (the list keeps its room for the pet meanwhile).
+  bool get _present {
     final prefs = ref.read(petPrefsProvider);
     return _pack != null &&
         prefs.loaded &&
@@ -566,6 +623,10 @@ class PetLayerState extends ConsumerState<PetLayer> with TickerProviderStateMixi
         _spot != null &&
         !_covered;
   }
+
+  /// Drawn and taking touches. The text scrolling behind it sends it away
+  /// like a panel does (docs/design/pets.md §2.2).
+  bool get _visible => _present && !ref.read(petContentBehindProvider);
 
   PetScope get _scope => _spot?.kind == PerchKind.strip ? PetScope.focus : PetScope.global;
 
@@ -831,6 +892,8 @@ class PetLayerState extends ConsumerState<PetLayer> with TickerProviderStateMixi
     final prefs = ref.watch(petPrefsProvider);
     final pet = ref.watch(petScopedStateProvider(_scope));
     ref.watch(uiModeProvider.select((m) => m.web));
+    // Read by [_visible]; a change fades it out or back in.
+    ref.watch(petContentBehindProvider);
     // A new state (or the pack just arrived): arm what goes with it.
     if (pet.state != _lastState || !identical(pack, _statePack)) {
       _lastState = pet.state;
@@ -935,6 +998,13 @@ class PetLayerState extends ConsumerState<PetLayer> with TickerProviderStateMixi
                       scale: s,
                       flip: flip,
                       paused: pauseSprite,
+                      // Idle or asleep, left alone: it settles on a still
+                      // frame instead of looping on (no frames at rest).
+                      rest:
+                          !_dragging &&
+                          !_walking &&
+                          _reaction == null &&
+                          (pet.state == PetStateName.idle || pet.state == PetStateName.sleeping),
                       onShown: () {
                         if (_ready) return;
                         // Shown during a frame: ready right after it.

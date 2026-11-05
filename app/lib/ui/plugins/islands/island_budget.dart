@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 
 import '../../../plugins/seams/seat_models.dart';
@@ -25,6 +27,11 @@ abstract final class IslandBudgetRules {
   /// little under the marketed sizes.
   static const twoIslandsFromGb = 5.5;
   static const threeIslandsFromGb = 9.5;
+
+  /// iOS (WKWebView): every island has a WebContent process of its own (no
+  /// shared renderer as on Android) and iOS ends the app's web processes
+  /// first when memory runs short, so even a large iPad keeps to two.
+  static const maxWkWebViewIslands = 2;
 
   /// An island off screen stays warm this long (back and forth between a
   /// page and its island costs no reload).
@@ -56,9 +63,12 @@ int maxLiveIslands(IslandDevice device, {int islandMb = IslandBudgetRules.extraI
   if (device.lowRam || device.totalMem <= 0) return 1;
   if (islandMb > IslandBudgetRules.singleIslandAboveMb) return 1;
   final gb = device.totalMem / (1024 * 1024 * 1024);
-  if (gb >= IslandBudgetRules.threeIslandsFromGb) return 3;
-  if (gb >= IslandBudgetRules.twoIslandsFromGb) return 2;
-  return 1;
+  final tier = gb >= IslandBudgetRules.threeIslandsFromGb
+      ? 3
+      : gb >= IslandBudgetRules.twoIslandsFromGb
+      ? 2
+      : 1;
+  return device.isWkWebView ? math.min(tier, IslandBudgetRules.maxWkWebViewIslands) : tier;
 }
 
 /// One live island, as the policy sees it.
@@ -116,7 +126,7 @@ class IslandBudgetSnapshot implements IslandBudget {
     this.allowHost,
   });
 
-  /// Android, with the islands plugin answering.
+  /// The islands plugin answered `device` (Android, iOS).
   final bool supported;
   final int max;
   final List<LiveIsland> live;

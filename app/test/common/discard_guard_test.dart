@@ -143,10 +143,11 @@ void main() {
     await tester.pump(const Duration(milliseconds: 450));
     final busy = find.byWidgetPredicate((widget) => widget is StatusDot && widget.tone == StatusTone.busy);
     expect(busy, findsWidgets);
-    final fade = find.descendant(of: busy.first, matching: find.byType(FadeTransition));
-    final before = tester.widget<FadeTransition>(fade).opacity.value;
+    // StatusDot breathes in timer steps (an Opacity), not per vsync.
+    final fade = find.descendant(of: busy.first, matching: find.byType(Opacity)).first;
+    final before = tester.widget<Opacity>(fade).opacity;
     await tester.pump(const Duration(milliseconds: 200));
-    expect(tester.widget<FadeTransition>(fade).opacity.value, isNot(before));
+    expect(tester.widget<Opacity>(fade).opacity, isNot(before));
     await tester.pumpWidget(const SizedBox());
   });
 

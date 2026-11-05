@@ -13,7 +13,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
-import '../../pets/pet_signals.dart' show petHeadroomProvider;
+import '../../pets/pet_signals.dart' show PetContentBehindController, petContentBehindProvider, petHeadroomProvider;
 import '../../state/agents_state.dart' show hostSessionsProvider, selectConversation;
 import '../../state/artifacts.dart';
 import '../../state/attachments.dart' show DraftAttachment;
@@ -247,6 +247,44 @@ class _ChatListState extends ConsumerState<ChatList> with SingleTickerProviderSt
   final _showJump = ValueNotifier<bool>(false);
   final _hasNew = ValueNotifier<bool>(false);
 
+  // The pet over the chat page fades while the text scrolls behind it: away
+  // from the bottom (the key above shows) is exactly that
+  // (docs/design/pets.md §2.2). Only a list under a pet stage reports; this
+  // State is its owner, so a page leaving never clears the next one's flag.
+  late final PetContentBehindController _petBehind = ref.read(petContentBehindProvider.notifier);
+  bool _underPet = false;
+  bool _reportedBehind = false;
+
+  void _reportBehind() {
+    final behind = _underPet && _showJump.value;
+    if (behind == _reportedBehind) return;
+    _reportedBehind = behind;
+    // Not while widgets build or lay out (a scroll correction mid-layout):
+    // right after the frame, with whatever holds by then.
+    final controller = _petBehind;
+    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => controller.set(this, _reportedBehind));
+    } else {
+      controller.set(this, behind);
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _showJump.addListener(_reportBehind);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final underPet = PetPerchScope.maybeOf(context) != null;
+    if (underPet != _underPet) {
+      _underPet = underPet;
+      _reportBehind();
+    }
+  }
+
   /// before 段最后一行的主键;null = before 段为空。首次加载完成时确定。
   String? _splitKey;
   bool _splitChosen = false;
@@ -300,6 +338,13 @@ class _ChatListState extends ConsumerState<ChatList> with SingleTickerProviderSt
   void dispose() {
     _glide.dispose();
     _scroll.dispose();
+    _showJump.removeListener(_reportBehind);
+    if (_reportedBehind) {
+      _reportedBehind = false;
+      final behind = _petBehind;
+      // Not while the tree is torn down: right after.
+      scheduleMicrotask(() => behind.set(this, false));
+    }
     _showJump.dispose();
     _hasNew.dispose();
     super.dispose();

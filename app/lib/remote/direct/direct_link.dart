@@ -35,6 +35,8 @@ class DirectHostLink implements HostLink {
     this.readyTimeout = const Duration(seconds: 20),
     this.healthTimeout = const Duration(seconds: 15),
     this.retryFirstOpen = true,
+    this._awayFor,
+    this.refreshGrace = const Duration(seconds: 10),
   }) : _clientFactory = clientFactory ?? _defaultClient,
        _backoff = backoff ?? Backoff() {
     _kickSub = kicks?.listen((_) => kick());
@@ -51,6 +53,20 @@ class DirectHostLink implements HostLink {
   /// False for "测试连接": report the first failure instead of retrying.
   final bool retryFirstOpen;
 
+  /// How long the app was just away from the foreground (null: unknown, or
+  /// this kick is not a resume); see `appSuspension` in network_watch.dart.
+  final Duration? Function()? _awayFor;
+
+  /// Back after this long: the socket is taken for dead and replaced at once.
+  static const resumeReconnectAfter = Duration(seconds: 20);
+
+  /// Deadline for the health probe after a short absence or a network change.
+  static const probeTimeout = Duration(seconds: 5);
+
+  /// How long a self-started reconnect shows plain "重新连接中" before the
+  /// usual "无法连接" error (the mux reports a failing attempt only once).
+  final Duration refreshGrace;
+
   final _statuses = StreamController<HostLinkStatus>.broadcast(sync: true);
   final _clients = StreamController<DshClient>.broadcast();
   final _delay = InterruptibleDelay();
@@ -63,6 +79,11 @@ class DirectHostLink implements HostLink {
   bool _published = false;
   bool _relogging = false;
   int _reconnects = 0;
+
+  /// A reconnect the link started itself (resume, failed probe) is under way.
+  bool _refreshing = false;
+  Timer? _refreshTimer;
+  bool _probing = false;
 
   DirectHostConfig get config => _config;
 
@@ -249,13 +270,18 @@ class DirectHostLink implements HostLink {
       if (!identical(client, _client) || _closed) return;
       switch (state) {
         case DshConnectionState.connected:
+          _endRefresh();
           _reconnects = 0;
           if (_status.phase != HostLinkPhase.connected) _emit(_connected());
         case DshConnectionState.connecting || DshConnectionState.reconnecting:
           if (_status.phase == HostLinkPhase.failed) return;
           _reconnects++;
+          // The drop we asked for: keep showing "重新连接中" without an error.
+          if (_refreshing && _reconnects == 1) return;
+          _endRefresh();
           _emit(HostLinkStatus(HostLinkPhase.reconnecting, attempt: _reconnects, error: _unreachable()));
         case DshConnectionState.unauthorized:
+          _endRefresh();
           unawaited(_relogin(client));
         case DshConnectionState.idle || DshConnectionState.closed:
           break;
@@ -320,9 +346,76 @@ class DirectHostLink implements HostLink {
         }
       case HostLinkPhase.failed:
         if (_status.error?.retryable ?? false) retry();
-      case HostLinkPhase.idle || HostLinkPhase.connecting || HostLinkPhase.connected:
-        // A dead socket after a network change is the mux's ping to find.
+      case HostLinkPhase.connected:
+        final client = _client;
+        if (client == null) return;
+        Duration? away;
+        try {
+          away = _awayFor?.call();
+        } catch (_) {
+          away = null;
+        }
+        if (away != null && away >= resumeReconnectAfter) {
+          // Long enough in the background that the socket is gone (iOS
+          // suspends the app): no point probing first, reconnect now.
+          _refresh(client);
+        } else {
+          // A quick switch or a network change: ask the Host rather than wait
+          // up to a mux ping interval to learn the socket died.
+          unawaited(_probe(client));
+        }
+      case HostLinkPhase.idle || HostLinkPhase.connecting:
         break;
+    }
+  }
+
+  /// Replaces [client]'s socket now, showing "重新连接中" (no error) until the
+  /// mux is back, fails a second time, or [refreshGrace] runs out.
+  void _refresh(DshClient client) {
+    if (_closed || !identical(client, _client)) return;
+    _refreshing = true;
+    _reconnects = 0;
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer(refreshGrace, () {
+      _refreshTimer = null;
+      if (!_refreshing || _closed || !identical(client, _client)) return;
+      _refreshing = false;
+      if (_status.phase != HostLinkPhase.reconnecting || _status.error != null) return;
+      _emit(HostLinkStatus(HostLinkPhase.reconnecting, attempt: ++_reconnects, error: _unreachable()));
+    });
+    _emit(HostLinkStatus(HostLinkPhase.reconnecting, detail: _config.address));
+    _backoff.reset();
+    client.mux.reconnect();
+  }
+
+  void _endRefresh() {
+    _refreshing = false;
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+  }
+
+  /// One health check of the connected [client]; acts only on a clear answer.
+  Future<void> _probe(DshClient client) async {
+    if (_probing) return;
+    _probing = true;
+    final DshHealth health;
+    try {
+      health = await client.connection.checkHealth(timeout: probeTimeout);
+    } catch (_) {
+      return;
+    } finally {
+      _probing = false;
+    }
+    if (_closed || !identical(client, _client)) return;
+    // The mux may have noticed on its own meanwhile; leave it to that.
+    if (_status.phase != HostLinkPhase.connected) return;
+    switch (health) {
+      case DshHealth.ok:
+        break;
+      case DshHealth.unreachable:
+        _refresh(client);
+      case DshHealth.unauthorized:
+        unawaited(_relogin(client));
     }
   }
 
@@ -348,6 +441,7 @@ class DirectHostLink implements HostLink {
     if (_closed) return;
     _emit(HostLinkStatus.idle);
     _closed = true;
+    _endRefresh();
     _delay.cancel();
     await _kickSub?.cancel();
     await _muxSub?.cancel();

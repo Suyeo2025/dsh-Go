@@ -1,0 +1,10 @@
+{
+  "inlineCodeOpenFile": "Open file {path}",
+  "@inlineCodeOpenFile": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  }
+}

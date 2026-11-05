@@ -1,0 +1,6 @@
+{
+  "hostParityPresetTitle": "Agent preset",
+  "hostParityPresetDefault": "Default",
+  "hostParityPresetBroken": "Unavailable",
+  "hostParityDeepSeekKeyTitle": "DeepSeek API key"
+}

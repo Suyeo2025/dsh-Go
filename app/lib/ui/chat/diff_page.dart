@@ -1,6 +1,7 @@
 // The full-screen change view behind the change card
 // (layer 3 of the run information): file chips, swipe between files, a
-// unified diff with line-number gutters, wrap toggle and copy patch.
+// unified or side-by-side diff with line-number gutters, wrap toggle and
+// copy patch.
 
 import 'dart:math' as math;
 
@@ -9,6 +10,7 @@ import 'package:flutter/services.dart';
 
 import '../../l10n/l10n.dart';
 import '../common/side_insets.dart';
+import '../shell/adaptive/adaptive_layout.dart' show WindowClass;
 import '../shell/page_frame.dart';
 import '../theme/app_icons.dart';
 import '../theme/theme.dart';
@@ -22,8 +24,15 @@ import '../common/brief_notice.dart';
 /// 顶上的胶囊。
 bool _wrapPreference = true;
 
+/// 左右对比 / 统一视图,同样在一次运行内记住;null = 按窗口宽度(平板横屏
+/// 这样 840 起左右对比,更窄统一)。
+bool? _splitPreference;
+
+/// 窗口窄于它(手机)时只有统一视图,也不显示切换键。
+const _splitMinWidth = WindowClass.mediumMin;
+
 /// 一组文件的改动:顶上一排文件胶囊,左右滑切换文件;每个文件是带行号的
-/// 统一 diff。右上角:换行开关、复制补丁。
+/// 统一 diff,宽屏默认左右对比。右上角:对比方式、换行开关、复制补丁。
 class ChangeDiffPage extends StatefulWidget {
   const ChangeDiffPage({super.key, required this.files, this.initialIndex = 0, this.title});
 
@@ -43,6 +52,7 @@ class _ChangeDiffPageState extends State<ChangeDiffPage> {
   late final PageController _pages = PageController(initialPage: widget.initialIndex);
   late int _index = widget.initialIndex.clamp(0, widget.files.length - 1);
   bool _wrap = _wrapPreference;
+  bool? _split = _splitPreference;
   final _chipKeys = <int, GlobalKey>{};
 
   @override
@@ -87,6 +97,9 @@ class _ChangeDiffPageState extends State<ChangeDiffPage> {
     const barHeight = 56.0;
     final added = files.fold(0, (sum, f) => sum + f.added);
     final removed = files.fold(0, (sum, f) => sum + f.removed);
+    final width = MediaQuery.sizeOf(context).width;
+    final canSplit = width >= _splitMinWidth;
+    final split = canSplit && (_split ?? width >= WindowClass.expandedMin);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: dshSystemOverlay(theme.brightness),
@@ -138,6 +151,16 @@ class _ChangeDiffPageState extends State<ChangeDiffPage> {
                               ],
                             ),
                           ),
+                          if (canSplit) ...[
+                            _ToggleButton(
+                              key: const ValueKey('diff-split-toggle'),
+                              icon: AppIcons.swap,
+                              tooltip: split ? l10n.ipadDiffUnified : l10n.ipadDiffSideBySide,
+                              active: split,
+                              onPressed: () => setState(() => _split = _splitPreference = !split),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
                           _ToggleButton(
                             icon: AppIcons.wrapLines,
                             tooltip: _wrap ? l10n.activityDiffNoWrap : l10n.activityDiffWrap,
@@ -178,6 +201,7 @@ class _ChangeDiffPageState extends State<ChangeDiffPage> {
                       key: ValueKey(files[i].path),
                       file: files[i],
                       wrap: _wrap,
+                      split: split,
                       bottomInset: padding.bottom,
                     ),
                   ),
@@ -191,9 +215,15 @@ class _ChangeDiffPageState extends State<ChangeDiffPage> {
   }
 }
 
-/// 换行开关:开着时是主色实心圆。
+/// 换行 / 对比方式开关:开着时是主色实心圆。
 class _ToggleButton extends StatelessWidget {
-  const _ToggleButton({required this.icon, required this.tooltip, required this.active, required this.onPressed});
+  const _ToggleButton({
+    super.key,
+    required this.icon,
+    required this.tooltip,
+    required this.active,
+    required this.onPressed,
+  });
 
   final IconData icon;
   final String tooltip;
@@ -356,12 +386,19 @@ String _body(String text) => text.isEmpty ? '' : text.substring(1);
 
 /// 一个文件的整页 diff:文件头(目录、事实、复制路径)+ 行号栏 + 代码。
 /// 不换行时整块横向滚动(行号跟着走,手机上留给代码的宽度更多)。
+///
+/// [split]:左右对比,左边旧文件(旧行号),右边新文件(新行号),中间一条
+/// 细线,同一个纵向滚动;换行时各列内换行,不换行时两列各自横向滚动。
 class FileDiffPane extends StatelessWidget {
-  const FileDiffPane({super.key, required this.file, required this.wrap, this.bottomInset = 0});
+  const FileDiffPane({super.key, required this.file, required this.wrap, this.split = false, this.bottomInset = 0});
 
   final FileChange file;
   final bool wrap;
+  final bool split;
   final double bottomInset;
+
+  /// The empty side of a pair: one blank line, no number.
+  static const _blank = _LineRow(DiffLineKind.context, '', null, null);
 
   @override
   Widget build(BuildContext context) {
@@ -374,10 +411,35 @@ class FileDiffPane extends StatelessWidget {
     final maxNo = lines.fold(0, (m, l) => math.max(m, math.max(l.oldNo ?? 0, l.newNo ?? 0)));
     final style = AppType.mono(size: 12, height: 1.6, color: dsh.codeWellFg);
     final numberStyle = AppType.mono(size: 11, height: 1.6 * 12 / 11, color: dsh.lineNumberFg);
+    final hunkStyle = AppType.mono(size: 11.5, color: dsh.diffHunkFg, height: 1.4);
     final charWidth = _charWidth(context, style);
     final numberWidth = '$maxNo'.length * charWidth * 11 / 12 + 10;
     final gutter = (hasOld ? numberWidth : 0) + (hasNew ? numberWidth : 0) + 18.0;
     final longest = lines.fold(0, (m, l) => math.max(m, l.text.length));
+    // Side by side: each column has one gutter, old numbers left, new right.
+    final pairs = split
+        ? pairDiffRows<_Row>(rows, (r) => r is _LineRow ? r.kind : DiffLineKind.hunk)
+        : const <({_Row? left, _Row? right})>[];
+    final leftGutter = (hasOld ? numberWidth : 0) + 18.0;
+    final rightGutter = (hasNew ? numberWidth : 0) + 18.0;
+    final hairline = dsh.codeWellBorder;
+
+    Widget hunk(String text, double inset) => Container(
+      color: dsh.codeWellHeader,
+      padding: EdgeInsets.fromLTRB(inset - 4, 4, 16, 4),
+      // Side by side without wrapping, the two columns' rows stay level.
+      child: Text(text, style: hunkStyle, softWrap: wrap || !split),
+    );
+
+    Widget cell(_Row? row, {required bool old}) => _DiffLineRow(
+      line: row is _LineRow ? row : _blank,
+      wrap: wrap,
+      showOld: old && hasOld,
+      showNew: !old && hasNew,
+      numberWidth: numberWidth,
+      style: style,
+      numberStyle: numberStyle,
+    );
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -388,13 +450,23 @@ class FileDiffPane extends StatelessWidget {
         final contentWidth = wrap ? wellWidth : math.max(wellWidth, gutter + longest * charWidth + 28);
 
         Widget row(int i) {
+          if (split) {
+            final pair = pairs[i];
+            if (pair.left case _HunkRow(:final text)) return hunk(text, leftGutter);
+            return IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: cell(pair.left, old: true)),
+                  Container(width: 0.5, color: hairline),
+                  Expanded(child: cell(pair.right, old: false)),
+                ],
+              ),
+            );
+          }
           final r = rows[i];
           return switch (r) {
-            _HunkRow(:final text) => Container(
-              color: dsh.codeWellHeader,
-              padding: EdgeInsets.fromLTRB(gutter - 4, 4, 16, 4),
-              child: Text(text, style: AppType.mono(size: 11.5, color: dsh.diffHunkFg, height: 1.4)),
-            ),
+            _HunkRow(:final text) => hunk(text, gutter),
             _LineRow() => _DiffLineRow(
               line: r,
               wrap: wrap,
@@ -417,10 +489,76 @@ class FileDiffPane extends StatelessWidget {
                 ),
               )
             : null;
+        if (body != null) {
+          return ListView(children: [header, body]);
+        }
 
+        if (split && !wrap) {
+          // Two columns scrolling sideways on their own under one vertical
+          // scroll; every row is one line, so the two stay level.
+          Widget column(bool old, double inset) {
+            final shown = [for (final p in pairs) old ? p.left : p.right];
+            final widest = shown.whereType<_LineRow>().fold(0, (m, l) => math.max(m, l.text.length));
+            return LayoutBuilder(
+              builder: (context, column) => SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: math.max(column.maxWidth, inset + widest * charWidth + 28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final row in shown)
+                        if (row case _HunkRow(:final text)) hunk(old ? text : ' ', inset) else cell(row, old: old),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
+
+          return SingleChildScrollView(
+            key: const ValueKey('diff-split'),
+            padding: EdgeInsets.only(bottom: bottomInset + 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                header,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: sideMargin),
+                  child: ClipRSuperellipse(
+                    borderRadius: const BorderRadius.all(Radius.circular(AppShape.md)),
+                    child: ColoredBox(
+                      color: dsh.codeWellBg,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  border: Border(right: BorderSide(color: hairline, width: 0.5)),
+                                ),
+                                child: column(true, leftGutter),
+                              ),
+                            ),
+                            Expanded(child: column(false, rightGutter)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final count = split ? pairs.length : rows.length;
         final list = ListView.builder(
+          key: split ? const ValueKey('diff-split') : const ValueKey('diff-unified'),
           padding: EdgeInsets.only(bottom: bottomInset + 24),
-          itemCount: rows.length + 1,
+          itemCount: count + 1,
           itemBuilder: (context, i) {
             if (i == 0) {
               // Stays at the viewport's width while the code scrolls sideways.
@@ -431,7 +569,7 @@ class FileDiffPane extends StatelessWidget {
             }
             final index = i - 1;
             final first = index == 0;
-            final last = index == rows.length - 1;
+            final last = index == count - 1;
             // The well: one continuous squircle, its ends drawn by the first
             // and last rows.
             Widget child = ColoredBox(
@@ -457,9 +595,6 @@ class FileDiffPane extends StatelessWidget {
           },
         );
 
-        if (body != null) {
-          return ListView(children: [header, body]);
-        }
         if (wrap) return list;
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,

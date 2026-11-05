@@ -8,6 +8,7 @@ import '../../state/providers_state.dart';
 import '../common/smooth_size.dart';
 import '../common/status_chip.dart';
 import '../settings/settings_widgets.dart';
+import '../shell/page_frame.dart' show AppPage;
 import '../theme/app_icons.dart';
 import '../theme/theme.dart';
 
@@ -299,7 +300,19 @@ class FormBottomBar extends StatelessWidget {
           stops: const [0, 0.26, 1],
         ),
       ),
-      child: Padding(padding: EdgeInsets.fromLTRB(16, 24, 16, 12 + bottom), child: child),
+      // The action lines up with the form's column on a wide window; the
+      // fade still spans it.
+      child: Center(
+        heightFactor: 1,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: AppPage.contentWidth),
+          // Full width up to there: the action fills it, as before.
+          child: SizedBox(
+            width: double.infinity,
+            child: Padding(padding: EdgeInsets.fromLTRB(16, 24, 16, 12 + bottom), child: child),
+          ),
+        ),
+      ),
     );
   }
 }

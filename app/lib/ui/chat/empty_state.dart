@@ -1,10 +1,16 @@
+import 'package:dsh_client/dsh_client.dart' show AgentPresetInfo;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
 import '../../pets/pet_signals.dart' show petTakesWhaleProvider;
+import '../../state/features_state.dart' show agentPresetsProvider;
+import '../../state/new_chat_preset_state.dart';
+import '../common/app_sheet.dart';
 import '../common/expand_reveal.dart';
 import '../common/fade_in.dart';
+import '../engine_settings/field_row.dart';
+import '../engine_settings/field_sheets.dart' show FieldSheetFrame, SheetCard;
 import '../theme/app_icons.dart';
 import '../theme/theme.dart';
 import 'empty_actions.dart';
@@ -240,6 +246,9 @@ class ChatEmptyState extends StatelessWidget {
                   ),
                 ),
               ],
+              // Which Agent preset the first message starts with; hides itself
+              // unless the host offers a choice.
+              if (connected) const _PresetChip(),
               if (connected && folderPicker != null) ...[
                 const SizedBox(height: 8),
                 enter(Center(child: folderPicker!)),
@@ -272,4 +281,102 @@ class ChatIdleAction {
   final String message;
   final String label;
   final VoidCallback onTap;
+}
+
+// ── Agent preset ─────────────────────────────────────────────────────────────
+
+/// The Agent preset the new conversation starts with. Shown only when the
+/// host lists two or more presets; the pick lives in [newChatPresetProvider]
+/// until `session/create` takes it.
+class _PresetChip extends ConsumerWidget {
+  const _PresetChip();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final presets = ref.watch(agentPresetsProvider).value;
+    if (presets == null || presets.length < 2) return const SizedBox.shrink();
+    final l10n = context.l10n;
+    final picked = ref.watch(newChatPresetProvider);
+    final current = presets.where((p) => p.id == picked).firstOrNull ?? presets.where((p) => p.isDefault).firstOrNull;
+    final label = current == null ? l10n.hostParityPresetDefault : _presetName(current);
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Center(
+        child: ConstrainedBox(
+          key: const ValueKey('preset-chip'),
+          constraints: const BoxConstraints(maxWidth: 280),
+          child: QuietChip(
+            icon: AppIcons.profile,
+            label: label,
+            trailing: AppIcons.expand,
+            onTap: () => _openPresetSheet(context, presets),
+            onTapHint: l10n.hostParityPresetTitle,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _presetName(AgentPresetInfo p) {
+  final name = p.name?.trim();
+  return name == null || name.isEmpty ? p.id : name;
+}
+
+void _openPresetSheet(BuildContext context, List<AgentPresetInfo> presets) {
+  showAppSheet<void>(context, isScrollControlled: true, builder: (_) => _PresetSheet(presets: presets));
+}
+
+class _PresetSheet extends ConsumerWidget {
+  const _PresetSheet({required this.presets});
+
+  final List<AgentPresetInfo> presets;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final scheme = Theme.of(context).colorScheme;
+    final picked = ref.watch(newChatPresetProvider);
+    final effective = picked ?? presets.where((p) => p.isDefault).firstOrNull?.id;
+    return FieldSheetFrame(
+      title: l10n.hostParityPresetTitle,
+      children: [
+        SheetCard(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Material(
+            type: MaterialType.transparency,
+            child: Column(
+              children: [
+                for (final p in presets)
+                  EngineFieldRow(
+                    key: ValueKey('preset-${p.id}'),
+                    title: _presetName(p),
+                    subtitle: p.broken != null
+                        ? '${l10n.hostParityPresetBroken} · ${p.broken}'
+                        : (p.description?.trim().isEmpty ?? true)
+                        ? null
+                        : p.description!.trim(),
+                    value: p.isDefault ? l10n.hostParityPresetDefault : null,
+                    enabled: p.broken == null,
+                    chevron: false,
+                    trailing: p.id == effective
+                        ? Icon(AppIcons.selected, size: 22, color: scheme.primary)
+                        : const SizedBox.square(dimension: 22),
+                    onTap: p.broken != null
+                        ? null
+                        : () {
+                            // The host default is "no pick": the request then
+                            // carries no preset and the host chooses.
+                            ref.read(newChatPresetProvider.notifier).select(p.isDefault ? null : p.id);
+                            Navigator.of(context).pop();
+                          },
+                  ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+      ],
+    );
+  }
 }

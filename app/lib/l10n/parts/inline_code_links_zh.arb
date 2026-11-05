@@ -1,0 +1,10 @@
+{
+  "inlineCodeOpenFile": "打开文件 {path}",
+  "@inlineCodeOpenFile": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  }
+}

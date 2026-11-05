@@ -1,0 +1,6 @@
+{
+  "hostParityPresetTitle": "Agent 预设",
+  "hostParityPresetDefault": "默认",
+  "hostParityPresetBroken": "不可用",
+  "hostParityDeepSeekKeyTitle": "DeepSeek API Key"
+}

@@ -104,8 +104,11 @@ void main() {
         ),
       ),
     );
+    // StatusDot has no animation of its own: it follows one shared breathing
+    // timer (status_dot.dart), so for it the State must survive rebuilds.
+    final dot = tester.state(find.byType(StatusDot));
     List<Animation<double>> animations() => [
-      for (final type in [StreamingCursor, StatusDot, AnimatedStatusDot])
+      for (final type in [StreamingCursor, AnimatedStatusDot])
         tester
             .widget<FadeTransition>(find.descendant(of: find.byType(type), matching: find.byType(FadeTransition)).first)
             .opacity,
@@ -115,6 +118,7 @@ void main() {
       rebuild(() => rebuilds++);
       await tester.pump(const Duration(milliseconds: 1));
       expect(animations(), pairwiseCompare(before, identical, 'same animation'));
+      expect(tester.state(find.byType(StatusDot)), same(dot));
     }
     await tester.pumpWidget(const SizedBox());
     expect(tester.takeException(), isNull);

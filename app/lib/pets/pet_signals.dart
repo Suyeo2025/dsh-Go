@@ -161,6 +161,30 @@ class PetHeadroomController extends Notifier<double> {
   }
 }
 
+/// The conversation is scrolling behind the pet: a chat list the pet stands
+/// over has left its bottom (its 「回到底部」 key shows). The pet fades out
+/// meanwhile, as for a panel, and comes back once the list is at the bottom
+/// again (docs/design/pets.md §2.2 「正文从身后经过时让开」).
+///
+/// Several lists may report (an old page on its way out, the new one coming
+/// in): true while any of them is away from the bottom. Each reports under its
+/// own [owner] (its State), so one going away never clears another's flag.
+final petContentBehindProvider = NotifierProvider<PetContentBehindController, bool>(PetContentBehindController.new);
+
+class PetContentBehindController extends Notifier<bool> {
+  final Set<Object> _owners = {};
+
+  @override
+  bool build() => _owners.isNotEmpty;
+
+  void set(Object owner, bool behind) {
+    // A list leaving after the app (or a test) closed the container.
+    if (!ref.mounted) return;
+    final changed = behind ? _owners.add(owner) : _owners.remove(owner);
+    if (changed) state = _owners.isNotEmpty;
+  }
+}
+
 // ── The last touch ───────────────────────────────────────────────────────────
 
 class PetInteractionController extends Notifier<DateTime> {

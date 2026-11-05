@@ -41,7 +41,7 @@ import '../star/star_prompt_host.dart';
 import '../theme/theme.dart';
 import '../update/update_launch_check.dart';
 import '../wallpaper/wallpaper_backdrop.dart';
-import '../web/local_web_screen.dart';
+import '../web/dsh_web_launcher.dart';
 import 'adaptive/adaptive_layout.dart';
 import 'adaptive/adaptive_rail.dart';
 import 'adaptive/adaptive_scaffold.dart';
@@ -49,6 +49,7 @@ import 'drawer_drag.dart';
 import 'quick_panel.dart';
 import 'session_search_page.dart' show showSessionSearch;
 import 'sessions_drawer.dart';
+import 'shortcuts.dart';
 import 'system_entry_host.dart';
 
 /// Home: the chat screen, with the sessions drawer pulled over it from the left.
@@ -226,7 +227,8 @@ class _HomeShellState extends ConsumerState<HomeShell> with TickerProviderStateM
 
   void _openDestination(DrawerDestination destination) {
     final page = switch (destination) {
-      DrawerDestination.web => const LocalWebScreen(),
+      // The active host's web app; null (a SnackBar says why) opens nothing.
+      DrawerDestination.web => dshWebPage(context, ref),
       DrawerDestination.remote => const RemoteScreen(),
       DrawerDestination.plugins => const PluginsScreen(),
       DrawerDestination.engine => const EngineScreen(),
@@ -234,6 +236,7 @@ class _HomeShellState extends ConsumerState<HomeShell> with TickerProviderStateM
       DrawerDestination.settingsSearch => const SettingsSearchPage(),
       DrawerDestination.features => const AllFeaturesPage(),
     };
+    if (page == null) return;
     Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
     // Close once the new page covers us, so "back" lands on the chat.
     Future<void>.delayed(AppMotion.slow, () {
@@ -291,6 +294,7 @@ class _HomeShellState extends ConsumerState<HomeShell> with TickerProviderStateM
       hasSession: sessionId != null,
       sidebarOpen: prefs.sidebarOpen,
       panelOpen: prefs.panelOpen,
+      prefer: prefs.prefer,
     );
     // No quick panel beside a sidebar (the swipes are off there), or once
     // it's turned off: one left open goes, at once, as the window changes.
@@ -327,109 +331,116 @@ class _HomeShellState extends ConsumerState<HomeShell> with TickerProviderStateM
                 drawer: _drawer,
                 identityBar: _identityBar,
                 width: width,
-                child: Scaffold(
-                  backgroundColor: Colors.transparent,
-                  // The chat screen handles the keyboard itself.
-                  resizeToAvoidBottomInset: false,
-                  body: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      // Notifications: routes taps, raises the in-app banner (draws nothing here).
-                      ChatAlertHost(onReveal: _revealChat),
-                      // iOS: push notification taps open their conversation (draws nothing).
-                      if (isRemoteOnlyPlatform) PushTapHost(onReveal: _revealChat),
-                      // Background running cut off by the phone: one line under the header (draws nothing here).
-                      const BackgroundNetHost(),
-                      // Daily update check + install resume (draws nothing).
-                      const UpdateLaunchCheck(),
-                      // The voice model chosen during setup: download, resume, ready / failed notices (draws nothing).
-                      const VoiceModelHost(),
-                      // 公测版: once in a while, an invitation to star the project (draws nothing).
-                      StarPromptHost(drawer: _drawer, quickPanel: _quickPanel),
-                      // App links / shared files: routes them to their feature (draws nothing).
-                      const LinkHost(),
-                      // Share codes (分享码): registers its links and files with the router.
-                      const ShareCodeHost(),
-                      // Share sheet, launcher shortcuts, the tile: into the chat (draws nothing).
-                      SystemEntryHost(onReveal: _revealChat),
-                      // Forum links (sign-in return, topics): registers them with the router.
-                      const ForumLinkHost(),
-                      // DS Bot: keeps its feed and notifications alive with the shell.
-                      const BotAlertsHost(),
-                      ExcludeSemantics(
-                        excluding: _open || _quickPanelOpen,
-                        child: _SideParallax(
-                          drawer: _drawer,
-                          drawerWidth: width,
-                          quickPanel: _quickPanel,
-                          quickPanelWidth: _quickPanelWidth(context),
-                          child: AdaptiveScaffold(
-                            layout: layout,
-                            // Stored choices arriving at launch snap into place.
-                            animate: prefs.loaded,
-                            body: RawGestureDetector(
-                              // translucent: join the hit chain without swallowing taps
-                              // meant for the chat; wraps the whole chat column so empty
-                              // areas still drag. Not 对话详情 beside it: its tabs swipe.
-                              // No drawer to pull while the sidebar shows.
-                              behavior: HitTestBehavior.translucent,
-                              gestures: {if (!sidebar) ..._drawerGestures, if (quickPanelOn) ..._quickPanelGestures},
-                              child: chat,
+                // Hardware keyboard: ⌘N, ⌘K, ⌘⇧[ / ], ⌘., ⌘,, ⌘\, ⌘⇧D, ⌘/.
+                child: HomeShortcuts(
+                  onSearch: _search,
+                  onMenu: _onMenu,
+                  onOpen: _openDestination,
+                  layout: () => _layout,
+                  child: Scaffold(
+                    backgroundColor: Colors.transparent,
+                    // The chat screen handles the keyboard itself.
+                    resizeToAvoidBottomInset: false,
+                    body: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        // Notifications: routes taps, raises the in-app banner (draws nothing here).
+                        ChatAlertHost(onReveal: _revealChat),
+                        // iOS: push notification taps open their conversation (draws nothing).
+                        if (isRemoteOnlyPlatform) PushTapHost(onReveal: _revealChat),
+                        // Background running cut off by the phone: one line under the header (draws nothing here).
+                        const BackgroundNetHost(),
+                        // Daily update check + install resume (draws nothing).
+                        const UpdateLaunchCheck(),
+                        // The voice model chosen during setup: download, resume, ready / failed notices (draws nothing).
+                        const VoiceModelHost(),
+                        // 公测版: once in a while, an invitation to star the project (draws nothing).
+                        StarPromptHost(drawer: _drawer, quickPanel: _quickPanel),
+                        // App links / shared files: routes them to their feature (draws nothing).
+                        const LinkHost(),
+                        // Share codes (分享码): registers its links and files with the router.
+                        const ShareCodeHost(),
+                        // Share sheet, launcher shortcuts, the tile: into the chat (draws nothing).
+                        SystemEntryHost(onReveal: _revealChat),
+                        // Forum links (sign-in return, topics): registers them with the router.
+                        const ForumLinkHost(),
+                        // DS Bot: keeps its feed and notifications alive with the shell.
+                        const BotAlertsHost(),
+                        ExcludeSemantics(
+                          excluding: _open || _quickPanelOpen,
+                          child: _SideParallax(
+                            drawer: _drawer,
+                            drawerWidth: width,
+                            quickPanel: _quickPanel,
+                            quickPanelWidth: _quickPanelWidth(context),
+                            child: AdaptiveScaffold(
+                              layout: layout,
+                              // Stored choices arriving at launch snap into place.
+                              animate: prefs.loaded,
+                              body: RawGestureDetector(
+                                // translucent: join the hit chain without swallowing taps
+                                // meant for the chat; wraps the whole chat column so empty
+                                // areas still drag. Not 对话详情 beside it: its tabs swipe.
+                                // No drawer to pull while the sidebar shows.
+                                behavior: HitTestBehavior.translucent,
+                                gestures: {if (!sidebar) ..._drawerGestures, if (quickPanelOn) ..._quickPanelGestures},
+                                child: chat,
+                              ),
+                              sidebar: SessionsDrawer(
+                                key: const ValueKey('persistent-sidebar'),
+                                // It stays: picking a conversation just shows it.
+                                onClose: () {},
+                                onOpen: _openDestination,
+                              ),
+                              rail: AdaptiveRail(
+                                onMenu: _onMenu,
+                                menuTooltip: AdaptiveChrome.menuTooltipFor(layout),
+                                onSearch: _search,
+                                onHost: () =>
+                                    showHostSheet(context, onManage: () => _openDestination(DrawerDestination.remote)),
+                                onWeb: () => _openDestination(DrawerDestination.web),
+                                onSettings: () => _openDestination(DrawerDestination.settings),
+                              ),
+                              panel: layout.panelAvailable && sessionId != null
+                                  ? SessionDetailPage.panel(key: ValueKey(sessionId), sessionId: sessionId)
+                                  : null,
                             ),
-                            sidebar: SessionsDrawer(
-                              key: const ValueKey('persistent-sidebar'),
-                              // It stays: picking a conversation just shows it.
-                              onClose: () {},
-                              onOpen: _openDestination,
-                            ),
-                            rail: AdaptiveRail(
-                              onMenu: _onMenu,
-                              menuTooltip: AdaptiveChrome.menuTooltipFor(layout),
-                              onSearch: _search,
-                              onHost: () =>
-                                  showHostSheet(context, onManage: () => _openDestination(DrawerDestination.remote)),
-                              onWeb: () => _openDestination(DrawerDestination.web),
-                              onSettings: () => _openDestination(DrawerDestination.settings),
-                            ),
-                            panel: layout.panelAvailable && sessionId != null
-                                ? SessionDetailPage.panel(key: ValueKey(sessionId), sessionId: sessionId)
-                                : null,
                           ),
                         ),
-                      ),
-                      Positioned.fill(
-                        // The open drawer and its scrim take the swipe that pushes it
-                        // back; closed, nothing here is hit.
-                        child: RawGestureDetector(
-                          behavior: HitTestBehavior.deferToChild,
-                          gestures: _drawerGestures,
-                          child: _DrawerOverlay(
-                            animation: _drawer,
-                            width: width,
-                            drawer: SessionsDrawer(
+                        Positioned.fill(
+                          // The open drawer and its scrim take the swipe that pushes it
+                          // back; closed, nothing here is hit.
+                          child: RawGestureDetector(
+                            behavior: HitTestBehavior.deferToChild,
+                            gestures: _drawerGestures,
+                            child: _DrawerOverlay(
+                              animation: _drawer,
+                              width: width,
+                              drawer: SessionsDrawer(
+                                onClose: _closeDrawer,
+                                onOpen: _openDestination,
+                                identityBarHeight: _identityBar,
+                                drawerMotion: _drawer,
+                              ),
                               onClose: _closeDrawer,
-                              onOpen: _openDestination,
-                              identityBarHeight: _identityBar,
-                              drawerMotion: _drawer,
                             ),
-                            onClose: _closeDrawer,
                           ),
                         ),
-                      ),
-                      Positioned.fill(
-                        child: RawGestureDetector(
-                          behavior: HitTestBehavior.deferToChild,
-                          gestures: quickPanelOn ? _quickPanelGestures : const {},
-                          child: _DrawerOverlay(
-                            animation: _quickPanel,
-                            width: _quickPanelWidth(context),
-                            fromRight: true,
-                            drawer: QuickPanel(motion: _quickPanel, onOpen: _openDestination),
-                            onClose: _closeQuickPanel,
+                        Positioned.fill(
+                          child: RawGestureDetector(
+                            behavior: HitTestBehavior.deferToChild,
+                            gestures: quickPanelOn ? _quickPanelGestures : const {},
+                            child: _DrawerOverlay(
+                              animation: _quickPanel,
+                              width: _quickPanelWidth(context),
+                              fromRight: true,
+                              drawer: QuickPanel(motion: _quickPanel, onOpen: _openDestination),
+                              onClose: _closeQuickPanel,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),

@@ -43,6 +43,7 @@ void openAdaptiveDetail(
         hasSession: true,
         sidebarOpen: prefs.sidebarOpen,
         panelOpen: prefs.panelOpen,
+        prefer: prefs.prefer,
       );
   final controller = container.read(layoutPrefsProvider.notifier);
   final navigator = Navigator.of(context);

@@ -19,6 +19,7 @@ import '../../runtime/runtime_state.dart' show localRuntimeProvider;
 import '../../state/agents_state.dart' show subagentParentProvider;
 import '../../state/attachments.dart';
 import '../../state/balance_state.dart';
+import '../../state/busy_send_state.dart' show busySendDefaultProvider;
 import '../../state/chat_error_text.dart';
 import '../../state/chat_state.dart';
 import '../../state/commands_state.dart';
@@ -685,6 +686,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     final text = _input.text;
     final drafts = _drafts;
     final quote = ref.read(composerQuoteProvider)[sessionId];
+    // What a plain tap does now leads the list, marked.
+    final busyDefault = ref.read(busySendDefaultProvider);
+    final all = [
+      (SendMode.steer, AppIcons.steer, appL10n.chatSteer, appL10n.chatSteerHint),
+      (SendMode.interrupt, AppIcons.interrupt, appL10n.chatInterruptAndSend, appL10n.chatInterruptHint),
+      (SendMode.queue, AppIcons.queued, appL10n.chatQueue, appL10n.chatQueueHint),
+    ];
+    final options = [...all.where((o) => o.$1 == busyDefault), ...all.where((o) => o.$1 != busyDefault)];
     final mode = await showAppSheet<SendMode>(
       context,
       builder: (sheet) => SafeArea(
@@ -697,17 +706,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
             SheetGroup(
               margin: const EdgeInsets.symmetric(horizontal: SheetTitleBar.inset),
               children: [
-                for (final (mode, icon, title, subtitle) in [
-                  (SendMode.steer, AppIcons.steer, appL10n.chatSteer, appL10n.chatSteerHint),
-                  (SendMode.interrupt, AppIcons.interrupt, appL10n.chatInterruptAndSend, appL10n.chatInterruptHint),
-                  (SendMode.queue, AppIcons.queued, appL10n.chatQueue, appL10n.chatQueueHint),
-                ])
+                for (final (mode, icon, title, subtitle) in options)
                   SettingsTile(
+                    key: ValueKey('send-mode-${mode.name}'),
                     tinted: false,
                     chevron: false,
                     icon: icon,
                     title: title,
-                    subtitle: subtitle,
+                    subtitle: mode == busyDefault ? '$subtitle${appL10n.busySendDefaultMark}' : subtitle,
                     onTap: () => Navigator.pop(sheet, mode),
                   ),
               ],
@@ -1838,6 +1844,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                                 else
                                   Composer(
                                     hardwareEnterSends: ref.watch(settingsProvider.select((s) => s.hardwareEnterSends)),
+                                    busyDefault: ref.watch(busySendDefaultProvider),
                                     controller: _input,
                                     // The page's context: Scaffold drops the keyboard inset below.
                                     maxLines: Composer.linesFor(context),

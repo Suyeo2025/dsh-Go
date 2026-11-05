@@ -5294,6 +5294,84 @@ abstract class L10n {
   /// **'知乎'**
   String get brandZhihu;
 
+  /// No description provided for @busySendTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'生成中发送'**
+  String get busySendTitle;
+
+  /// No description provided for @busySendKeywords.
+  ///
+  /// In zh, this message translates to:
+  /// **'生成中发送,插话,排队,发送方式,AI 工作时发送,busyEnter'**
+  String get busySendKeywords;
+
+  /// No description provided for @busySendFollowHost.
+  ///
+  /// In zh, this message translates to:
+  /// **'跟随主机'**
+  String get busySendFollowHost;
+
+  /// No description provided for @busySendFollowHostHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'与网页版「AI 工作时发送」一致；{host}'**
+  String busySendFollowHostHint(String host);
+
+  /// No description provided for @busySendAlwaysSteer.
+  ///
+  /// In zh, this message translates to:
+  /// **'总是插话'**
+  String get busySendAlwaysSteer;
+
+  /// No description provided for @busySendAlwaysSteerHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'不打断，AI 下一步会看到'**
+  String get busySendAlwaysSteerHint;
+
+  /// No description provided for @busySendAlwaysQueue.
+  ///
+  /// In zh, this message translates to:
+  /// **'总是排队'**
+  String get busySendAlwaysQueue;
+
+  /// No description provided for @busySendAlwaysQueueHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'等本轮结束后再发'**
+  String get busySendAlwaysQueueHint;
+
+  /// No description provided for @busySendHostQueue.
+  ///
+  /// In zh, this message translates to:
+  /// **'主机当前：排队'**
+  String get busySendHostQueue;
+
+  /// No description provided for @busySendHostSteer.
+  ///
+  /// In zh, this message translates to:
+  /// **'主机当前：插话'**
+  String get busySendHostSteer;
+
+  /// No description provided for @busySendHostUnknown.
+  ///
+  /// In zh, this message translates to:
+  /// **'主机未提供，按插话'**
+  String get busySendHostUnknown;
+
+  /// No description provided for @busySendDefaultMark.
+  ///
+  /// In zh, this message translates to:
+  /// **' · 默认'**
+  String get busySendDefaultMark;
+
+  /// No description provided for @busySendGeneratingQueueHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'生成中 · 发送将排队，长按发送键可改'**
+  String get busySendGeneratingQueueHint;
+
   /// No description provided for @catalogCurrentChat.
   ///
   /// In zh, this message translates to:
@@ -8497,6 +8575,30 @@ abstract class L10n {
   /// In zh, this message translates to:
   /// **'服务器用 Google 账号保护：登录后自动完成连接'**
   String get directOnboardingGoogleHint;
+
+  /// No description provided for @drawerFixesCopyId.
+  ///
+  /// In zh, this message translates to:
+  /// **'复制会话 ID'**
+  String get drawerFixesCopyId;
+
+  /// No description provided for @drawerFixesIdCopied.
+  ///
+  /// In zh, this message translates to:
+  /// **'已复制会话 ID'**
+  String get drawerFixesIdCopied;
+
+  /// No description provided for @drawerFixesArchivedTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'已归档的对话'**
+  String get drawerFixesArchivedTitle;
+
+  /// No description provided for @drawerFixesNoArchived.
+  ///
+  /// In zh, this message translates to:
+  /// **'还没有归档过的对话'**
+  String get drawerFixesNoArchived;
 
   /// No description provided for @engineNewChatDefaultsLast.
   ///
@@ -12998,6 +13100,30 @@ abstract class L10n {
   /// **'通过 SSH 隧道连接。此连接不提供 LAN / P2P 路径检测或延迟测量。'**
   String get hostDetailsSshNetworkHint;
 
+  /// No description provided for @hostParityPresetTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'Agent 预设'**
+  String get hostParityPresetTitle;
+
+  /// No description provided for @hostParityPresetDefault.
+  ///
+  /// In zh, this message translates to:
+  /// **'默认'**
+  String get hostParityPresetDefault;
+
+  /// No description provided for @hostParityPresetBroken.
+  ///
+  /// In zh, this message translates to:
+  /// **'不可用'**
+  String get hostParityPresetBroken;
+
+  /// No description provided for @hostParityDeepSeekKeyTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'DeepSeek API Key'**
+  String get hostParityDeepSeekKeyTitle;
+
   /// No description provided for @hubSessionDetails.
   ///
   /// In zh, this message translates to:
@@ -14011,6 +14137,84 @@ abstract class L10n {
   /// In zh, this message translates to:
   /// **'没有选择，左滑不会打开'**
   String get hubQuickPanelItemsNone;
+
+  /// No description provided for @inlineCodeOpenFile.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开文件 {path}'**
+  String inlineCodeOpenFile(String path);
+
+  /// No description provided for @ipadDiffSideBySide.
+  ///
+  /// In zh, this message translates to:
+  /// **'左右对比'**
+  String get ipadDiffSideBySide;
+
+  /// No description provided for @ipadDiffUnified.
+  ///
+  /// In zh, this message translates to:
+  /// **'统一视图'**
+  String get ipadDiffUnified;
+
+  /// No description provided for @ipadShortcutsTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'键盘快捷键'**
+  String get ipadShortcutsTitle;
+
+  /// No description provided for @ipadShortcutNewChat.
+  ///
+  /// In zh, this message translates to:
+  /// **'新对话'**
+  String get ipadShortcutNewChat;
+
+  /// No description provided for @ipadShortcutSearch.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索对话'**
+  String get ipadShortcutSearch;
+
+  /// No description provided for @ipadShortcutPrevSession.
+  ///
+  /// In zh, this message translates to:
+  /// **'上一条对话'**
+  String get ipadShortcutPrevSession;
+
+  /// No description provided for @ipadShortcutNextSession.
+  ///
+  /// In zh, this message translates to:
+  /// **'下一条对话'**
+  String get ipadShortcutNextSession;
+
+  /// No description provided for @ipadShortcutStop.
+  ///
+  /// In zh, this message translates to:
+  /// **'停止生成'**
+  String get ipadShortcutStop;
+
+  /// No description provided for @ipadShortcutSettings.
+  ///
+  /// In zh, this message translates to:
+  /// **'设置'**
+  String get ipadShortcutSettings;
+
+  /// No description provided for @ipadShortcutToggleList.
+  ///
+  /// In zh, this message translates to:
+  /// **'折叠 / 展开对话列表'**
+  String get ipadShortcutToggleList;
+
+  /// No description provided for @ipadShortcutToggleDetails.
+  ///
+  /// In zh, this message translates to:
+  /// **'折叠 / 展开对话详情'**
+  String get ipadShortcutToggleDetails;
+
+  /// No description provided for @ipadShortcutHelp.
+  ///
+  /// In zh, this message translates to:
+  /// **'快捷键速查'**
+  String get ipadShortcutHelp;
 
   /// No description provided for @launchScreenTitle.
   ///
@@ -26329,6 +26533,18 @@ abstract class L10n {
   /// In zh, this message translates to:
   /// **'主机无法确认删除结果，请刷新后再决定是否重试。'**
   String get shellDeleteFailed;
+
+  /// No description provided for @settingsIosHostLacks.
+  ///
+  /// In zh, this message translates to:
+  /// **'主机未提供'**
+  String get settingsIosHostLacks;
+
+  /// No description provided for @settingsIosNotInstalled.
+  ///
+  /// In zh, this message translates to:
+  /// **'未安装'**
+  String get settingsIosNotInstalled;
 
   /// No description provided for @setupAppearanceTitle.
   ///

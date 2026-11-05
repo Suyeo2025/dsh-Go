@@ -3,6 +3,7 @@
 import 'dart:async';
 
 import 'package:dsh_client/dsh_client.dart' show DshRemoteException;
+import 'package:flutter/gestures.dart' show TapGestureRecognizer;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
@@ -10,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../l10n/l10n.dart';
 import '../../../links/page_links.dart' show openReplyPageLink;
+import '../../../state/artifact_links.dart';
 import '../../../state/artifacts.dart';
 import '../../../state/table_tint_state.dart';
 import '../../../state/workspace_state.dart';
@@ -559,12 +561,48 @@ class MarkdownBody extends StatefulWidget {
 
   static final _fenceLine = RegExp(r'^(?:>\s*)*(?:`{3,}|~{3,})\s*$');
 
-  static InlineSpan _inlineCodeBuilder(BuildContext context, String code, TextStyle style, InlineCodeStyle codeStyle) =>
-      CodeTextSpan(
-        text: code.replaceAll(_cursorSentinel, ''),
-        codeStyle: codeStyle,
-        style: style.copyWith(fontFeatures: AppType.monoFeatures),
-      );
+  static InlineSpan _inlineCodeBuilder(BuildContext context, String code, TextStyle style, InlineCodeStyle codeStyle) {
+    final text = code.replaceAll(_cursorSentinel, '');
+    final base = style.copyWith(fontFeatures: AppType.monoFeatures);
+    final target = _linkedPath(context, text);
+    if (target == null) return CodeTextSpan(text: text, codeStyle: codeStyle, style: base);
+    // `out/report.md` in a finished reply: opens the file's preview. The
+    // recognizer is made here because gpt_markdown caches the span.
+    return CodeTextSpan(
+      text: text,
+      codeStyle: codeStyle,
+      style: base.copyWith(
+        color: Theme.of(context).colorScheme.primary,
+        decoration: TextDecoration.underline,
+        decorationColor: Theme.of(context).colorScheme.primary,
+        decorationThickness: 0.6,
+      ),
+      mouseCursor: SystemMouseCursors.click,
+      semanticsLabel: context.l10n.inlineCodeOpenFile(text),
+      recognizer: TapGestureRecognizer()
+        ..onTap = () {
+          if (!context.mounted) return;
+          _preview(context, target.$1, target.$2);
+        },
+    );
+  }
+
+  /// The session and the artifact path inline [code] links to, or null: not
+  /// a finished reply, no session, no provider scope, or no unique file.
+  static (String, String)? _linkedPath(BuildContext context, String code) {
+    final link = InlineCodeLinkScope.maybeOf(context);
+    if (link == null || !link.enabled) return null;
+    final scope = MarkdownImageScope.maybeOf(context);
+    if (scope == null) return null;
+    final ProviderContainer container;
+    try {
+      container = ProviderScope.containerOf(context, listen: false);
+    } on StateError {
+      return null;
+    }
+    final artifact = container.read(artifactLinkIndexProvider(scope.sessionId)).resolve(code, baseDir: scope.baseDir);
+    return artifact == null ? null : (scope.sessionId, artifact.path);
+  }
 
   @override
   State<MarkdownBody> createState() => _MarkdownBodyState();
@@ -629,8 +667,9 @@ class _MarkdownBodyState extends State<MarkdownBody> {
 
     // 表格底色是用户设置，只有主题跟着它变；正文 widget 本身保持同一个实例，
     // 切设置时不让 gpt_markdown 重新解析一遍。
-    final text = GptMarkdown(
+    Widget buildText([Key? key]) => GptMarkdown(
       source,
+      key: key,
       style: body,
       followLinkColor: false,
       htmlTags: _htmlTags,
@@ -653,20 +692,51 @@ class _MarkdownBodyState extends State<MarkdownBody> {
       orderedListBuilder: MarkdownLists.ordered,
       unOrderedListBuilder: MarkdownLists.unordered,
     );
+    final text = buildText();
 
-    Widget withTint(TableTint tint) =>
+    // Inline `path` links only in a settled assistant reply (not a previewed
+    // document: it would start that session's chat just to look files up).
+    final linkable = !widget.streaming && !widget.reveal && widget.repairBareViews;
+    final linkSession = linkable && _scoped ? MarkdownImageScope.maybeOf(context)?.sessionId : null;
+
+    Widget withTint(TableTint tint, Widget text) =>
         GptMarkdownTheme(gptThemeData: MarkdownBody._themeFor(theme, widget.secondary, l10n, tint), child: text);
 
     // Golden 和几何测试不套 ProviderScope:那时按默认那一档画。
     Widget markdown = _scoped
-        ? Consumer(builder: (context, ref, _) => withTint(ref.watch(tableTintProvider)))
-        : withTint(TableTint.follow);
+        ? Consumer(
+            builder: (context, ref, _) {
+              final tint = ref.watch(tableTintProvider);
+              if (linkSession == null) return withTint(tint, text);
+              // The turn's files arrive when it ends: re-key so the cached spans
+              // are built again with the new index.
+              final version = ref.watch(artifactLinkIndexProvider(linkSession).select((i) => i.version));
+              return withTint(tint, buildText(ValueKey(version)));
+            },
+          )
+        : withTint(TableTint.follow, text);
+    markdown = InlineCodeLinkScope(enabled: linkable, child: markdown);
     // 表格、成块公式横向放不下时,两端淡出提示还能横滑。
     markdown = ScrollConfiguration(behavior: const EdgeFadeScrollBehavior(), child: markdown);
     if (widget.reveal) markdown = _RevealStreaming(streaming: widget.streaming, blocks: _blocks, child: markdown);
     if (widget.selectable) markdown = SelectionArea(child: markdown);
     return markdown;
   }
+}
+
+/// Whether inline `code` in the Markdown below may link to the session's files:
+/// on for a finished reply, off while it streams (and in the reveal), when the
+/// artifact list is still changing.
+class InlineCodeLinkScope extends InheritedWidget {
+  const InlineCodeLinkScope({super.key, required this.enabled, required super.child});
+
+  final bool enabled;
+
+  static InlineCodeLinkScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<InlineCodeLinkScope>();
+
+  @override
+  bool updateShouldNotify(InlineCodeLinkScope oldWidget) => enabled != oldWidget.enabled;
 }
 
 /// 当前子树里有没有 ProviderScope;没有就按默认表格底色画。

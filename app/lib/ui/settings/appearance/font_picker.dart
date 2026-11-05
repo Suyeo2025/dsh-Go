@@ -29,9 +29,14 @@ import '../../theme/app_icons.dart';
 import '../../theme/theme.dart';
 import '../settings_widgets.dart';
 
-/// The 字体 row on 设置 › 主题: the font in use, or where its download stands.
+/// The 字体 row on the settings hub's 外观 group: the font in use, or where
+/// its download stands.
 class FontEntryTile extends ConsumerWidget {
-  const FontEntryTile({super.key});
+  const FontEntryTile({super.key, this.tint});
+
+  /// The hub group's hue; with it the row shows its icon disc (as its
+  /// neighbours do), without it a plain row.
+  final int? tint;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -44,7 +49,13 @@ class FontEntryTile extends ConsumerWidget {
       FontState(chosen: AppFont.wenkai) => l10n.fontWenKai,
       _ => l10n.fontSystem,
     };
-    return SettingsTile(spot: Spots.font, value: Text(value), onTap: () => unawaited(showFontSheet(context)));
+    return SettingsTile(
+      icon: tint == null ? null : AppIcons.selectText,
+      tint: tint ?? 0,
+      spot: Spots.font,
+      value: Text(value),
+      onTap: () => unawaited(showFontSheet(context)),
+    );
   }
 }
 

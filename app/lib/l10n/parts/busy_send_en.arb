@@ -1,0 +1,22 @@
+{
+  "busySendTitle": "Send while generating",
+  "busySendKeywords": "send while generating,steer,queue,send mode,send while AI is working,busyEnter",
+  "busySendFollowHost": "Follow host",
+  "busySendFollowHostHint": "Same as the web app's “Send while AI is working”; {host}",
+  "@busySendFollowHostHint": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "busySendAlwaysSteer": "Always steer",
+  "busySendAlwaysSteerHint": "The AI sees it next step, without interrupting",
+  "busySendAlwaysQueue": "Always queue",
+  "busySendAlwaysQueueHint": "Sent after this turn ends",
+  "busySendHostQueue": "host: queue",
+  "busySendHostSteer": "host: steer",
+  "busySendHostUnknown": "host has none, so steer",
+  "busySendDefaultMark": " · default",
+  "busySendGeneratingQueueHint": "Generating · Send queues; hold Send for other options"
+}

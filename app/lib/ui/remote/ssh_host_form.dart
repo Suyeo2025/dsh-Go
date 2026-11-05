@@ -762,9 +762,20 @@ class RemoteFormBar extends StatelessWidget {
         ),
         ColoredBox(
           color: base,
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(16, 0, 16, 12 + bottom),
-            child: Row(children: children),
+          // The keys line up with the form's column on a wide window; the
+          // fill still spans it.
+          child: Center(
+            heightFactor: 1,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: AppPage.contentWidth),
+              child: SizedBox(
+                width: double.infinity,
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 12 + bottom),
+                  child: Row(children: children),
+                ),
+              ),
+            ),
           ),
         ),
       ],

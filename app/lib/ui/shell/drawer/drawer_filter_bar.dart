@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/l10n.dart';
 import '../../../state/drawer_view_state.dart';
-import '../../../state/session_attention_state.dart';
 import '../../common/capsule_chip.dart';
 import '../../common/read_list_status.dart';
 import '../../theme/app_icons.dart';
@@ -26,12 +25,14 @@ class DrawerFilterBar extends ConsumerWidget {
     final l10n = context.l10n;
     final filter = ref.watch(drawerFilterProvider);
     final scope = ref.watch(drawerScopeProvider);
-    if (scope == null || (scope.sessions.isEmpty && filter == DrawerFilter.all)) {
+    // The list's own rule over the list's own inputs: a number is always the
+    // rows that filter shows.
+    final counts = watchDrawerFilterCounts(ref);
+    if (scope == null || counts == null || (scope.sessions.isEmpty && filter == DrawerFilter.all)) {
       return const SizedBox(width: double.infinity);
     }
-    final listed = {for (final s in scope.sessions) s.sessionId};
-    final pending = scope.readOnly ? 0 : ref.watch(pendingInteractionsProvider).keys.where(listed.contains).length;
-    final unread = scope.readOnly ? 0 : ref.watch(unreadSessionIdsProvider).where(listed.contains).length;
+    final pending = counts[DrawerFilter.pending] ?? 0;
+    final unread = counts[DrawerFilter.unread] ?? 0;
     String label(DrawerFilter f) => switch (f) {
       _ when f == filter && scope.readOnly => readListHeading(f.label, scope.status),
       DrawerFilter.pending when pending > 0 => '${f.label} $pending',

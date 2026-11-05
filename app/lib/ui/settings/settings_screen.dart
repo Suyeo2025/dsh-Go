@@ -15,6 +15,7 @@ import '../../state/connection_state.dart';
 import '../../state/engine_settings_state.dart';
 import '../../state/features_state.dart';
 import '../../state/hosts_state.dart';
+import '../../state/media_generation.dart';
 import '../../state/phone_state.dart';
 import '../../state/plugins_state.dart';
 import '../../state/sessions_state.dart';
@@ -52,6 +53,7 @@ import '../theme/theme.dart';
 import '../update/update_tiles.dart' show UpdateBadge;
 import 'about_page.dart';
 import 'appearance/appearance_page.dart';
+import 'appearance/font_picker.dart';
 import 'background_guide_page.dart';
 import 'diagnostics_page.dart';
 import 'interface_page.dart';
@@ -119,6 +121,12 @@ class SettingsScreen extends ConsumerWidget {
     final newApi = search == null
         ? null
         : search.valueOf(const FieldRef(WebSearchSettingsPage.webNs, ['searchProvider'])) == 'deepseek-search-api';
+    // The host answers for web search / media or it doesn't: say so on the row.
+    final searchLacks = search != null && !search.served(WebSearchSettingsPage.webNs);
+    // Only once the host's plugin list is in: before it, every host looks bare.
+    final mediaPlugin = ref.watch(installedPluginsProvider.select((s) => s.value != null))
+        ? ref.watch(mediaPluginProvider)
+        : MediaPluginState.ready;
     // 通用.
     final exempt = ref.watch(batteryExemptProvider).value;
     // 主机.
@@ -180,13 +188,20 @@ class SettingsScreen extends ConsumerWidget {
               icon: AppIcons.webSearch,
               tint: SettingsHues.abilities,
               spot: SettingsIndex.entry(SettingsPageId.webSearch),
-              value: text(newApi == null ? null : (newApi ? l10n.engineSearchNewApiBadge : l10n.commonDefault)),
+              value: searchLacks
+                  ? Text(l10n.settingsIosHostLacks)
+                  : text(newApi == null ? null : (newApi ? l10n.engineSearchNewApiBadge : l10n.commonDefault)),
               onTap: () => _push(context, const WebSearchSettingsPage()),
             ),
             SettingsTile(
               icon: AppIcons.generateMedia,
               tint: SettingsHues.abilities,
               spot: SettingsIndex.entry(SettingsPageId.media),
+              value: switch (mediaPlugin) {
+                MediaPluginState.installable => Text(l10n.settingsIosNotInstalled),
+                MediaPluginState.absent => Text(l10n.settingsIosHostLacks),
+                MediaPluginState.ready => null,
+              },
               onTap: () => _push(context, const MediaSettingsPage()),
             ),
             SettingsTile(
@@ -209,6 +224,8 @@ class SettingsScreen extends ConsumerWidget {
           title: l10n.hubSettingsAppearance,
           children: [
             const AppearanceEntryTile(tint: SettingsHues.appearance),
+            // 字体 sits here, one tap from the hub, not a level down in 主题.
+            const FontEntryTile(tint: SettingsHues.appearance),
             SettingsSegmentTile<double>(
               icon: AppIcons.textSize,
               tint: SettingsHues.appearance,
@@ -458,32 +475,33 @@ class _SettingsOverviewState extends ConsumerState<SettingsOverview> {
     }
     final dsh = runtime.status.dshVersion;
     // The card is 账号's way in (its title is whoever is signed in).
-    return SpotAnchor(
-      spot: SettingsIndex.entry(SettingsPageId.account),
-      child: OverviewCard(
-        leading: leading,
-        title: Text(title),
-        subtitle: Text(
-          subtitle,
-          style: mono
-              ? AppType.monoLabel(color: Theme.of(context).colorScheme.onSurfaceVariant).copyWith(fontSize: 13)
-              : warn
-              ? TextStyle(color: colors.warning)
-              : null,
-        ),
-        semanticLabel: hostLink != null
-            ? l10n.hubSettingsHostSemantics(title, hostLink)
-            : l10n.hubSettingsAccountSemantics(title, subtitle),
-        onTap: () => _push(hostLink != null ? const RemoteScreen() : const AccountPage()),
-        // This phone's engine; none on a remote-only platform (iOS).
-        footer: SettingsIndex.hasPage(SettingsPageId.engine)
-            ? OverviewFooter(
-                tone: engine.tone,
-                text: [l10n.hubSettingsEngine, engine.label, if (dsh != null) 'DSH $dsh'].join(' · '),
-              )
+    final card = OverviewCard(
+      leading: leading,
+      title: Text(title),
+      subtitle: Text(
+        subtitle,
+        style: mono
+            ? AppType.monoLabel(color: Theme.of(context).colorScheme.onSurfaceVariant).copyWith(fontSize: 13)
+            : warn
+            ? TextStyle(color: colors.warning)
             : null,
-        onFooterTap: SettingsIndex.hasPage(SettingsPageId.engine) ? () => _push(const EngineScreen()) : null,
       ),
+      semanticLabel: hostLink != null
+          ? l10n.hubSettingsHostSemantics(title, hostLink)
+          : l10n.hubSettingsAccountSemantics(title, subtitle),
+      onTap: () => _push(hostLink != null ? const RemoteScreen() : const AccountPage()),
+      // This phone's engine; none on a remote-only platform (iOS).
+      footer: SettingsIndex.hasPage(SettingsPageId.engine)
+          ? OverviewFooter(
+              tone: engine.tone,
+              text: [l10n.hubSettingsEngine, engine.label, if (dsh != null) 'DSH $dsh'].join(' · '),
+            )
+          : null,
+      onFooterTap: SettingsIndex.hasPage(SettingsPageId.engine) ? () => _push(const EngineScreen()) : null,
     );
+    // Remote-only (iOS): the card shows the host and opens 主机, whose own row
+    // below is that page's anchor; 账号 isn't in this build.
+    if (!SettingsIndex.hasPage(SettingsPageId.account)) return card;
+    return SpotAnchor(spot: SettingsIndex.entry(SettingsPageId.account), child: card);
   }
 }

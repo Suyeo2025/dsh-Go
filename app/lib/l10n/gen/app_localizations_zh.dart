@@ -2885,6 +2885,47 @@ class L10nZh extends L10n {
   String get brandZhihu => '知乎';
 
   @override
+  String get busySendTitle => '生成中发送';
+
+  @override
+  String get busySendKeywords => '生成中发送,插话,排队,发送方式,AI 工作时发送,busyEnter';
+
+  @override
+  String get busySendFollowHost => '跟随主机';
+
+  @override
+  String busySendFollowHostHint(String host) {
+    return '与网页版「AI 工作时发送」一致；$host';
+  }
+
+  @override
+  String get busySendAlwaysSteer => '总是插话';
+
+  @override
+  String get busySendAlwaysSteerHint => '不打断，AI 下一步会看到';
+
+  @override
+  String get busySendAlwaysQueue => '总是排队';
+
+  @override
+  String get busySendAlwaysQueueHint => '等本轮结束后再发';
+
+  @override
+  String get busySendHostQueue => '主机当前：排队';
+
+  @override
+  String get busySendHostSteer => '主机当前：插话';
+
+  @override
+  String get busySendHostUnknown => '主机未提供，按插话';
+
+  @override
+  String get busySendDefaultMark => ' · 默认';
+
+  @override
+  String get busySendGeneratingQueueHint => '生成中 · 发送将排队，长按发送键可改';
+
+  @override
   String get catalogCurrentChat => '当前对话';
 
   @override
@@ -4614,6 +4655,18 @@ class L10nZh extends L10n {
 
   @override
   String get directOnboardingGoogleHint => '服务器用 Google 账号保护：登录后自动完成连接';
+
+  @override
+  String get drawerFixesCopyId => '复制会话 ID';
+
+  @override
+  String get drawerFixesIdCopied => '已复制会话 ID';
+
+  @override
+  String get drawerFixesArchivedTitle => '已归档的对话';
+
+  @override
+  String get drawerFixesNoArchived => '还没有归档过的对话';
 
   @override
   String get engineNewChatDefaultsLast => '新对话默认（上次选择）';
@@ -7098,6 +7151,18 @@ class L10nZh extends L10n {
   String get hostDetailsSshNetworkHint => '通过 SSH 隧道连接。此连接不提供 LAN / P2P 路径检测或延迟测量。';
 
   @override
+  String get hostParityPresetTitle => 'Agent 预设';
+
+  @override
+  String get hostParityPresetDefault => '默认';
+
+  @override
+  String get hostParityPresetBroken => '不可用';
+
+  @override
+  String get hostParityDeepSeekKeyTitle => 'DeepSeek API Key';
+
+  @override
   String get hubSessionDetails => '对话详情';
 
   @override
@@ -7647,6 +7712,47 @@ class L10nZh extends L10n {
 
   @override
   String get hubQuickPanelItemsNone => '没有选择，左滑不会打开';
+
+  @override
+  String inlineCodeOpenFile(String path) {
+    return '打开文件 $path';
+  }
+
+  @override
+  String get ipadDiffSideBySide => '左右对比';
+
+  @override
+  String get ipadDiffUnified => '统一视图';
+
+  @override
+  String get ipadShortcutsTitle => '键盘快捷键';
+
+  @override
+  String get ipadShortcutNewChat => '新对话';
+
+  @override
+  String get ipadShortcutSearch => '搜索对话';
+
+  @override
+  String get ipadShortcutPrevSession => '上一条对话';
+
+  @override
+  String get ipadShortcutNextSession => '下一条对话';
+
+  @override
+  String get ipadShortcutStop => '停止生成';
+
+  @override
+  String get ipadShortcutSettings => '设置';
+
+  @override
+  String get ipadShortcutToggleList => '折叠 / 展开对话列表';
+
+  @override
+  String get ipadShortcutToggleDetails => '折叠 / 展开对话详情';
+
+  @override
+  String get ipadShortcutHelp => '快捷键速查';
 
   @override
   String get launchScreenTitle => '启动画面';
@@ -14366,6 +14472,12 @@ class L10nZh extends L10n {
 
   @override
   String get shellDeleteFailed => '主机无法确认删除结果，请刷新后再决定是否重试。';
+
+  @override
+  String get settingsIosHostLacks => '主机未提供';
+
+  @override
+  String get settingsIosNotInstalled => '未安装';
 
   @override
   String get setupAppearanceTitle => '选择外观';

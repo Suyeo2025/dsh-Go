@@ -1,0 +1,22 @@
+{
+  "busySendTitle": "生成中发送",
+  "busySendKeywords": "生成中发送,插话,排队,发送方式,AI 工作时发送,busyEnter",
+  "busySendFollowHost": "跟随主机",
+  "busySendFollowHostHint": "与网页版「AI 工作时发送」一致；{host}",
+  "@busySendFollowHostHint": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "busySendAlwaysSteer": "总是插话",
+  "busySendAlwaysSteerHint": "不打断，AI 下一步会看到",
+  "busySendAlwaysQueue": "总是排队",
+  "busySendAlwaysQueueHint": "等本轮结束后再发",
+  "busySendHostQueue": "主机当前：排队",
+  "busySendHostSteer": "主机当前：插话",
+  "busySendHostUnknown": "主机未提供，按插话",
+  "busySendDefaultMark": " · 默认",
+  "busySendGeneratingQueueHint": "生成中 · 发送将排队，长按发送键可改"
+}

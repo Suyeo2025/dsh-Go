@@ -103,9 +103,66 @@ List<DiffLine> computeLineDiff(String oldText, String newText) {
   return (added: added, removed: removed);
 }
 
-/// 彩色 diff:增删整行着色,@@ hunk 头浅底,横向滚动。
+/// 左右对比里的一行:左边旧文件的一行,右边新文件的一行;没有的一侧为 null
+/// (那一侧画空行)。
+@immutable
+class DiffPair {
+  const DiffPair({this.left, this.right});
+
+  final DiffLine? left;
+  final DiffLine? right;
+
+  @override
+  bool operator ==(Object other) => other is DiffPair && other.left == left && other.right == right;
+
+  @override
+  int get hashCode => Object.hash(left, right);
+
+  @override
+  String toString() => 'DiffPair(${left?.text}, ${right?.text})';
+}
+
+/// 统一 diff 排成左右两列:hunk / meta / 上下文行两边同一行;一段连续删除
+/// 紧跟的一段新增按顺序逐行对上,多出来的一侧对空行;孤立的删除只在左,
+/// 孤立的新增只在右。
+List<DiffPair> pairDiffLines(List<DiffLine> lines) =>
+    pairDiffRows(lines, (line) => line.kind).map((p) => DiffPair(left: p.left, right: p.right)).toList();
+
+/// [pairDiffLines] 对任意一种「行」([kindOf] 给出它是删、增还是两边都有)。
+List<({T? left, T? right})> pairDiffRows<T>(List<T> rows, DiffLineKind Function(T row) kindOf) {
+  final pairs = <({T? left, T? right})>[];
+  final dels = <T>[];
+  final adds = <T>[];
+  void flush() {
+    final n = math.max(dels.length, adds.length);
+    for (var i = 0; i < n; i++) {
+      pairs.add((left: i < dels.length ? dels[i] : null, right: i < adds.length ? adds[i] : null));
+    }
+    dels.clear();
+    adds.clear();
+  }
+
+  for (final row in rows) {
+    switch (kindOf(row)) {
+      case DiffLineKind.del:
+        // A deletion after additions starts a new block.
+        if (adds.isNotEmpty) flush();
+        dels.add(row);
+      case DiffLineKind.add:
+        adds.add(row);
+      case DiffLineKind.hunk || DiffLineKind.meta || DiffLineKind.context:
+        flush();
+        pairs.add((left: row, right: row));
+    }
+  }
+  flush();
+  return pairs;
+}
+
+/// 彩色 diff:增删整行着色,@@ hunk 头浅底,横向滚动。[split] 时左右两列
+/// (旧 | 新),中间一条细线,同一个纵向滚动,两列各自横向滚动。
 class DiffView extends StatelessWidget {
-  const DiffView({super.key, this.diffText, this.lines, this.maxHeight, this.embedded = false})
+  const DiffView({super.key, this.diffText, this.lines, this.maxHeight, this.embedded = false, this.split = false})
     : assert(diffText != null || lines != null);
 
   final String? diffText;
@@ -115,6 +172,9 @@ class DiffView extends StatelessWidget {
   /// 嵌在工具行详情里:不画外框(外层已有井底)。
   final bool embedded;
 
+  /// 左右对比(宽屏)。
+  final bool split;
+
   @override
   Widget build(BuildContext context) {
     final dsh = DshColors.of(context);
@@ -122,7 +182,10 @@ class DiffView extends StatelessWidget {
     final parsed = lines ?? parseUnifiedDiff(diffText!);
     final style = AppType.mono(size: 12, height: 1.5);
 
-    Widget row(DiffLine line) {
+    Widget row(DiffLine? line) {
+      if (line == null) {
+        return Text(' ', style: style, softWrap: false);
+      }
       final (bg, fg) = switch (line.kind) {
         DiffLineKind.add => (dsh.diffAddBg, dsh.diffAddFg),
         DiffLineKind.del => (dsh.diffDelBg, dsh.diffDelFg),
@@ -138,7 +201,8 @@ class DiffView extends StatelessWidget {
       );
     }
 
-    Widget body = LayoutBuilder(
+    // One column of rows, scrolling sideways on its own.
+    Widget column(Iterable<DiffLine?> rows) => LayoutBuilder(
       builder: (context, constraints) => HorizontalEdgeFade(
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -149,7 +213,7 @@ class DiffView extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   SizedBox(height: embedded ? 4 : 8),
-                  for (final line in parsed) row(line),
+                  for (final line in rows) row(line),
                   SizedBox(height: embedded ? 12 : 8),
                 ],
               ),
@@ -158,6 +222,30 @@ class DiffView extends StatelessWidget {
         ),
       ),
     );
+
+    Widget body;
+    if (split) {
+      final pairs = pairDiffLines(parsed);
+      // Both columns hold the same number of one-line rows, so they are as
+      // tall: the left one's edge is the hairline between them.
+      body = Row(
+        key: const ValueKey('diff-view-split'),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border(right: BorderSide(color: dsh.codeWellBorder, width: 0.5)),
+              ),
+              child: column(pairs.map((p) => p.left)),
+            ),
+          ),
+          Expanded(child: column(pairs.map((p) => p.right))),
+        ],
+      );
+    } else {
+      body = column(parsed);
+    }
     if (maxHeight != null) {
       body = ConstrainedBox(
         constraints: BoxConstraints(maxHeight: maxHeight!),

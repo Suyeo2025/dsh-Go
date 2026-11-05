@@ -1,6 +1,8 @@
 // The column plan of the home screen (AdaptiveLayout.resolve): window
 // classes, when the list is a rail or a sidebar, how wide the detail panel
-// is, and where 对话详情 opens. Pure numbers.
+// is, and where 对话详情 opens. Pure numbers. Unless a test says otherwise
+// the panel was the side opened last (`prefer: panel`); which side wins
+// when both don't fit is layout_precedence_test.dart.
 //
 //   flutter test test/shell/adaptive/adaptive_layout_test.dart
 
@@ -15,12 +17,14 @@ AdaptiveLayout _resolve(
   bool session = true,
   bool sidebarOpen = true,
   bool panelOpen = true,
+  LayoutSide? prefer = LayoutSide.panel,
 }) => AdaptiveLayout.resolve(
   window: Size(width, height),
   padding: padding,
   hasSession: session,
   sidebarOpen: sidebarOpen,
   panelOpen: panelOpen,
+  prefer: prefer,
 );
 
 void main() {
@@ -90,9 +94,10 @@ void main() {
       // The chat keeps more than its reading width (720 + 2 × 12).
       expect(layout.chatRect.width, 1280 - 68 - 384);
       expect(layout.chatRect.width, greaterThan(744));
-      // The rail unfolds into the overlay drawer: no room for the sidebar.
-      expect(layout.sidebarFits, isFalse);
-      expect(layout.menuAction, MenuAction.overlay);
+      // The rail unfolds into the sidebar, which folds the panel: no room
+      // for both.
+      expect(layout.sidebarFits, isTrue);
+      expect(layout.menuAction, MenuAction.expand);
     });
 
     test('panel folded: the sidebar fits and the chat takes the rest', () {
@@ -170,11 +175,13 @@ void main() {
       // No conversation: 320 + 600 = 920 is the threshold.
       expect(_resolve(919, session: false).left, LeftPane.rail);
       expect(_resolve(920, session: false).left, LeftPane.sidebar);
-      // With the panel, 1440 fits all three (320 + 600 + 420 = 1340).
-      final wide = _resolve(1440);
+      // With the panel, all three only while the chat keeps its reading
+      // width: 1500 does (320 + 744 + 420 = 1484), 1440 doesn't.
+      final wide = _resolve(1500);
       expect(wide.left, LeftPane.sidebar);
       expect(wide.panelShown, isTrue);
-      expect(wide.chatRect.width, greaterThanOrEqualTo(600));
+      expect(wide.chatRect.width, greaterThanOrEqualTo(AdaptiveMetrics.chatBesideBoth));
+      expect(_resolve(1440).left, LeftPane.rail);
     });
 
     test('opening the panel folds it, closing unfolds it again', () {

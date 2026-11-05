@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../l10n/l10n.dart';
+import '../../state/chat_state.dart' show SendMode;
 import '../common/expand_reveal.dart';
 import '../common/smooth_size.dart';
 import '../pets/pet_perch.dart';
@@ -55,6 +56,7 @@ class Composer extends StatefulWidget {
     this.onContentInserted,
     this.maxLines = 6,
     this.hardwareEnterSends = false,
+    this.busyDefault = SendMode.steer,
   });
 
   final TextEditingController controller;
@@ -120,6 +122,10 @@ class Composer extends StatefulWidget {
 
   /// Opt-in physical Enter-to-send; never changes the software IME action.
   final bool hardwareEnterSends;
+
+  /// What tapping send does while [running] (the host's choice): the hint
+  /// says so. [SendMode.queue] queues; anything else steers.
+  final SendMode busyDefault;
 
   /// Editor lines for a page whose [pageContext] still carries the keyboard
   /// inset: six, or as many as fit in two fifths of the height above the
@@ -309,7 +315,9 @@ class _ComposerState extends State<Composer> {
                     ? l10n.stateChatSynchronizing
                     : widget.waitHint ??
                           (widget.running && !waiting
-                              ? l10n.chatGeneratingSteerHint
+                              ? (widget.busyDefault == SendMode.queue
+                                    ? l10n.busySendGeneratingQueueHint
+                                    : l10n.chatGeneratingSteerHint)
                               : widget.placeholder ?? l10n.chatComposerHint),
             };
             final leading = dictating

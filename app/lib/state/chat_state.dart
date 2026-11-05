@@ -9,6 +9,7 @@ import '../diagnostics/app_error_log.dart';
 import '../l10n/l10n.dart';
 import '../usage/usage_stats.dart';
 import 'attachments.dart';
+import 'busy_send_state.dart' show busySendDefaultProvider;
 import 'chat_error_text.dart';
 import 'connection_state.dart';
 import 'hosts_state.dart';
@@ -1248,7 +1249,11 @@ class ChatController extends Notifier<ChatState> {
     final requestId = _unsettled?.content == content ? _unsettled!.requestId : _requestId();
     _unsettled = null;
     final running = state.running;
-    final effective = running ? (mode == SendMode.now ? SendMode.steer : mode) : SendMode.now;
+    // A plain send mid-turn does what the host (or the app's override) says:
+    // the composer keeps that answer alive (and shows it). Without one on
+    // screen it steers, as it always did, and wakes no settings reads here.
+    final busyDefault = ref.exists(busySendDefaultProvider) ? ref.read(busySendDefaultProvider) : SendMode.steer;
+    final effective = running ? (mode == SendMode.now ? busyDefault : mode) : SendMode.now;
     _pending = List.unmodifiable([
       ..._pending,
       PendingPrompt(

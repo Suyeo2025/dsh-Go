@@ -176,7 +176,7 @@ class _SessionSearchPageState extends ConsumerState<SessionSearchPage> {
                           focusNode: _focus,
                           onClear: _clear,
                           autofocus: !widget.archivedOnly,
-                          hint: widget.archivedOnly ? l10n.shellArchived : null,
+                          hint: widget.archivedOnly ? l10n.drawerFixesArchivedTitle : null,
                         );
                         // Wide: the field over the results' column, centred;
                         // the back key stays at the edge, like a page's.
@@ -343,7 +343,7 @@ class _SearchBody extends ConsumerWidget {
             showFolders: view.query.isEmpty ? archived.map((s) => s.cwd).toSet().length > 1 : view.results.showFolders,
           );
     if (archivedOnly && view.query.isEmpty && archived.isEmpty) {
-      return _Notice(icon: AppIcons.archive, title: l10n.shellArchived, body: l10n.shellNoChatsYet);
+      return _Notice(icon: AppIcons.archive, title: l10n.drawerFixesArchivedTitle, body: l10n.drawerFixesNoArchived);
     }
     if (results.isEmpty) {
       if (view.content == ContentSearchStatus.pending) {

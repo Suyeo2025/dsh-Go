@@ -3,6 +3,8 @@
 // (when the engine has the sign-in bridge), then the custom providers of the
 // active engine (llm-pi-ai routes) and 「添加渠道」.
 
+import 'dart:async';
+
 import 'package:dsh_client/dsh_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -31,6 +33,7 @@ import 'new_chat_defaults_card.dart';
 import 'provider_detail_page.dart';
 import 'provider_form_page.dart';
 import 'provider_widgets.dart';
+import 'remote_deepseek_key_sheet.dart';
 import 'subscription_page.dart';
 import 'subscription_sheet.dart';
 
@@ -147,11 +150,16 @@ class _DeepSeekCard extends ConsumerWidget {
     final Widget row;
     if (conn != null && !conn.isLocal) {
       final ready = catalogHasDeepSeek(ref.watch(modelCatalogProvider).value);
+      // A host with a credential store lets the key be written from here;
+      // without one the row stays a status line.
+      final editable = ref.watch(remoteDeepSeekCredentialProvider).value != null;
       row = ListPageRow(
         leading: const Monogram('DeepSeek'),
         title: 'DeepSeek',
         subtitle: ready ? l10n.engineFieldConfigured : l10n.engineProvidersNotConfiguredHere,
         trailing: ProviderDot(ready ? StatusTone.ok : StatusTone.idle),
+        chevron: editable,
+        onTap: editable ? () => unawaited(showRemoteDeepSeekKeySheet(context, ref)) : null,
       );
     } else {
       final account = ref.watch(accountProvider);

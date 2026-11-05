@@ -249,6 +249,9 @@ abstract final class SettingsIndex {
     SettingsPageId.systemAccess,
     SettingsPageId.notifications,
     SettingsPageId.voice,
+    // 账号 is the on-device engine's own sign-in: a remote-only build has the
+    // host's key and balance on 服务商 instead.
+    SettingsPageId.account,
   };
 
   /// Rows on pages that stay which need Android's native layer.
@@ -764,9 +767,11 @@ abstract final class Spots {
     title: (l) => l.pluginsColors,
     keywords: (l) => l.searchKwAccent,
   );
+  // On the hub's 外观 group (设置 › 外观 › 字体), not on the 主题 page.
   static final font = SettingSpot(
     'font',
-    page: SettingsPageId.appearance,
+    page: SettingsPageId.hub,
+    group: _look,
     title: (l) => l.fontTitle,
     keywords: (l) => l.searchKwFont,
   );
@@ -839,6 +844,12 @@ abstract final class Spots {
     page: SettingsPageId.interface,
     title: (l) => l.hubHardwareEnterSends,
     keywords: (l) => l.hubHardwareEnterSendsHint,
+  );
+  static final busySend = SettingSpot(
+    'busy-send',
+    page: SettingsPageId.interface,
+    title: (l) => l.busySendTitle,
+    keywords: (l) => l.busySendKeywords,
   );
   static final quickPanel = SettingSpot(
     'quick-panel',
@@ -1136,6 +1147,7 @@ final _rows = <SettingSpot>[
   Spots.petDisplayWhen,
   Spots.uiMode,
   Spots.hardwareEnterSends,
+  Spots.busySend,
   Spots.quickPanel,
   Spots.tableTint,
   Spots.webApp,
