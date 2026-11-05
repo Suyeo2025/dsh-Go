@@ -40,7 +40,7 @@ void main() {
     await _pump(tester, const HeaderAgents(children: 3, running: 1));
     expect(find.byType(StatusDot), findsOneWidget);
     final frames = await framesOver(tester, const Duration(seconds: 2));
-    expect(frames, inInclusiveRange(1, 24), reason: 'about 8 a second, not one per vsync');
+    expect(frames, inInclusiveRange(1, 30), reason: 'about 12 a second, not one per vsync');
   });
 
   testWidgets('one running, animations off: no frames', (tester) async {

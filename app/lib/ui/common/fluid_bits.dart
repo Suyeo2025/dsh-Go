@@ -4,11 +4,13 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 
 import '../theme/motion.dart';
+import 'ambient_clock.dart';
 
 /// Long press with a body: held, the thing sinks a little; when the press lands it
 /// springs up past its size, as the menu opens. The standard tier only has the press.
@@ -302,33 +304,63 @@ class _RollingCountState extends State<RollingCount> with SingleTickerProviderSt
 
 /// Something quietly going on: a thin quarter arc turning at one slow, even speed. No
 /// growing and shrinking like Material's indicator, nothing for the eye to chase.
+///
+/// It turns in steps on the shared [AmbientClock] (about 12 a second, a 27°
+/// step at one turn per 1.1 s) rather than every vsync, so a long tool call
+/// (a `wait_agent` of many minutes) costs a dozen frames a second, shared with
+/// the breathing dots. With animations off, or its page covered, it holds.
 class QuietArc extends StatefulWidget {
   const QuietArc({super.key, this.size = 14, required this.color});
 
   final double size;
   final Color color;
 
+  /// One turn.
+  static const turn = Duration(milliseconds: 1100);
+
   @override
   State<QuietArc> createState() => _QuietArcState();
 }
 
-class _QuietArcState extends State<QuietArc> with SingleTickerProviderStateMixin {
-  static const _turn = Duration(milliseconds: 1100);
-  late final AnimationController _spin = AnimationController(vsync: this, duration: _turn);
+class _QuietArcState extends State<QuietArc> {
+  /// Where the arc points, in turns (0–1).
+  final _turn = ValueNotifier<double>(0);
+  bool _listening = false;
+  ValueListenable<TickerModeData>? _tickerMode;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (AppMotion.reduced(context)) {
-      _spin.stop();
-    } else if (!_spin.isAnimating) {
-      unawaited(_spin.repeat());
+    final mode = TickerMode.getValuesNotifier(context);
+    if (mode != _tickerMode) {
+      _tickerMode?.removeListener(_sync);
+      _tickerMode = mode..addListener(_sync);
     }
+    _sync();
+  }
+
+  void _sync() {
+    if (!mounted) return;
+    final turning = !AppMotion.reduced(context) && (_tickerMode?.value.enabled ?? true);
+    if (turning == _listening) return;
+    _listening = turning;
+    if (turning) {
+      AmbientClock.instance.addListener(_step);
+    } else {
+      AmbientClock.instance.removeListener(_step);
+    }
+  }
+
+  void _step() {
+    final elapsed = AmbientClock.instance.elapsed.inMicroseconds;
+    _turn.value = elapsed % QuietArc.turn.inMicroseconds / QuietArc.turn.inMicroseconds;
   }
 
   @override
   void dispose() {
-    _spin.dispose();
+    if (_listening) AmbientClock.instance.removeListener(_step);
+    _tickerMode?.removeListener(_sync);
+    _turn.dispose();
     super.dispose();
   }
 
@@ -336,7 +368,7 @@ class _QuietArcState extends State<QuietArc> with SingleTickerProviderStateMixin
   Widget build(BuildContext context) => RepaintBoundary(
     child: CustomPaint(
       size: Size.square(widget.size),
-      painter: _ArcPainter(turn: _spin, color: widget.color),
+      painter: _ArcPainter(turn: _turn, color: widget.color),
     ),
   );
 }
@@ -344,7 +376,7 @@ class _QuietArcState extends State<QuietArc> with SingleTickerProviderStateMixin
 class _ArcPainter extends CustomPainter {
   _ArcPainter({required this.turn, required this.color}) : super(repaint: turn);
 
-  final Animation<double> turn;
+  final ValueListenable<double> turn;
   final Color color;
 
   static const _stroke = 1.6;

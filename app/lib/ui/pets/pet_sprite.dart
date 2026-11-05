@@ -56,6 +56,7 @@ class PetSprite extends StatefulWidget {
     this.still = false,
     this.paused = false,
     this.rest = false,
+    this.wakeOn,
   });
 
   /// How long a looping animation plays with [rest] on before it settles.
@@ -84,10 +85,15 @@ class PetSprite extends StatefulWidget {
   /// Unlike [still], this does not reset the frame or restart the animation.
   final bool paused;
 
-  /// A quiet loop (idle, asleep): after [restAfter] of play it finishes the
-  /// pass and holds its first frame, without timers, so a pet left alone
-  /// asks for no frames. A new animation, or [rest] turning off, plays again.
+  /// A quiet loop (idle, asleep, a standing reminder): after [restAfter] of
+  /// play it finishes the pass and holds its first frame, without timers, so
+  /// a pet left alone asks for no frames. A new animation, [rest] turning off
+  /// or a new [wakeOn] plays again.
   final bool rest;
+
+  /// Something happened to the pet (a new bubble, a touch): a change plays
+  /// the animation again, for another [restAfter], from where it stands.
+  final Object? wakeOn;
 
   @override
   State<PetSprite> createState() => PetSpriteState();
@@ -173,14 +179,19 @@ class PetSpriteState extends State<PetSprite> with WidgetsBindingObserver {
       _start();
     } else {
       if (oldWidget.paused != widget.paused) _pauseChanged();
-      if (!widget.rest && _resting) _wake();
+      if (oldWidget.wakeOn != widget.wakeOn) {
+        _wake();
+      } else if (!widget.rest && _resting) {
+        _wake();
+      }
     }
   }
 
-  /// Plays again from a rest.
+  /// Plays (again) for a full [PetSprite.restAfter].
   void _wake() {
-    _resting = false;
     _playedMs = 0;
+    if (!_resting) return;
+    _resting = false;
     _schedule();
   }
 

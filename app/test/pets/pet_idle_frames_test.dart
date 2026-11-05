@@ -6,6 +6,7 @@
 import 'dart:math' as math;
 
 import 'package:dsh_app/pets/pet_sheets.dart';
+import 'package:dsh_app/pets/pet_signals.dart';
 import 'package:dsh_app/pets/pet_mood.dart';
 import 'package:dsh_app/pets/pet_state.dart';
 import 'package:dsh_app/state/hosts_state.dart';
@@ -66,6 +67,68 @@ void main() {
     expect(await framesOver(tester, const Duration(seconds: 1)), greaterThan(10));
     await framesOver(tester, PetSprite.restAfter + const Duration(seconds: 6));
     expect(await framesOver(tester, const Duration(seconds: 3)), 0);
+  });
+
+  group('something waits for you (notification)', () {
+    Future<ProviderContainer> ringing(WidgetTester tester) async {
+      final container = await _pumpPet(tester, warm: ['notification']);
+      container
+          .read(testSignalsProvider.notifier)
+          .set(
+            PetSignals(
+              lastInteraction: clock.now,
+              pending: const [PetPending(host: HostRef.local, sessionId: 'waits', key: 'e1')],
+            ),
+          );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(petLayer(tester).playing?.name, 'notification');
+      return container;
+    }
+
+    testWidgets('it rings for a while, then holds still: still the reminder, no frames', (tester) async {
+      await ringing(tester);
+      expect(await framesOver(tester, const Duration(seconds: 1)), greaterThan(10));
+      await framesOver(tester, PetSprite.restAfter + const Duration(seconds: 4));
+      expect(await framesOver(tester, const Duration(seconds: 5)), 0);
+      expect(petLayer(tester).playing?.name, 'notification', reason: 'the reminder stands');
+      expect(_sprite(tester).resting, isTrue);
+    });
+
+    testWidgets('a touch rings it again, then it holds still again', (tester) async {
+      final container = await ringing(tester);
+      await framesOver(tester, PetSprite.restAfter + const Duration(seconds: 4));
+      expect(_sprite(tester).resting, isTrue);
+      // The page's clock has moved on since the last touch (one a second counts).
+      clock.advance(const Duration(seconds: 20));
+      container.read(petInteractionProvider.notifier).touch();
+      await tester.pump();
+      expect(_sprite(tester).resting, isFalse);
+      expect(await framesOver(tester, const Duration(seconds: 1)), greaterThan(10));
+      await framesOver(tester, PetSprite.restAfter + const Duration(seconds: 4));
+      expect(await framesOver(tester, const Duration(seconds: 3)), 0);
+    });
+  });
+
+  testWidgets('several runs at once (juggling): plays a while, then holds still', (tester) async {
+    final container = await _pumpPet(tester, warm: ['music', 'conducting']);
+    container
+        .read(testSignalsProvider.notifier)
+        .set(
+          PetSignals(
+            lastInteraction: clock.now,
+            focus: const PetFocus(host: HostRef.local, sessionId: 'a', activity: PetActivity.working),
+            runs: const [
+              PetRun(HostRef.local, 'a'),
+              PetRun(HostRef.local, 's1', subagent: true, root: 'a'),
+            ],
+          ),
+        );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(petLayer(tester).playing?.name, 'music');
+    await framesOver(tester, PetSprite.restAfter + const Duration(seconds: 4));
+    expect(await framesOver(tester, const Duration(seconds: 5)), 0);
   });
 
   testWidgets('working: plays on, it never rests', (tester) async {

@@ -5,6 +5,7 @@
 // as a ProMotion screen would draw.
 
 import 'package:dsh_app/ui/chat/widgets/whale_tail.dart';
+import 'package:dsh_app/ui/common/fluid_bits.dart';
 import 'package:dsh_app/ui/common/status_dot.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -50,14 +51,50 @@ void main() {
     });
   });
 
-  group('status dot', () {
-    testWidgets('busy: about 8 steps a second', (tester) async {
-      await _pump(tester, const StatusDot(tone: StatusTone.busy));
+  group('quiet arc (a running tool)', () {
+    testWidgets('turns about 12 steps a second, not every vsync', (tester) async {
+      await _pump(tester, const QuietArc(color: deepSeekBlue));
+      // Every vsync would be 250.
       final frames = await framesOver(tester, const Duration(seconds: 2), step: _hz120);
-      expect(frames, inInclusiveRange(12, 20));
+      expect(frames, inInclusiveRange(18, 30));
     });
 
-    testWidgets('busy, three at once: still about 8 frames a second', (tester) async {
+    testWidgets('with breathing dots beside it: the same dozen frames', (tester) async {
+      await _pump(
+        tester,
+        const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            QuietArc(color: deepSeekBlue),
+            StatusDot(tone: StatusTone.busy),
+            QuietArc(color: deepSeekBlue),
+            StatusDot(tone: StatusTone.busy),
+          ],
+        ),
+      );
+      final frames = await framesOver(tester, const Duration(seconds: 2), step: _hz120);
+      expect(frames, inInclusiveRange(18, 30));
+    });
+
+    testWidgets('animations off: holds, no frames', (tester) async {
+      await _pump(tester, const QuietArc(color: deepSeekBlue), reduced: true);
+      expect(await framesOver(tester, const Duration(seconds: 2), step: _hz120), 0);
+    });
+
+    testWidgets('its page covered: holds, no frames', (tester) async {
+      await _pump(tester, const TickerMode(enabled: false, child: QuietArc(color: deepSeekBlue)));
+      expect(await framesOver(tester, const Duration(seconds: 2), step: _hz120), 0);
+    });
+  });
+
+  group('status dot', () {
+    testWidgets('busy: about 12 steps a second', (tester) async {
+      await _pump(tester, const StatusDot(tone: StatusTone.busy));
+      final frames = await framesOver(tester, const Duration(seconds: 2), step: _hz120);
+      expect(frames, inInclusiveRange(18, 30));
+    });
+
+    testWidgets('busy, three at once: still about 12 frames a second', (tester) async {
       await _pump(
         tester,
         const Row(
@@ -70,7 +107,7 @@ void main() {
         ),
       );
       final frames = await framesOver(tester, const Duration(seconds: 2), step: _hz120);
-      expect(frames, inInclusiveRange(12, 24));
+      expect(frames, inInclusiveRange(18, 30));
     });
 
     testWidgets('busy, pulse off: no frames', (tester) async {

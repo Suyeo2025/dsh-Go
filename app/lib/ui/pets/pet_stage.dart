@@ -876,6 +876,12 @@ class PetLayerState extends ConsumerState<PetLayer> with TickerProviderStateMixi
     await showPetMenu(context, pack: pack);
   }
 
+  /// States the pet may settle in when nothing new happens.
+  static bool _restsIn(PetStateName state) => switch (state) {
+    PetStateName.idle || PetStateName.sleeping || PetStateName.notification || PetStateName.juggling => true,
+    _ => false,
+  };
+
   // ── Build ──────────────────────────────────────────────────────────────────
 
   /// [origin] moved so the canvas's top-left lands on a device pixel.
@@ -998,13 +1004,13 @@ class PetLayerState extends ConsumerState<PetLayer> with TickerProviderStateMixi
                       scale: s,
                       flip: flip,
                       paused: pauseSprite,
-                      // Idle or asleep, left alone: it settles on a still
-                      // frame instead of looping on (no frames at rest).
-                      rest:
-                          !_dragging &&
-                          !_walking &&
-                          _reaction == null &&
-                          (pet.state == PetStateName.idle || pet.state == PetStateName.sleeping),
+                      // Idle, asleep, a reminder that stands (something waits
+                      // for you) or several runs at once, left alone: it plays
+                      // for a while, then settles on a still frame instead of
+                      // looping on (no frames at rest). A new bubble or a
+                      // touch plays it again; the bubble itself stays.
+                      rest: !_dragging && !_walking && _reaction == null && _restsIn(pet.state),
+                      wakeOn: (pet.bubble?.id, ref.watch(petInteractionProvider)),
                       onShown: () {
                         if (_ready) return;
                         // Shown during a frame: ready right after it.
