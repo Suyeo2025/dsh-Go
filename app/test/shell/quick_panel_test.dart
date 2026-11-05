@@ -334,7 +334,37 @@ void main() {
         expect(table.pixels, greaterThan(90));
         expect(_panel, findsNothing);
       });
+
+      // A new finger swiping right over a table scrolled along: back along the
+      // table, never the drawer (iOS reports no slop of its own: the default one).
+      testWidgets('a wide table scrolled along: right scrolls it back ($slop)', (tester) async {
+        await _pump(tester, reply: _table);
+        if (!android) tester.view.resetGestureSettings();
+        await tester.pump();
+        final cell = find.textContaining('column number 0', findRichText: true).first;
+        final table = _scrollAround(tester, cell);
+        final from = tester.getCenter(find.ancestor(of: cell, matching: find.byType(Scrollable)).first);
+        table.jumpTo(200);
+        await tester.pump();
+
+        final finger = await tester.startGesture(from);
+        await _move(tester, finger, const Offset(4, 0), steps: 20);
+        expect(table.pixels, lessThan(150));
+        expect(_drawer, findsNothing);
+        await tester.pump(const Duration(milliseconds: 400));
+        await finger.up();
+        await pumpFrames(tester, 8);
+        expect(_drawer, findsNothing);
+      });
     }
+
+    testWidgets('right over the chat still opens the drawer at the default slop', (tester) async {
+      await _pump(tester);
+      tester.view.resetGestureSettings();
+      await tester.pump();
+      await _swipe(tester, _chatMiddle, const Offset(6, 0), steps: 40);
+      expect(_drawer, findsOneWidget);
+    });
 
     testWidgets('any sideways drag under the finger, not only a scroll view', (tester) async {
       useWindow(tester, _phone);

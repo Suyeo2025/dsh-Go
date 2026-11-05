@@ -76,9 +76,13 @@ class DrawerDragRecognizer extends OneSequenceGestureRecognizer {
   @protected
   double get openingSign => 1;
 
-  /// 关着时,朝拉开方向滑了 [distance] 是否够表态(已过 [_slop])。
+  /// 关着时,朝拉开方向滑了 [distance] 是否够表态:要严格滑过设备的 touch slop。
+  /// 横向滚动的表格、代码块用的是同一个阈值和同一个比较,而事件先发给更靠里的
+  /// 识别器,所以手指下有它们时一定是它们先赢 —— 往回横滑表格不会把抽屉带出来。
+  /// iOS 不报自己的 slop(取默认 18),只用 [_slop] 的话抽屉会抢在表格前面。
+  /// [gestureSettings] 要和 `Scrollable` 一样取自 MediaQuery。
   @protected
-  bool opensAfter(double distance, PointerDeviceKind kind) => true;
+  bool opensAfter(double distance, PointerDeviceKind kind) => distance > computeHitSlop(kind, gestureSettings);
 
   /// 手势结束([PointerUpEvent] 或 [PointerCancelEvent])时交给 [onEnd] 的速度。
   @protected
@@ -191,9 +195,6 @@ class QuickPanelDragRecognizer extends DrawerDragRecognizer {
 
   @override
   double get openingSign => -1;
-
-  @override
-  bool opensAfter(double distance, PointerDeviceKind kind) => distance > computeHitSlop(kind, gestureSettings);
 
   @override
   double endVelocity(PointerEvent event) => event is PointerCancelEvent ? 0 : super.endVelocity(event);

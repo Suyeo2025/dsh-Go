@@ -244,18 +244,21 @@ class _HomeShellState extends ConsumerState<HomeShell> with TickerProviderStateM
   }
 
   /// The drawer's swipe (right to open, left to push back).
-  Map<Type, GestureRecognizerFactory> get _drawerGestures => {
-    DrawerDragRecognizer: GestureRecognizerFactoryWithHandlers<DrawerDragRecognizer>(
-      () => DrawerDragRecognizer(
-        isOpen: () => _drawer.value > 0,
-        onStart: () => _onDragStart(_drawer),
-        onDelta: (dx) => _onDragDelta(_drawer, _drawerWidth(context), dx),
-        onEnd: (velocity) => _onDragEnd(_drawer, _drawerWidth(context), velocity),
-        debugOwner: this,
+  Map<Type, GestureRecognizerFactory> get _drawerGestures {
+    final settings = MediaQuery.maybeGestureSettingsOf(context);
+    return {
+      DrawerDragRecognizer: GestureRecognizerFactoryWithHandlers<DrawerDragRecognizer>(
+        () => DrawerDragRecognizer(
+          isOpen: () => _drawer.value > 0,
+          onStart: () => _onDragStart(_drawer),
+          onDelta: (dx) => _onDragDelta(_drawer, _drawerWidth(context), dx),
+          onEnd: (velocity) => _onDragEnd(_drawer, _drawerWidth(context), velocity),
+          debugOwner: this,
+        ),
+        (recognizer) => recognizer.gestureSettings = settings,
       ),
-      (_) {},
-    ),
-  };
+    };
+  }
 
   /// The quick panel's swipe (left to open, right to push back).
   Map<Type, GestureRecognizerFactory> get _quickPanelGestures {
