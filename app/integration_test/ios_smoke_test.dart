@@ -18,6 +18,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:dsh_app/app.dart';
 import 'package:dsh_app/diagnostics/app_error_log.dart';
@@ -511,6 +512,134 @@ Future<void> _smoke(WidgetTester tester, IntegrationTestWidgetsFlutterBinding bi
           throw StateError('the fling barely moved (${(atBottom - pixelsAtTap).round()} px)');
         }
       });
+    }
+
+    if (_live) {
+      // A wide markdown table: scrolled to the middle, a swipe right scrolls it
+      // back and leaves the sessions drawer shut; a swipe right on the chat
+      // itself still pulls the drawer out.
+      await step('table-swipe', () async {
+        Finder tables() => find.ancestor(
+          of: find.descendant(of: find.byType(ChatList), matching: find.byType(Table)),
+          matching: find.byWidgetPredicate(
+            (w) => w is Scrollable && axisDirectionToAxis(w.axisDirection) == Axis.horizontal,
+          ),
+        );
+        ScrollableState? wideTable() {
+          for (final e in tables().hitTestable().evaluate()) {
+            final state = (e as StatefulElement).state as ScrollableState;
+            final rect = tester.getRect(find.byElementPredicate((x) => x == e));
+            final list = tester.getRect(find.byType(ChatList));
+            if (state.position.maxScrollExtent > 60 && rect.top > list.top + 90 && rect.bottom < list.bottom - 140) {
+              return state;
+            }
+          }
+          return null;
+        }
+
+        bool drawerOut() => find.byType(SessionsDrawer).hitTestable().evaluate().isNotEmpty;
+        final keys = <String>[];
+        await openDrawer();
+        for (final e
+            in find
+                .byWidgetPredicate(
+                  (w) =>
+                      w.key is ValueKey<String> &&
+                      RegExp(r'^session-(?!delete)').hasMatch((w.key! as ValueKey<String>).value),
+                )
+                .hitTestable()
+                .evaluate()) {
+          keys.add((e.widget.key! as ValueKey<String>).value);
+        }
+        ScrollableState? table;
+        String? where;
+        for (final key in keys.take(12)) {
+          await openDrawer();
+          final tile = find.byKey(ValueKey(key));
+          if (tile.hitTestable().evaluate().isEmpty) continue;
+          await tester.tap(tile.hitTestable().first);
+          await frames(3500);
+          if (find.byType(ChatList).evaluate().isEmpty) continue;
+          for (var page = 0; page < 10 && table == null; page++) {
+            table = wideTable();
+            if (table != null) break;
+            // Older messages: the finger goes down the screen (slowly: no fling).
+            final list = tester.getRect(find.byType(ChatList));
+            final finger = await tester.startGesture(Offset(list.left + 24, list.top + list.height * 0.3));
+            for (var i = 0; i < 20; i++) {
+              await finger.moveBy(const Offset(0, 18));
+              await tester.pump(const Duration(milliseconds: 16));
+            }
+            await tester.pump(const Duration(milliseconds: 200));
+            await finger.up();
+            await frames(900);
+          }
+          if (table != null) {
+            where = key;
+            break;
+          }
+        }
+        if (table == null) throw _Skip('no wide markdown table in the first ${keys.take(12).length} conversations');
+        if (drawerOut()) throw StateError('drawer already out before the swipes');
+        final rect = tester.getRect(find.byElementPredicate((e) => e is StatefulElement && e.state == table));
+        final max = table.position.maxScrollExtent;
+
+        Future<void> swipe(Offset from, double dx, {int steps = 30}) async {
+          final finger = await tester.startGesture(from);
+          for (var i = 0; i < steps; i++) {
+            await finger.moveBy(Offset(dx / steps, 0));
+            await tester.pump(const Duration(milliseconds: 16));
+          }
+          await tester.pump(const Duration(milliseconds: 250));
+          await finger.up();
+          await frames(1200);
+        }
+
+        // To the middle: the finger goes left.
+        await swipe(Offset(rect.left + rect.width * 0.8, rect.center.dy), -math.min(max / 2, rect.width * 0.6));
+        final middle = table.position.pixels;
+        if (middle < 20) throw StateError('the table did not scroll (pixels=$middle of $max)');
+        if (drawerOut()) throw StateError('the drawer came out on the swipe left');
+        // Back: the finger goes right, over the table.
+        await swipe(Offset(rect.left + rect.width * 0.3, rect.center.dy), math.min(middle, rect.width * 0.5));
+        final back = table.position.pixels;
+        final drawerOnTable = drawerOut();
+        await screenshot('table-swipe-right');
+        // The chat itself, away from anything that scrolls sideways.
+        final list = tester.getRect(find.byType(ChatList));
+        final sideways = [
+          for (final e
+              in find
+                  .descendant(
+                    of: find.byType(ChatList),
+                    matching: find.byWidgetPredicate(
+                      (w) => w is Scrollable && axisDirectionToAxis(w.axisDirection) == Axis.horizontal,
+                    ),
+                  )
+                  .evaluate())
+            tester.getRect(find.byElementPredicate((x) => x == e)),
+        ];
+        Offset? blank;
+        for (var y = list.top + 110; y < list.bottom - 160 && blank == null; y += 30) {
+          final at = Offset(list.left + 30, y);
+          if (!sideways.any((r) => r.inflate(8).contains(at) || r.inflate(8).contains(at + const Offset(240, 0)))) {
+            blank = at;
+          }
+        }
+        if (blank == null) throw StateError('no spot on the chat clear of sideways scrollers');
+        await swipe(blank, 240);
+        final drawerOnChat = drawerOut();
+        await screenshot('chat-swipe-right');
+        steps.add({
+          'step':
+              'table-swipe: session=$where max=${max.round()} middle=${middle.round()} after-right=${back.round()} '
+              'drawerOnTable=$drawerOnTable drawerOnChat=$drawerOnChat',
+          'ok': back < middle - 10 && !drawerOnTable && drawerOnChat,
+        });
+        if (back >= middle - 10) throw StateError('the table did not scroll back ($middle -> $back)');
+        if (drawerOnTable) throw StateError('the swipe right on the table pulled the drawer out');
+        if (!drawerOnChat) throw StateError('a swipe right on the chat did not pull the drawer out');
+      }, shoot: false);
     }
     if (_live) {
       // A conversation with a picture (sent, or an image the agent made): open it, look, back.
