@@ -25,6 +25,7 @@ import 'package:dsh_app/launch/launch_state.dart';
 import 'package:dsh_app/state/artifacts.dart' show ArtifactKind;
 import 'package:dsh_app/state/locale_state.dart';
 import 'package:dsh_app/ui/chat/artifact_preview.dart' show artifactPreviewable;
+import 'package:dsh_app/ui/chat/chat_list.dart' show ChatList;
 import 'package:dsh_app/ui/chat/widgets/artifact_card.dart' show ArtifactTile;
 import 'package:dsh_app/ui/chat/widgets/attachments.dart' show SentAttachments;
 import 'package:dsh_app/ui/common/third_party_licenses.dart';
@@ -425,6 +426,90 @@ Future<void> _smoke(WidgetTester tester, IntegrationTestWidgetsFlutterBinding bi
               w.key is ValueKey<String> && RegExp(r'^session-(?!delete)').hasMatch((w.key! as ValueKey<String>).value),
         );
         await tapAndSettle(session, 5000);
+      });
+    }
+
+    if (_live) {
+      // The longest of the first conversations: fling up, and while it still
+      // glides tap 回到底部 (or the N 项待确认 pill); it must end at the bottom.
+      await step('jump-to-bottom', () async {
+        ScrollPosition chatPosition() => tester
+            .state<ScrollableState>(find.descendant(of: find.byType(ChatList), matching: find.byType(Scrollable)).first)
+            .position;
+        final keys = <String>[];
+        await openDrawer();
+        for (final e
+            in find
+                .byWidgetPredicate(
+                  (w) =>
+                      w.key is ValueKey<String> &&
+                      RegExp(r'^session-(?!delete)').hasMatch((w.key! as ValueKey<String>).value),
+                )
+                .hitTestable()
+                .evaluate()) {
+          keys.add((e.widget.key! as ValueKey<String>).value);
+        }
+        String? longest;
+        var longestExtent = -1.0;
+        for (final key in keys.take(8)) {
+          await openDrawer();
+          final tile = find.byKey(ValueKey(key));
+          if (tile.hitTestable().evaluate().isEmpty) continue;
+          await tester.tap(tile.hitTestable().first);
+          await frames(3500);
+          if (find.byType(ChatList).evaluate().isEmpty) continue;
+          final p = chatPosition();
+          final extent = p.maxScrollExtent - p.minScrollExtent + p.viewportDimension;
+          if (extent > longestExtent) {
+            longestExtent = extent;
+            longest = key;
+          }
+        }
+        if (longest == null) throw StateError('no conversation opened');
+        await openDrawer();
+        await tester.tap(find.byKey(ValueKey(longest)).hitTestable().first);
+        await frames(4000);
+        final start = chatPosition();
+        final atBottom = start.pixels;
+        // Up: the finger goes down the screen, a long fast fling.
+        final list = tester.getRect(find.byType(ChatList));
+        await tester.flingFrom(
+          Offset(list.center.dx, list.top + list.height * 0.3),
+          Offset(0, list.height * 0.5),
+          8000,
+        );
+        for (var i = 0; i < 8; i++) {
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        final key = find.descendant(
+          of: find.byType(ChatList),
+          matching: find.byWidgetPredicate(
+            (w) => w.key == const ValueKey('waiting') || w.key == const ValueKey('jump'),
+          ),
+        );
+        for (var i = 0; i < 30 && key.hitTestable().evaluate().isEmpty; i++) {
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        if (key.hitTestable().evaluate().isEmpty) throw StateError('no 回到底部 key after the fling');
+        final before = chatPosition();
+        final gliding = before.isScrollingNotifier.value;
+        final tapped = (tester.widget(key.hitTestable().first).key! as ValueKey<String>).value;
+        final pixelsAtTap = before.pixels;
+        await tester.tap(key.hitTestable().first);
+        await frames(3000);
+        final end = chatPosition();
+        final gap = end.maxScrollExtent - end.pixels;
+        steps.add({
+          'step':
+              'jump-to-bottom: extent=${longestExtent.round()} bottom=${atBottom.round()} '
+              'atTap=${pixelsAtTap.round()} gliding=$gliding key=$tapped '
+              'end pixels=${end.pixels.toStringAsFixed(1)} max=${end.maxScrollExtent.toStringAsFixed(1)}',
+          'ok': gap.abs() <= 2,
+        });
+        if (gap.abs() > 2) throw StateError('not at the bottom: ${gap.toStringAsFixed(1)} px short');
+        if (atBottom - pixelsAtTap < 200) {
+          throw StateError('the fling barely moved (${(atBottom - pixelsAtTap).round()} px)');
+        }
       });
     }
     if (_live) {
