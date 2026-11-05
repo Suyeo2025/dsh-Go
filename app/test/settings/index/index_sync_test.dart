@@ -31,6 +31,7 @@ import 'package:dsh_app/ui/settings/personalization_page.dart';
 import 'package:dsh_app/ui/settings/privacy_page.dart';
 import 'package:dsh_app/ui/settings/settings_screen.dart';
 import 'package:dsh_app/state/app_info.dart';
+import 'package:dsh_app/platform/platform_caps.dart';
 import 'package:dsh_app/ui/settings/index/spots.dart';
 import 'package:dsh_app/ui/settings/settings_widgets.dart';
 import 'package:dsh_client/dsh_client.dart';
@@ -199,7 +200,20 @@ void main() {
           ),
         ],
       ),
+      // 推送通知 only on a remote-only build.
+      absent: {'page:pushNotifications'},
     );
+  });
+
+  test('设置 (remote-only): 推送通知 in place of 通知', () {
+    debugRemoteOnlyOverride = true;
+    debugAndroidNativeOverride = false;
+    addTearDown(() {
+      debugRemoteOnlyOverride = null;
+      debugAndroidNativeOverride = null;
+    });
+    expect(SettingsIndex.has(SettingsIndex.entry(SettingsPageId.pushNotifications)), isTrue);
+    expect(SettingsIndex.has(SettingsIndex.entry(SettingsPageId.notifications)), isFalse);
   });
 
   testWidgets('个性化', (tester) async {
@@ -317,7 +331,20 @@ void main() {
       tester,
       SettingsPageId.remote,
       () => _app(tester, const RemoteScreen(), _running()),
-      // Once there is a host to come back to; 直连优先 once signed in to DSH Remote.
+      // Once there is a host to come back to; 直连优先 once signed in to DSH Remote;
+      // direct-URL hosts only on a remote-only build.
+      absent: {'remote-auto-connect', 'remote-direct', 'add-direct-host'},
+    );
+  });
+
+  testWidgets('远程主机 (remote-only)', (tester) async {
+    debugRemoteOnlyOverride = true;
+    addTearDown(() => debugRemoteOnlyOverride = null);
+    expect(SettingsIndex.has(Spots.addDirectHost), isTrue);
+    await _check(
+      tester,
+      SettingsPageId.remote,
+      () => _app(tester, const RemoteScreen(), _running()),
       absent: {'remote-auto-connect', 'remote-direct'},
     );
   });

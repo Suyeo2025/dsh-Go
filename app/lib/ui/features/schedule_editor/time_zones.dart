@@ -172,7 +172,7 @@ const _byOffset = {
 };
 
 /// The phone's IANA zone: `TZ`, then Android's default time zone, then
-/// the Linux zone files, then a zone with the current offset, then `UTC`.
+/// the Linux / Apple zone files, then a zone with the current offset, then `UTC`.
 Future<String> detectDeviceTimeZone() async {
   ensureTimeZones();
   bool usable(String? name) => name != null && name.isNotEmpty && isKnownZone(name);
@@ -181,7 +181,8 @@ Future<String> detectDeviceTimeZone() async {
   try {
     if (Platform.isAndroid) {
       return await detectAndroidTimeZone();
-    } else if (Platform.isLinux || Platform.isMacOS) {
+    } else if (Platform.isLinux || Platform.isMacOS || Platform.isIOS) {
+      // iOS: /etc/localtime usually links into the system zoneinfo as well; else the offset below.
       final file = File('/etc/timezone');
       if (file.existsSync()) {
         final name = file.readAsStringSync().trim();

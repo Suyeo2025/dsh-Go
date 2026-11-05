@@ -231,6 +231,7 @@
   "chatCommandGoalSummary": "{title}\n{objective}\n{status} · Round {rounds}/{max}",
   "chatCommandFailed": "Command failed",
   "chatImageStorageDenied": "Couldn’t save. Storage access is off.",
+  "chatImagePhotosDenied": "No access to Photos, not saved",
   "chatImageCannotSave": "Can’t save this image",
   "chatImageDownloadFailed": "Couldn’t download image. Try again.",
   "chatImageSaveFailed": "Couldn’t save. Try again.",

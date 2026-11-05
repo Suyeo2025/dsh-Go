@@ -512,6 +512,7 @@
   },
   "chatCommandFailed": "执行失败",
   "chatImageStorageDenied": "没有存储权限，未能保存",
+  "chatImagePhotosDenied": "没有相册权限，未能保存",
   "chatImageCannotSave": "这张图片无法保存",
   "chatImageDownloadFailed": "图片下载失败，请重试",
   "chatImageSaveFailed": "保存失败，请重试",

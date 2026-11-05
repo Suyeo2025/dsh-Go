@@ -25,6 +25,7 @@
   "mediaTitleImage": "New image",
   "mediaTitleVideo": "New video",
   "mediaOpenElsewhere": "Open in another app",
+  "mediaPlayVideo": "Play",
   "mediaShowInFiles": "Show in files",
   "mediaGenerating": "Generating",
   "mediaGeneratingProgress": "Generating · {progress}",

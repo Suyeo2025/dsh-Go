@@ -21,6 +21,7 @@ import '../common/app_sheet.dart';
 import '../common/list_page_row.dart';
 import '../common/segmented_pill.dart';
 import '../common/sheet_navigator.dart';
+import '../common/share_origin.dart';
 import '../replay/conversation_out.dart';
 import '../replay/replay_page.dart' show openConversationReplay;
 import '../session/workspace_files.dart' show formatBytes;
@@ -141,7 +142,7 @@ class SharePanelHome extends StatelessWidget {
             icon: AppIcons.shareText,
             label: l10n.viewShareAsText,
             busy: model.work == ShareWork.text,
-            onTap: ready ? model.shareText : null,
+            onTap: ready ? () => model.shareText(origin: shareOriginOf(context)) : null,
           ),
       ],
     );
@@ -497,7 +498,7 @@ class _ShareLinkPageState extends State<ShareLinkPage> {
             key: const ValueKey('share-link-share'),
             icon: AppIcons.share,
             label: l10n.commonShare,
-            onTap: model.shareLink,
+            onTap: () => model.shareLink(origin: shareOriginOf(context)),
           ),
           ShareAction(
             key: const ValueKey('share-link-stop'),
@@ -627,7 +628,7 @@ class _ShareFilePageState extends State<ShareFilePage> {
             _ => null,
           },
           onSave: idle ? model.saveFile : null,
-          onShare: idle ? model.shareFile : null,
+          onShare: idle ? () => model.shareFile(origin: shareOriginOf(context)) : null,
         ),
       ),
     );

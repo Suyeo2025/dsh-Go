@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../launch/launch_state.dart';
+import '../../platform/platform_caps.dart';
 import '../../runtime/local_footprint.dart';
 import '../../diagnostics/diagnostics_publish.dart';
 import '../../runtime/runtime_bridge.dart';
@@ -222,6 +223,11 @@ class _RootGateState extends ConsumerState<RootGate> {
       _pickingRemote = false;
     }
     if (!mounted || ref.read(activeHostProvider).isLocal) return;
+    await _finishRemote();
+  }
+
+  /// A remote host is picked: first run is over without the runtime.
+  Future<void> _finishRemote() async {
     if (_beside) _leaveBeside();
     await ref.read(onboardingPrefsProvider.notifier).setLocalDeclined(true);
     // What installing does on the other path: Android 13 asks about
@@ -244,6 +250,8 @@ class _RootGateState extends ConsumerState<RootGate> {
   void _maybeAutoStart() {
     if (_autoStartDone) return;
     _autoStartDone = true;
+    // iOS has no on-device engine to start.
+    if (isRemoteOnlyPlatform) return;
     final settings = ref.read(settingsProvider);
     if (!settings.autoStartLocal) return;
     final status = ref.read(localRuntimeProvider).status;
@@ -345,11 +353,12 @@ class _RootGateState extends ConsumerState<RootGate> {
           step: step,
           chooseRuntime: _chooseRuntime,
           beside: _beside,
-          onLocal: _chooseRuntime ? _chooseLocal : null,
+          onLocal: _chooseRuntime && !isRemoteOnlyPlatform ? _chooseLocal : null,
           onAppearanceDone: _afterAppearance,
           onAccessDone: _afterAccess,
           onFinished: _afterFinishing,
           onRemote: _useRemote,
+          onRemoteConnected: () => unawaited(_finishRemote()),
           onWelcomeDone: () {
             unawaited(ref.read(onboardingPrefsProvider.notifier).markWelcomeSeen());
             _chooseRuntime = runtimeStepAsks(ref.read(localRuntimeProvider).status);

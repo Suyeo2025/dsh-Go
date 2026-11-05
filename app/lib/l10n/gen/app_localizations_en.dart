@@ -4209,6 +4209,9 @@ class L10nEn extends L10n {
   String get chatImageStorageDenied => 'Couldn’t save. Storage access is off.';
 
   @override
+  String get chatImagePhotosDenied => 'No access to Photos, not saved';
+
+  @override
   String get chatImageCannotSave => 'Can’t save this image';
 
   @override
@@ -4750,6 +4753,162 @@ class L10nEn extends L10n {
     });
     return '$_temp0 $day';
   }
+
+  @override
+  String directHostLabel(String name) {
+    return '$name · Direct';
+  }
+
+  @override
+  String get directHostFallback => 'Direct host';
+
+  @override
+  String get directErrTokenNeeded =>
+      'A launch token is needed: paste the dsh web launch link or token in the host settings';
+
+  @override
+  String get directErrTokenRejected =>
+      'The launch token is no longer valid (dsh web restarted). Paste the new launch link or token';
+
+  @override
+  String get directErrSignInExpired => 'Sign-in expired; signing in again with the launch token';
+
+  @override
+  String get directErrSignIn => 'Couldn’t sign in to DSH';
+
+  @override
+  String get directErrNotDsh => 'No DSH Web found at this address';
+
+  @override
+  String directErrUnreachable(String address) {
+    return 'Can’t reach $address';
+  }
+
+  @override
+  String directErrForbidden(String host) {
+    return 'DSH refused this address: start dsh web with --trusted-host $host';
+  }
+
+  @override
+  String get directWebAppOnly => 'This host’s web page opens in the app, so it keeps the app’s sign-in';
+
+  @override
+  String get directSection => 'Direct URL';
+
+  @override
+  String get directSectionFooter =>
+      'Connect to a dsh web that is already reachable (started with --trusted-host your-domain, preferably behind HTTPS). The token and sign-in cookie are kept in the system keychain only.';
+
+  @override
+  String get directAdd => 'Add direct host';
+
+  @override
+  String get directAddHint => 'Enter its URL and launch token; no third-party server';
+
+  @override
+  String get directFormIntro => 'For a dsh web your own server exposes directly, such as https://dsh.example.com.';
+
+  @override
+  String get directUrlLabel => 'URL';
+
+  @override
+  String get directUrlHint => 'https://dsh.example.com';
+
+  @override
+  String get directTokenLabel => 'Launch token';
+
+  @override
+  String get directTokenHint => 'Paste the token or the whole launch link';
+
+  @override
+  String get directTokenHelp =>
+      'dsh web prints a link like https://…/?token=… when it starts. Paste the whole link and the URL and token are split out. The token changes on every restart; after signing in the app uses a sign-in cookie that lasts 30 days.';
+
+  @override
+  String get directTokenSaved =>
+      'A token is saved. Leave this empty to keep it; paste a new one if dsh web restarted and the connection fails.';
+
+  @override
+  String get directUrlRequired => 'Enter the host URL';
+
+  @override
+  String get directUrlInvalid => 'Invalid URL; it should start with https:// or http://';
+
+  @override
+  String get directTokenRequired => 'The first connection needs the launch token';
+
+  @override
+  String get directLinkSplit => 'URL and token taken from the launch link';
+
+  @override
+  String directConnected(String address) {
+    return 'Connected · $address';
+  }
+
+  @override
+  String directSubtitle(String address) {
+    return 'Direct · $address';
+  }
+
+  @override
+  String get directNewToken => 'Paste new token';
+
+  @override
+  String get directDeleteBody =>
+      'This host’s settings and the token and sign-in cookie saved on this phone will be deleted. DSH and chats on the host stay.';
+
+  @override
+  String get directOnboardingTitle => 'Connect to your DSH';
+
+  @override
+  String get directOnboardingMessage =>
+      'The DSH engine doesn’t run on this device. Connect to dsh web on your computer or server and keep using it here.';
+
+  @override
+  String get directOnboardingAddHint => 'A dsh web your server exposes: enter its URL and launch token';
+
+  @override
+  String get searchKwAddDirectHost => 'direct,URL,address,launch link,token,add host,server';
+
+  @override
+  String get directGoogleSection => 'Sign in with Google';
+
+  @override
+  String get directGoogleSignIn => 'Sign in with Google';
+
+  @override
+  String get directGoogleSigningIn => 'Signing in…';
+
+  @override
+  String get directGoogleSignInAgain => 'Sign in with Google again';
+
+  @override
+  String get directGoogleFooter =>
+      'If the server is protected by a Google sign-in (such as Cloudflare Access), signing in in the system browser fills in the URL and token for you. Do the same when the token expires.';
+
+  @override
+  String get directSignInUrlLabel => 'Sign-in address';
+
+  @override
+  String get directSignInUrlRequired => 'Enter the sign-in address';
+
+  @override
+  String get directSignInUrlInvalid => 'Invalid sign-in address; it should start with https://';
+
+  @override
+  String get directSignInUnsupported => 'This device can’t sign in through the browser';
+
+  @override
+  String get directSignInFailed => 'Google sign-in didn’t finish; try again';
+
+  @override
+  String get directSignInBadReply => 'The sign-in reply wasn’t valid; check the sign-in address';
+
+  @override
+  String get directManualEntry => 'Enter the URL and token yourself';
+
+  @override
+  String get directOnboardingGoogleHint => 'For a server behind a Google sign-in: sign in and you’re connected';
 
   @override
   String get engineNewChatDefaultsLast => 'New chat defaults (last choice)';
@@ -7264,6 +7423,11 @@ class L10nEn extends L10n {
   String get featuresPermissionResetDefault => 'Restore default';
 
   @override
+  String fileSavedIosFiles(String name) {
+    return 'Files › DSH Go › $name';
+  }
+
+  @override
   String get fileImageName => 'image';
 
   @override
@@ -8362,6 +8526,9 @@ class L10nEn extends L10n {
 
   @override
   String get mediaOpenElsewhere => 'Open in another app';
+
+  @override
+  String get mediaPlayVideo => 'Play';
 
   @override
   String get mediaShowInFiles => 'Show in files';
@@ -12653,6 +12820,149 @@ class L10nEn extends L10n {
   String plugViewGalleryPicture(int index) {
     return 'Picture $index';
   }
+
+  @override
+  String get pushTitle => 'Push notifications';
+
+  @override
+  String get pushDescription =>
+      'When the app is in the background or closed, the push bridge on your server (DSH Watch bridge) tells you when a reply is done, an approval is waiting or a question is waiting. Tapping one opens the chat.';
+
+  @override
+  String get pushBridgeLabel => 'Push bridge address';
+
+  @override
+  String get pushBridgeHint => 'watch.example.com';
+
+  @override
+  String get pushHostLabel => 'Host';
+
+  @override
+  String get pushNoDirectHost => 'Add and connect a direct host under Remote hosts first.';
+
+  @override
+  String get pushEnable => 'Turn on push';
+
+  @override
+  String get pushEnableFooter =>
+      'This phone proves it\'s you to the bridge with its signed-in DSH session; the bridge checks it once and doesn\'t keep it. Approvals are never granted from a notification: open the app and handle them in the chat.';
+
+  @override
+  String get pushUseLink => 'Use a pairing link instead';
+
+  @override
+  String get pushLinkTitle => 'Paste a pairing link';
+
+  @override
+  String get pushLinkHint => 'Run dsh-watch-bridge pair on the server and paste the dshwatch://pair… link it prints.';
+
+  @override
+  String get pushLinkPair => 'Pair';
+
+  @override
+  String get pushStatusLabel => 'Status';
+
+  @override
+  String get pushStatusOff => 'Off';
+
+  @override
+  String get pushStatusNeedsPermission => 'Needs notification permission';
+
+  @override
+  String get pushStatusRegistering => 'Registering…';
+
+  @override
+  String get pushStatusOn => 'On';
+
+  @override
+  String get pushStatusTokenFailed => 'Registration failed';
+
+  @override
+  String get pushStatusUnreachable => 'Can\'t reach the bridge';
+
+  @override
+  String get pushStatusRevoked => 'Removed on the server';
+
+  @override
+  String get pushBridgeRow => 'Bridge';
+
+  @override
+  String get pushHostRow => 'Opens on host';
+
+  @override
+  String get pushRetry => 'Register again';
+
+  @override
+  String get pushOpenSystem => 'Open notification settings';
+
+  @override
+  String get pushUnpair => 'Unpair';
+
+  @override
+  String get pushUnpairConfirmTitle => 'Unpair push?';
+
+  @override
+  String get pushUnpairConfirmText => 'This phone stops getting pushes. You can turn them back on any time.';
+
+  @override
+  String get pushUnpairOffline =>
+      'Unpaired here, but the bridge couldn\'t be told; remove the device on the server with dsh-watch-bridge devices revoke.';
+
+  @override
+  String get pushRevokedText => 'The bridge no longer knows this phone: unpair, then turn push on again.';
+
+  @override
+  String get pushPermissionText => 'Notifications for DSH Go are off in iOS Settings, so pushes can\'t show.';
+
+  @override
+  String get pushErrBridgeUrl => 'The bridge address must be an https address';
+
+  @override
+  String get pushErrNoHost => 'Choose a direct host first';
+
+  @override
+  String get pushErrNotSignedIn => 'Not signed in to this host yet: connect to it once first';
+
+  @override
+  String get pushErrNotABridge => 'That address isn\'t a push bridge';
+
+  @override
+  String get pushErrUnreachable => 'Can\'t reach the bridge';
+
+  @override
+  String get pushErrCertificate => 'The bridge\'s certificate doesn\'t match';
+
+  @override
+  String get pushErrDshRejected => 'The bridge didn\'t accept this sign-in (expired, or another server)';
+
+  @override
+  String get pushErrDshPairingOff => 'The bridge doesn\'t allow pairing by DSH sign-in: use a pairing link';
+
+  @override
+  String get pushErrCodeInvalid => 'That pairing link isn\'t right';
+
+  @override
+  String pushErrCodeInvalidLeft(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Wrong code, $count tries left',
+      one: 'Wrong code, 1 try left',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get pushErrCodeExpired => 'The pairing link expired: make a new one';
+
+  @override
+  String get pushErrLocked => 'Too many tries: try again later';
+
+  @override
+  String get pushErrFailed => 'Pairing failed';
+
+  @override
+  String get searchKwPush => 'push,notifications,APNs,alerts,background,pairing,bridge';
 
   @override
   String get readListUpdating => 'Updating · previous results';
@@ -17361,6 +17671,13 @@ class L10nEn extends L10n {
   String get usageUpgradeOff => 'Turn off';
 
   @override
+  String get viewArtifactQuickLook => 'Open in Quick Look';
+
+  @override
+  String get viewArtifactQuickLookHint =>
+      'Page through and zoom in Quick Look, or share it or save it to Files from there';
+
+  @override
   String viewArtifactSaved(String value) {
     return 'Saved to $value';
   }
@@ -18795,6 +19112,9 @@ class L10nEn extends L10n {
 
   @override
   String get voiceConfigureEither => 'The phone’s service isn’t available. Download the voice model in voice settings.';
+
+  @override
+  String get voiceHostModelNotReady => 'The voice model on the host isn\'t ready yet';
 
   @override
   String get voiceErrorNetworkTimeout => 'Speech recognition timed out. Check your connection.';

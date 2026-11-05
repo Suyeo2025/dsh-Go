@@ -56,7 +56,7 @@ class QuickPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final items = ref.watch(quickPanelProvider.select((p) => p.items));
+    final items = ref.watch(quickPanelProvider.select((p) => p.shown));
     final content = Material(
       type: MaterialType.transparency,
       child: SafeArea(

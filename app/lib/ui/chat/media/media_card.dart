@@ -33,6 +33,7 @@ import '../../../state/sessions_state.dart';
 import '../../common/app_sheet.dart';
 import '../../common/bleed.dart';
 import '../../common/brief_notice.dart';
+import '../../common/share_origin.dart';
 import '../../settings/media_settings_page.dart' show MediaSettingsPage;
 import '../../theme/app_icons.dart';
 import '../../theme/theme.dart';
@@ -43,6 +44,7 @@ import '../widgets/message_actions.dart' show copyMessage;
 import '../widgets/message_menu.dart';
 import 'media_format.dart';
 import 'media_grid.dart';
+import 'media_video_page.dart';
 import 'media_viewer.dart';
 
 /// What the chat lends a card: generate again, or take a picture back into
@@ -311,7 +313,7 @@ class _MediaCellState extends ConsumerState<MediaCell> {
     if (sessionId == null) return;
     final item = _item;
     if (item.isVideo) {
-      unawaited(openMediaElsewhere(context, ref, sessionId, item));
+      unawaited(playMediaVideo(context, ref, sessionId, item));
       return;
     }
     unawaited(openMediaViewer(context, sessionId: sessionId, meta: widget.meta, index: widget.index));
@@ -766,7 +768,8 @@ Future<Uint8List> mediaItemBytes(WidgetRef ref, String sessionId, MediaItem item
 }
 
 /// 「保存到相册」 for a batch: one says 「已保存到相册」 as usual; several say
-/// how many. A video goes to 下载 (the gallery takes pictures only for now).
+/// how many. A video goes to 下载 on Android (the gallery takes pictures only
+/// for now), to Photos where the gallery takes videos ([MediaChannel.savesVideos]: iOS).
 Future<void> saveMediaItems(BuildContext context, WidgetRef ref, String sessionId, List<MediaItem> items) async {
   final pictures = items.where((i) => !i.isVideo).toList();
   final videos = items.where((i) => i.isVideo).toList();
@@ -794,11 +797,17 @@ Future<void> saveMediaItems(BuildContext context, WidgetRef ref, String sessionI
     }
   }
   for (final item in videos) {
+    final artifact = Artifact(path: item.path, origin: ArtifactOrigin.linked, turn: 0);
     try {
-      await ref
-          .read(artifactFilesProvider)
-          .saveToDownloads(sessionId, Artifact(path: item.path, origin: ArtifactOrigin.linked, turn: 0));
+      if (media.savesVideos) {
+        await media.saveVideo((await ref.read(artifactFilesProvider).materialize(sessionId, artifact)).path);
+      } else {
+        await ref.read(artifactFilesProvider).saveToDownloads(sessionId, artifact);
+      }
       saved++;
+    } on PlatformException catch (e) {
+      // Photos refused (iOS) says so; 下载 keeps its plain failure.
+      failure ??= media.savesVideos && e.code == 'permission' ? 'permission' : 'failed';
     } catch (_) {
       failure ??= 'failed';
     }
@@ -812,10 +821,12 @@ Future<void> saveMediaItems(BuildContext context, WidgetRef ref, String sessionI
   }
 }
 
-/// 「分享」 a batch: the share sheet with every file of it, as stored.
+/// 「分享」 a batch: the share sheet with every file of it, as stored; on
+/// iPad its popover points at [context] (`shareOriginOf`).
 Future<void> shareMediaItems(BuildContext context, WidgetRef ref, String sessionId, List<MediaItem> items) async {
   final l10n = context.l10n;
   final messenger = ScaffoldMessenger.maybeOf(context);
+  final origin = shareOriginOf(context);
   try {
     final files = <XFile>[];
     final names = <String>[];
@@ -834,7 +845,7 @@ Future<void> shareMediaItems(BuildContext context, WidgetRef ref, String session
       names.add(name);
     }
     if (files.isEmpty) return;
-    await SharePlus.instance.share(ShareParams(files: files, fileNameOverrides: names));
+    await SharePlus.instance.share(withShareOrigin(ShareParams(files: files, fileNameOverrides: names), origin));
   } catch (_) {
     messenger?.showSnackBar(SnackBar(content: Text(l10n.chatShareFailed)));
   }

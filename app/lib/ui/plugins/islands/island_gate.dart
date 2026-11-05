@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../plugins/seams/seat_state.dart' show seatRouteGuardReportProvider;
+import '../../../remote/direct/direct_link.dart';
 import '../../../remote/ssh/ssh_link.dart';
 import '../../../runtime/runtime_state.dart';
 import '../../../state/connection_state.dart';
@@ -31,6 +32,8 @@ const islandsWithoutGuard = bool.fromEnvironment('DSH_GO_LOCAL_ISLANDS');
 ///
 /// - relay: never (no DSH Web over the relay);
 /// - SSH: yes, the same exposure as the 网页版 entry that's already there;
+/// - direct: yes, likewise (Tier A, the boot graph; the stock DSH there has
+///   no bridge, so only slots the official page fills);
 /// - on-device: only once the route guard ships with the runtime — the
 ///   bridge says so ([reported], `routeGuard` in `/dsh-go/v1/inventory`)
 ///   *and* a cookieless call to a plugin route is refused ([probed]). Any
@@ -44,6 +47,7 @@ bool islandHostAllowed(
 }) => switch (kind) {
   HostKind.relay => false,
   HostKind.ssh => true,
+  HostKind.direct => true,
   HostKind.local => override || (reported == true && probed == RouteGuard.present),
 };
 
@@ -142,10 +146,26 @@ final islandHostUrlProvider = Provider.autoDispose.family<Uri?, HostRef>((ref, h
       final token = link is SshHostLink ? link.endpoint?.token : null;
       if (port == null || token == null) return null;
       return islandLaunchUri('http://127.0.0.1:$port', token);
+    case HostKind.direct:
+      // Signed in by the session cookie the link hands the WebView store
+      // (direct_web_cookie.dart) once connected: no token in the URL.
+      final connected = ref.watch(hostLinkStatusProvider(host).select((s) => s.value?.isConnected ?? false));
+      final link = ref.watch(hostLinkProvider(host));
+      if (!connected || link is! DirectHostLink) return null;
+      return directIslandUri(link.config.baseUri);
     case HostKind.relay:
       return null;
   }
 });
+
+/// A direct host's DSH Web page: its base URL (which may carry a path), no
+/// query or fragment.
+Uri directIslandUri(Uri baseUri) => Uri(
+  scheme: baseUri.scheme,
+  host: baseUri.host,
+  port: baseUri.hasPort ? baseUri.port : null,
+  path: baseUri.path.isEmpty ? '/' : baseUri.path,
+);
 
 /// `http://127.0.0.1:3080/?token=…`: the token only buys the session cookie,
 /// exactly as the 网页版 does.

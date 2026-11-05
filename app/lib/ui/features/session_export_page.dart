@@ -13,6 +13,7 @@ import '../shell/page_frame.dart';
 import '../theme/app_icons.dart';
 import 'feature_widgets.dart';
 import '../common/brief_notice.dart';
+import '../common/share_origin.dart';
 
 enum _Action { share, save }
 
@@ -33,10 +34,11 @@ class _SessionExportPageState extends ConsumerState<SessionExportPage> {
     if (_busy != null) return;
     setState(() => _busy = action);
     final exporter = ref.read(sessionLogExporterProvider);
+    final origin = shareOriginOf(context);
     try {
       switch (action) {
         case _Action.share:
-          await exporter.share(widget.sessionId);
+          await exporter.share(widget.sessionId, origin: origin);
         case _Action.save:
           final where = await exporter.saveToDownloads(widget.sessionId);
           if (mounted) showBriefNotice(context, l10n.featuresExportSavedTo(where));

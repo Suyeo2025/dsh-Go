@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../state/artifacts.dart' show FilesChannel, filesChannelProvider;
 import '../l10n/l10n.dart';
+import '../ui/common/share_origin.dart' show withShareOrigin;
 import 'diagnostics_bundle.dart';
 
 /// Where an export is; the UI says it in words.
@@ -59,16 +60,19 @@ class DiagnosticsExporter {
   }
 
   /// The system share sheet with a fresh bundle; true when it was sent
-  /// somewhere.
-  Future<bool> share({void Function(DiagnosticsStep step)? onStep}) async {
+  /// somewhere. [origin]: where the iPad popover points (`shareOriginOf`).
+  Future<bool> share({void Function(DiagnosticsStep step)? onStep, Rect? origin}) async {
     final file = await build(onStep: onStep);
     onStep?.call(DiagnosticsStep.sharing);
     final name = file.uri.pathSegments.last;
     final status = await _share(
-      ShareParams(
-        files: [XFile(file.path, mimeType: DiagnosticsBundle.mime, name: name)],
-        fileNameOverrides: [name],
-        subject: appL10n.stateDiagnosticsSubject,
+      withShareOrigin(
+        ShareParams(
+          files: [XFile(file.path, mimeType: DiagnosticsBundle.mime, name: name)],
+          fileNameOverrides: [name],
+          subject: appL10n.stateDiagnosticsSubject,
+        ),
+        origin,
       ),
     );
     return status == ShareResultStatus.success;

@@ -155,13 +155,13 @@ class _WebHomeState extends ConsumerState<WebHome> {
     final phoneLayout = ref.watch(settingsProvider.select((s) => s.webPhoneLayout));
     final Widget page = switch (access) {
       LocalDshWeb() => LocalWebScreen(handle: _handle, link: _link, onSession: _onSession),
-      SshDshWeb(:final url, :final hostName) => WebViewPage(
+      SshDshWeb(:final url, :final hostName) || DirectDshWeb(:final url, :final hostName) => WebViewPage(
         // A new forward (reconnect) or layout switch: a new page.
         key: ValueKey((url, phoneLayout)),
         url: url,
         title: context.l10n.webTitle,
         subtitle: hostName,
-        externalDisabledReason: context.l10n.webSshAppOnly,
+        externalDisabledReason: access is DirectDshWeb ? context.l10n.directWebAppOnly : context.l10n.webSshAppOnly,
         // Android suspends the page in the background and its socket drops.
         reloadAfterBackground: const Duration(seconds: 60),
         dshWeb: true,
@@ -303,7 +303,9 @@ class _WebEntryHostState extends ConsumerState<WebEntryHost> {
       case OpenChatEntry(:final host, :final sessionId):
         if (!mounted || !await DiscardGuard.confirmLeave(context) || !mounted) return;
         final hosts = ref.read(hostsProvider);
-        if (host.kind == HostKind.ssh && hosts.loaded && hosts.sshById(host.id) == null) {
+        if (hosts.loaded &&
+            (host.kind == HostKind.ssh && hosts.sshById(host.id) == null ||
+                host.kind == HostKind.direct && hosts.directById(host.id) == null)) {
           ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(context.l10n.webChatGone)));
           return;
         }

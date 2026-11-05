@@ -106,7 +106,7 @@ class RecordingShareOut extends ShareOut {
   Future<void> copy(String text) async => copied.add(text);
 
   @override
-  Future<void> shareText(String text) async => sharedText.add(text);
+  Future<void> shareText(String text, {Rect? origin}) async => sharedText.add(text);
 
   @override
   Future<File> write(String name, String content) async {
@@ -116,7 +116,7 @@ class RecordingShareOut extends ShareOut {
   }
 
   @override
-  Future<void> shareFile(File file, {String? text}) async => sharedFiles.add(file.path);
+  Future<void> shareFile(File file, {String? text, Rect? origin}) async => sharedFiles.add(file.path);
 
   @override
   Future<String> save(String name, String content) async {

@@ -24,6 +24,7 @@ import '../common/segmented_pill.dart';
 import '../shell/adaptive/adaptive_layout.dart' show WindowClass;
 import '../theme/app_icons.dart';
 import '../theme/theme.dart';
+import '../common/share_origin.dart';
 import 'share_card.dart';
 import 'share_content.dart';
 import 'share_export.dart';
@@ -132,6 +133,7 @@ class _ShareImagePageState extends ConsumerState<ShareImagePage> {
     final l10n = context.l10n;
     if (_busy != null) return;
     final exporter = ref.read(shareExporterProvider);
+    final origin = shareOriginOf(context);
     setState(() {
       _busy = busy;
       _error = null;
@@ -142,7 +144,7 @@ class _ShareImagePageState extends ConsumerState<ShareImagePage> {
       final png = await captureShareCard(_cardKey);
       final file = await exporter.write(png);
       if (busy == _Busy.sharing) {
-        await exporter.share(file, text: widget.linkText);
+        await exporter.share(file, text: widget.linkText, origin: origin);
       } else {
         await exporter.save(file);
       }

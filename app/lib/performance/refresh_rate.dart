@@ -4,6 +4,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import '../platform/platform_caps.dart';
 import 'performance_policy.dart';
 
 /// Tells the platform when the app wants the screen's fastest refresh rate.
@@ -39,6 +40,8 @@ class RefreshRateService {
   void start() {
     if (_started) return;
     _started = true;
+    // Only Android's window takes a refresh-rate preference (iOS: ProMotion decides).
+    if (!hasAndroidNativeLayer) return;
     // Widget tests have no platform side and must not leave timers behind; the mode is
     // still sent so a test can assert the channel traffic.
     if (!_testing) WidgetsBinding.instance.addPersistentFrameCallback(_onFrame);
@@ -76,6 +79,7 @@ class RefreshRateService {
   void _sendActive(bool active) => _send('setFrameActive', {'active': active});
 
   void _send(String method, Map<String, Object?> arguments) {
+    if (!hasAndroidNativeLayer) return;
     unawaited(channel.invokeMethod<void>(method, arguments).catchError((Object _) {}));
   }
 

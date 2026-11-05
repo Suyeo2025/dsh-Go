@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
 import '../../notify/chat_alerts.dart' show approvalText, questionText;
+import '../../plugins/seams/seat_state.dart' show keepSeatInventory;
 import '../../runtime/local_footprint.dart' show RuntimeMissing;
 import '../../runtime/runtime_bridge.dart' show RuntimePhase;
 import '../../runtime/runtime_state.dart' show localRuntimeProvider;
@@ -117,6 +118,8 @@ class ChatScreen extends ConsumerStatefulWidget {
 }
 
 class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObserver {
+  /// The seats' inventory, held unpaused while a page covers the chat.
+  late final ProviderSubscription<void> _seatInventory;
   void Function()? _endInteraction;
   bool _routeCurrent = true;
   ModalRoute<Object?>? _interactionRoute;
@@ -245,6 +248,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   @override
   void initState() {
     super.initState();
+    _seatInventory = keepSeatInventory(context);
     WidgetsBinding.instance.addObserver(this);
     _scheduleInteraction();
     ref.listenManual(currentSessionProvider, (_, _) => _scheduleInteraction());
@@ -362,6 +366,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
 
   @override
   void dispose() {
+    _seatInventory.close();
     WidgetsBinding.instance.removeObserver(this);
     _endInteraction?.call();
     _endInteraction = null;

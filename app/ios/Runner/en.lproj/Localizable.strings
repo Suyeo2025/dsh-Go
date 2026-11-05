@@ -1,0 +1,7 @@
+/* Push notification texts (aps.alert.loc-key from the dsh-watch bridge). Generic on purpose:
+   no conversation content goes through Apple. */
+"DG_APPROVAL" = "A conversation is waiting for your approval";
+"DG_QUESTION" = "A conversation is waiting for your answer";
+"DG_DONE" = "A reply is done";
+"DG_FAILED" = "A reply stopped with an error";
+"DG_NOTICE" = "The push bridge needs attention on the server";

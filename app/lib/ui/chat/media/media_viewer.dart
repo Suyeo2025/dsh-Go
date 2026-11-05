@@ -18,6 +18,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/l10n.dart';
+import '../../../platform/platform_caps.dart';
 import '../../../state/artifacts.dart';
 import '../../common/app_sheet.dart';
 import '../../common/list_page_row.dart';
@@ -31,6 +32,7 @@ import '../widgets/image_actions.dart';
 import '../widgets/message_actions.dart' show copyMessage;
 import 'media_card.dart';
 import 'media_format.dart';
+import 'media_video_page.dart';
 
 /// The viewer's measured geometry; `test/media/media_card_test.dart` (viewer).
 abstract final class MediaViewerMetrics {
@@ -237,18 +239,20 @@ class _MediaViewerPageState extends ConsumerState<MediaViewerPage> {
                               if (!item.isVideo) ...[
                                 GallerySaveButton(load: _bytes, name: item.name, grouped: false),
                                 const SizedBox(width: 8),
-                                GlassIconButton(
-                                  icon: AppIcons.share,
-                                  tooltip: l10n.commonShare,
-                                  grouped: false,
-                                  onPressed: () => unawaited(shareImageFile(context, _bytes, name: item.name)),
+                                Builder(
+                                  builder: (button) => GlassIconButton(
+                                    icon: AppIcons.share,
+                                    tooltip: l10n.commonShare,
+                                    grouped: false,
+                                    onPressed: () => unawaited(shareImageFile(button, _bytes, name: item.name)),
+                                  ),
                                 ),
                               ] else
                                 GlassIconButton(
-                                  icon: AppIcons.openWith,
-                                  tooltip: l10n.mediaOpenElsewhere,
+                                  icon: hasAndroidNativeLayer ? AppIcons.openWith : AppIcons.playVideo,
+                                  tooltip: hasAndroidNativeLayer ? l10n.mediaOpenElsewhere : l10n.mediaPlayVideo,
                                   grouped: false,
-                                  onPressed: () => unawaited(openMediaElsewhere(context, ref, widget.sessionId, item)),
+                                  onPressed: () => unawaited(playMediaVideo(context, ref, widget.sessionId, item)),
                                 ),
                             ],
                           ),
@@ -366,11 +370,13 @@ class _MediaViewerPageState extends ConsumerState<MediaViewerPage> {
                                 const SizedBox(width: 12),
                                 GallerySaveButton(load: bytes, name: picture.name, grouped: false),
                                 const SizedBox(width: 8),
-                                GlassIconButton(
-                                  icon: AppIcons.share,
-                                  tooltip: l10n.commonShare,
-                                  grouped: false,
-                                  onPressed: () => unawaited(shareImageFile(context, bytes, name: picture.name)),
+                                Builder(
+                                  builder: (button) => GlassIconButton(
+                                    icon: AppIcons.share,
+                                    tooltip: l10n.commonShare,
+                                    grouped: false,
+                                    onPressed: () => unawaited(shareImageFile(button, bytes, name: picture.name)),
+                                  ),
                                 ),
                               ],
                             ],

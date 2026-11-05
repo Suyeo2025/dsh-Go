@@ -244,5 +244,10 @@ final readListIdentityProvider = Provider<ReadListIdentity?>((ref) {
         host.harnessVersion,
         epoch,
       ]);
+    case HostKind.direct:
+      final hosts = ref.watch(hostsProvider);
+      final host = hosts.directById(selected.id);
+      if (!hosts.loaded || host == null || host.id.length > 256 || host.connectionKey.length > 4096) return null;
+      return ReadListIdentity.of(['direct', host.id, host.connectionKey, epoch]);
   }
 });

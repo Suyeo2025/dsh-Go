@@ -1,4 +1,12 @@
 {
+  "fileSavedIosFiles": "Files › DSH Go › {name}",
+  "@fileSavedIosFiles": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "fileImageName": "image",
   "fileSharedText": "Shared text.txt",
   "fileChatFallback": "chat"

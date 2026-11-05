@@ -1,0 +1,83 @@
+{
+  "directHostLabel": "{name} · 直连",
+  "@directHostLabel": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "directHostFallback": "直连主机",
+  "directErrTokenNeeded": "需要启动 token：在主机设置里粘贴 dsh web 的启动链接或 token",
+  "directErrTokenRejected": "启动 token 已失效（dsh web 重启过），请粘贴新的启动链接或 token",
+  "directErrSignInExpired": "登录已过期，正在用启动 token 重新登录",
+  "directErrSignIn": "登录 DSH 失败",
+  "directErrNotDsh": "这个地址上没有找到 DSH Web",
+  "directErrUnreachable": "连不上 {address}",
+  "@directErrUnreachable": {
+    "placeholders": {
+      "address": {
+        "type": "String"
+      }
+    }
+  },
+  "directErrForbidden": "DSH 拒绝了这个地址：启动 dsh web 时需要加上 --trusted-host {host}",
+  "@directErrForbidden": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "directWebAppOnly": "这台主机的网页版只在 App 内打开，以便沿用 App 的登录",
+  "directSection": "直连 URL",
+  "directSectionFooter": "连接已经对外开放的 dsh web（启动时带上 --trusted-host 你的域名，建议走 HTTPS）。token 和登录 Cookie 只保存在系统钥匙串里。",
+  "directAdd": "添加直连主机",
+  "directAddHint": "填网址和启动 token，不经过第三方服务器",
+  "directFormIntro": "适合自己服务器上直接对外的 dsh web，例如 https://dsh.example.com。",
+  "directUrlLabel": "网址",
+  "directUrlHint": "https://dsh.example.com",
+  "directTokenLabel": "启动 token",
+  "directTokenHint": "粘贴 token 或整条启动链接",
+  "directTokenHelp": "dsh web 启动时会输出 https://…/?token=… 这样的链接，整条粘贴即可，会自动拆出网址和 token。token 每次重启都会变；登录后 App 改用有效期 30 天的登录 Cookie。",
+  "directTokenSaved": "已保存 token。留空则继续使用；dsh web 重启后连不上时再粘贴新的。",
+  "directUrlRequired": "填写主机网址",
+  "directUrlInvalid": "网址无效，应为 https://… 或 http://…",
+  "directTokenRequired": "首次连接需要启动 token",
+  "directLinkSplit": "已从启动链接拆出网址和 token",
+  "directConnected": "已连接 · {address}",
+  "@directConnected": {
+    "placeholders": {
+      "address": {
+        "type": "String"
+      }
+    }
+  },
+  "directSubtitle": "直连 · {address}",
+  "@directSubtitle": {
+    "placeholders": {
+      "address": {
+        "type": "String"
+      }
+    }
+  },
+  "directNewToken": "粘贴新 token",
+  "directDeleteBody": "这台主机的设置和保存在手机上的 token、登录 Cookie 都会删除。主机上的 DSH 和对话不受影响。",
+  "directOnboardingTitle": "连接你的 DSH",
+  "directOnboardingMessage": "这台设备上不运行 DSH 引擎。连接电脑或服务器上的 dsh web，在这里接着用。",
+  "directOnboardingAddHint": "服务器上直接对外的 dsh web：填网址和启动 token",
+  "searchKwAddDirectHost": "直连,URL,网址,启动链接,token,添加主机,服务器",
+  "directGoogleSection": "用 Google 登录",
+  "directGoogleSignIn": "用 Google 登录",
+  "directGoogleSigningIn": "正在登录…",
+  "directGoogleSignInAgain": "用 Google 重新登录",
+  "directGoogleFooter": "服务器用 Google 账号保护时（例如 Cloudflare Access），在系统浏览器里登录后会自动拿到网址和 token，不用手动粘贴。token 失效后也能这样重新登录。",
+  "directSignInUrlLabel": "登录地址",
+  "directSignInUrlRequired": "填写登录地址",
+  "directSignInUrlInvalid": "登录地址无效，应为 https://…",
+  "directSignInUnsupported": "这台设备不支持在浏览器里登录",
+  "directSignInFailed": "Google 登录没有完成，请重试",
+  "directSignInBadReply": "登录返回的信息不对，请确认登录地址",
+  "directManualEntry": "手动填写网址和 token",
+  "directOnboardingGoogleHint": "服务器用 Google 账号保护：登录后自动完成连接"
+}

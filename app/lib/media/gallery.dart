@@ -1,6 +1,6 @@
 // 「保存到相册」: pictures from a conversation into the
 // phone's gallery through `media/MediaPlugin.kt` (MediaStore on Android 10+,
-// the public Pictures folder before).
+// the public Pictures folder before), on iOS into Photos (ios_gallery.dart).
 
 import 'dart:async';
 import 'dart:io';
@@ -12,7 +12,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
 import '../l10n/l10n.dart';
+import '../platform/platform_caps.dart';
 import '../state/attachments.dart' show inlineImageType;
+import 'ios_gallery.dart';
 
 /// The native side (`dsh/media`).
 class MediaChannel {
@@ -29,9 +31,18 @@ class MediaChannel {
 
   /// The app's page in system settings (storage was refused for good).
   Future<bool> openSettings() async => await channel.invokeMethod<bool>('openSettings') ?? false;
+
+  /// Whether [saveVideo] works: videos go to 下载 on Android, to Photos on iOS.
+  bool get savesVideos => false;
+
+  /// Puts the video file at [path] into the gallery; returns its name there.
+  Future<String> saveVideo(String path) => throw UnsupportedError('saveVideo');
 }
 
-final mediaChannelProvider = Provider<MediaChannel>((ref) => const MediaChannel());
+/// Android: the Kotlin side (MediaStore). Elsewhere (iOS): Photos.
+final mediaChannelProvider = Provider<MediaChannel>(
+  (ref) => hasAndroidNativeLayer ? const MediaChannel() : const IosMediaChannel(),
+);
 
 /// Why a picture did not reach the gallery.
 class GallerySaveException implements Exception {

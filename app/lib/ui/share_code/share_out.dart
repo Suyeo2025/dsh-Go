@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../share_code/share_codec.dart';
 import '../../state/artifacts.dart' show FilesChannel, filesChannelProvider;
+import '../common/share_origin.dart' show withShareOrigin;
 
 class ShareOut {
   ShareOut({
@@ -37,7 +38,8 @@ class ShareOut {
 
   Future<void> copy(String text) => _copy(text);
 
-  Future<void> shareText(String text) => _share(ShareParams(text: text));
+  /// [origin]: where the iPad popover points (`shareOriginOf`).
+  Future<void> shareText(String text, {Rect? origin}) => _share(withShareOrigin(ShareParams(text: text), origin));
 
   /// `dsh-go-profile-20261024.dshgo` / `dsh-go-plugin-notes.dshgo`.
   String fileName({required bool profile, String? name}) {
@@ -65,10 +67,13 @@ class ShareOut {
   }
 
   /// The Android share sheet with the file (and [text] for apps that take both).
-  Future<void> shareFile(File file, {String? text}) => _share(
-    ShareParams(
-      files: [XFile(file.path, mimeType: shareFileMime, name: file.uri.pathSegments.last)],
-      text: text,
+  Future<void> shareFile(File file, {String? text, Rect? origin}) => _share(
+    withShareOrigin(
+      ShareParams(
+        files: [XFile(file.path, mimeType: shareFileMime, name: file.uri.pathSegments.last)],
+        text: text,
+      ),
+      origin,
     ),
   );
 

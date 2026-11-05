@@ -12,6 +12,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../../l10n/l10n.dart';
+import '../../../platform/platform_caps.dart';
 import '../../../state/voice_settings.dart';
 import '../mention/mention_text_controller.dart';
 import 'voice_bridge.dart';
@@ -103,6 +104,12 @@ class VoiceInputController extends ChangeNotifier with WidgetsBindingObserver {
   VoiceCapabilities _caps = VoiceCapabilities.none;
   _VoiceTarget? _catalog;
   _VoiceTarget? _target;
+
+  /// The Host serves speech, but its recognizer can't take a recording yet
+  /// (the model is not downloaded there). Only tracked where the phone has no
+  /// recognizer of its own ([hasAndroidNativeLayer] false: iOS), whose only
+  /// way to dictate is the Host.
+  bool _hostUnready = false;
   DshClient? _probedClient;
   MuxGeneration? _probedGeneration;
   Future<void>? _refreshing;
@@ -131,7 +138,7 @@ class VoiceInputController extends ChangeNotifier with WidgetsBindingObserver {
   bool get active => _phase != VoicePhase.idle;
   VoiceEngine? get engine => _engine;
   bool get engineReady => _caps.recorder && (_catalog?.current(client()) ?? false);
-  bool get available => _caps.recognizer || engineReady;
+  bool get available => _caps.recognizer || engineReady || (_caps.recorder && _hostUnready);
 
   bool _current(int operation) => !_disposed && active && operation == _operation;
   // Phone recognition does not use the Host transport. A different client
@@ -165,6 +172,8 @@ class VoiceInputController extends ChangeNotifier with WidgetsBindingObserver {
     _probedClient = c;
     _probedGeneration = generation;
     if (!(_catalog?.current(c) ?? false)) _catalog = null;
+    // Asked again below; another host's word must not linger.
+    _hostUnready = false;
     // A working system service must not wait for a slow engine probe. The
     // fallback and explicit Engine mode probe on demand, including on ROMs
     // that report a system service which fails as soon as it is called.
@@ -178,8 +187,10 @@ class VoiceInputController extends ChangeNotifier with WidgetsBindingObserver {
     }
     final probe = ++_catalogProbe;
     _VoiceTarget? target;
+    var unready = false;
     try {
       var catalog = await c.speechCatalog().timeout(const Duration(seconds: 4));
+      unready = !hasAndroidNativeLayer && catalog != null && !(catalog.selected?.usable ?? false);
       if (requiredProviderId case final id?) {
         final provider = catalog?.providers.where((p) => p.id == id && p.location == 'host-local').firstOrNull;
         if (provider == null || !provider.usable) return null;
@@ -196,7 +207,10 @@ class VoiceInputController extends ChangeNotifier with WidgetsBindingObserver {
       // Missing speech bundle, unavailable provider, or disconnected host.
     }
     if (_disposed || !identical(client(), c) || !identical(c.mux.generation, generation)) return null;
-    if (probe == _catalogProbe) _catalog = target;
+    if (probe == _catalogProbe) {
+      _catalog = target;
+      _hostUnready = target == null && unready;
+    }
     return target;
   }
 
@@ -299,7 +313,11 @@ class VoiceInputController extends ChangeNotifier with WidgetsBindingObserver {
         _finish();
         _say(
           VoiceMessage(
-            _runMode == VoiceMode.engine ? appL10n.voiceConfigureEngine : appL10n.voiceConfigureEither,
+            _hostUnready
+                ? appL10n.voiceHostModelNotReady
+                : _runMode == VoiceMode.engine
+                ? appL10n.voiceConfigureEngine
+                : appL10n.voiceConfigureEither,
             change: true,
           ),
         );

@@ -207,10 +207,12 @@ abstract final class SafeModeActions {
                 icon: const Icon(AppIcons.copy, size: 20),
                 onPressed: lines.isEmpty ? null : () => LogActions.copy(sheet, lines),
               ),
-              IconButton(
-                tooltip: l10n.commonShare,
-                icon: const Icon(AppIcons.share, size: 20),
-                onPressed: lines.isEmpty ? null : () => unawaited(LogActions.share(lines)),
+              Builder(
+                builder: (button) => IconButton(
+                  tooltip: l10n.commonShare,
+                  icon: const Icon(AppIcons.share, size: 20),
+                  onPressed: lines.isEmpty ? null : () => unawaited(LogActions.share(lines, context: button)),
+                ),
               ),
             ],
           ),

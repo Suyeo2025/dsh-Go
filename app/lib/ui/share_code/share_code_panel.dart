@@ -24,6 +24,7 @@ import '../common/sheet_navigator.dart';
 import '../share/qr_code.dart';
 import '../theme/app_icons.dart';
 import '../theme/theme.dart';
+import '../common/share_origin.dart';
 import 'share_code_widgets.dart';
 import 'share_out.dart';
 
@@ -142,6 +143,7 @@ class _ShareCodePanelState extends ConsumerState<ShareCodePanel> {
 
   Future<void> _share() async {
     if (_sharing) return;
+    final origin = shareOriginOf(context);
     setState(() {
       _sharing = true;
       _error = null;
@@ -150,10 +152,10 @@ class _ShareCodePanelState extends ConsumerState<ShareCodePanel> {
     String? error;
     try {
       if (_web != null) {
-        await out.shareText(_shareText);
+        await out.shareText(_shareText, origin: origin);
       } else {
         final file = await out.write(_fileName, encodeShareFile(widget.payload, code: _code));
-        await out.shareFile(file);
+        await out.shareFile(file, origin: origin);
       }
       _shared();
     } catch (_) {

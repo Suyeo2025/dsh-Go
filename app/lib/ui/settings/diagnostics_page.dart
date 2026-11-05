@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
+import '../../platform/platform_caps.dart';
 import '../../diagnostics/diagnostics_publish.dart';
 import '../../diagnostics/redact.dart';
 import '../../runtime/runtime_state.dart';
@@ -93,41 +94,41 @@ class DiagnosticsPage extends ConsumerWidget {
     Future<void> publishForAi() async {
       final published = await ref.read(diagnosticsPublisherProvider).publish();
       if (!context.mounted) return;
-      showBriefNotice(
-        context,
-        published == null ? l10n.diagnosticsForAiFailed : l10n.diagnosticsForAiDone,
-      );
+      showBriefNotice(context, published == null ? l10n.diagnosticsForAiFailed : l10n.diagnosticsForAiDone);
     }
 
     return AppPage.list(
       title: l10n.pluginsDiagnostics,
       subtitle: Text(l10n.pluginsDiagnosticsDescription),
       children: [
-        SettingsSection(
-          title: l10n.pluginsRuntime,
-          children: [
-            InfoRow(label: l10n.commonStatus, value: EngineStatusView.of(runtime).label),
-            InfoRow(label: l10n.pluginsArchitecture, value: status.abi ?? '—', mono: true),
-            InfoRow(label: l10n.pluginsBundledVersion, value: shortRuntimeVersion(status.bundledVersion), mono: true),
-            InfoRow(
-              label: l10n.pluginsInstalledVersion,
-              value: shortRuntimeVersion(status.installedVersion),
-              mono: true,
-            ),
-            RuntimeLaunchFacts(status: status),
-            InfoRow(label: 'DSH', value: status.dshVersion ?? '—', mono: true),
-            InfoRow(label: 'Node.js', value: status.nodeVersion ?? '—', mono: true),
-            if (status.error case final error?) InfoRow(label: l10n.pluginsErrorLabel, value: error, mono: true),
-          ],
-        ),
-        SettingsSection(
-          title: l10n.pluginsConnection,
-          children: [
-            InfoRow(label: l10n.pluginsAddress, value: status.baseUrl ?? '—', mono: true),
-            InfoRow(label: l10n.pluginsClient, value: connection),
-            InfoRow(label: 'API Key', value: settings.hasApiKey ? l10n.pluginsConfigured : l10n.commonNotSet),
-          ],
-        ),
+        // This phone's engine and its connection; none on a remote-only platform (iOS).
+        if (hasAndroidNativeLayer) ...[
+          SettingsSection(
+            title: l10n.pluginsRuntime,
+            children: [
+              InfoRow(label: l10n.commonStatus, value: EngineStatusView.of(runtime).label),
+              InfoRow(label: l10n.pluginsArchitecture, value: status.abi ?? '—', mono: true),
+              InfoRow(label: l10n.pluginsBundledVersion, value: shortRuntimeVersion(status.bundledVersion), mono: true),
+              InfoRow(
+                label: l10n.pluginsInstalledVersion,
+                value: shortRuntimeVersion(status.installedVersion),
+                mono: true,
+              ),
+              RuntimeLaunchFacts(status: status),
+              InfoRow(label: 'DSH', value: status.dshVersion ?? '—', mono: true),
+              InfoRow(label: 'Node.js', value: status.nodeVersion ?? '—', mono: true),
+              if (status.error case final error?) InfoRow(label: l10n.pluginsErrorLabel, value: error, mono: true),
+            ],
+          ),
+          SettingsSection(
+            title: l10n.pluginsConnection,
+            children: [
+              InfoRow(label: l10n.pluginsAddress, value: status.baseUrl ?? '—', mono: true),
+              InfoRow(label: l10n.pluginsClient, value: connection),
+              InfoRow(label: 'API Key', value: settings.hasApiKey ? l10n.pluginsConfigured : l10n.commonNotSet),
+            ],
+          ),
+        ],
         DiagnosticsExportCard(
           title: l10n.pluginsExport,
           extra: [
@@ -148,8 +149,7 @@ class DiagnosticsPage extends ConsumerWidget {
         // The note belongs to the export card; the next group starts 24 below
         // it, as groups do.
         const DiagnosticsBundleNote(),
-        const SizedBox(height: 24),
-        const DirectEngineSettings(),
+        if (hasAndroidNativeLayer) ...[const SizedBox(height: 24), const DirectEngineSettings()],
       ],
     );
   }

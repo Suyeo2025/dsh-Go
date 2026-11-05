@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 
+import '../platform/native_channel.dart';
+
 /// Lifecycle of the on-device Linux runtime and the local DSH server.
 enum RuntimePhase {
   notInstalled,
@@ -501,10 +503,11 @@ class ManagedSkillInstallResponse {
 }
 
 /// Dart side of the `dsh/runtime` platform channels implemented in Kotlin.
+/// Without them (iOS) calls throw [MissingPluginException] and [events] stays quiet.
 class RuntimeBridge {
   RuntimeBridge({MethodChannel? methods, EventChannel? events})
     : _methods = methods ?? const MethodChannel('dsh/runtime'),
-      _events = events ?? const EventChannel('dsh/runtime/events');
+      _events = events ?? nativeEventChannel('dsh/runtime/events');
 
   final MethodChannel _methods;
   final EventChannel _events;

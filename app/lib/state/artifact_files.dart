@@ -12,6 +12,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../l10n/l10n.dart';
+import '../ui/common/share_origin.dart' show withShareOrigin;
 import 'artifacts.dart';
 import 'connection_state.dart';
 
@@ -188,12 +189,16 @@ class ArtifactFiles {
   }
 
   /// The system share sheet with the file.
-  Future<void> share(String sessionId, Artifact artifact, {void Function(double?)? onProgress}) async {
+  /// [origin]: where the iPad popover points (`shareOriginOf`).
+  Future<void> share(String sessionId, Artifact artifact, {void Function(double?)? onProgress, Rect? origin}) async {
     final file = await materialize(sessionId, artifact, onProgress: onProgress);
     await _share(
-      ShareParams(
-        files: [XFile(file.path, mimeType: artifact.mimeType, name: artifact.name)],
-        fileNameOverrides: [artifact.name],
+      withShareOrigin(
+        ShareParams(
+          files: [XFile(file.path, mimeType: artifact.mimeType, name: artifact.name)],
+          fileNameOverrides: [artifact.name],
+        ),
+        origin,
       ),
     );
   }

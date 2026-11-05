@@ -7,6 +7,7 @@ import '../terminal/terminal_palette.dart';
 import '../theme/app_icons.dart';
 import '../theme/theme.dart';
 import '../common/brief_notice.dart';
+import '../common/share_origin.dart';
 
 final _ansi = RegExp(r'\x1B\[[0-9;?]*[ -/]*[@-~]');
 
@@ -158,12 +159,18 @@ class TerminalCard extends StatelessWidget {
                     l10n.phoneLogCopyAll,
                     lines.isEmpty ? null : () => LogActions.copy(context, lines),
                   ),
-                  action(
-                    AppIcons.share,
-                    l10n.commonShare,
-                    lines.isEmpty
-                        ? null
-                        : () => LogActions.share(lines, subject: shareSubject ?? l10n.phoneLogShareTitle),
+                  Builder(
+                    builder: (button) => action(
+                      AppIcons.share,
+                      l10n.commonShare,
+                      lines.isEmpty
+                          ? null
+                          : () => LogActions.share(
+                              lines,
+                              subject: shareSubject ?? l10n.phoneLogShareTitle,
+                              context: button,
+                            ),
+                    ),
                   ),
                 ],
               ),
@@ -204,8 +211,9 @@ abstract final class LogActions {
     showBriefNotice(context, context.l10n.phoneLogCopiedLines(lines.length));
   }
 
-  static Future<void> share(List<String> lines, {String? subject}) async {
+  /// [context]: what the iPad popover points at (`shareOriginOf`).
+  static Future<void> share(List<String> lines, {String? subject, BuildContext? context}) async {
     if (lines.isEmpty) return;
-    await SharePlus.instance.share(ShareParams(text: joined(lines), subject: subject ?? appL10n.phoneLogShareTitle));
+    await shareFrom(context, ShareParams(text: joined(lines), subject: subject ?? appL10n.phoneLogShareTitle));
   }
 }

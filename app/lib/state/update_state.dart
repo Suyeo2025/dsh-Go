@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../platform/platform_caps.dart';
 import '../update/checker.dart';
 import '../update/downloader.dart';
 import '../update/installer.dart';
@@ -379,6 +380,8 @@ class AppUpdateController extends Notifier<AppUpdateState> {
   /// The launch check: runs only when enabled and due ([isAutoCheckDue]).
   /// True when the caller should offer the update (newer and not skipped).
   Future<bool> autoCheckIfDue() async {
+    // APK releases install only on Android.
+    if (!hasAndroidNativeLayer) return false;
     await ready;
     final prefs = _prefs;
     if (!ref.mounted || prefs == null || !state.autoCheck || state.busy) return false;

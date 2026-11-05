@@ -16,6 +16,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
 import '../../media/gallery.dart' show imageProviderBytes;
+import '../../platform/platform_caps.dart';
 import '../../state/artifact_files.dart';
 import '../../state/artifacts.dart';
 import '../../state/sheet_files.dart';
@@ -1254,6 +1255,9 @@ class _PdfPreviewState extends ConsumerState<_PdfPreview> {
     final l10n = context.l10n;
     final file = _file;
     if (file != null) {
+      if (!hasAndroidNativeLayer) {
+        return _QuickLookPdf(key: ValueKey(_shown), path: file.path, name: widget.artifact.name);
+      }
       return _PdfPages(key: ValueKey(_shown), path: file.path);
     }
     if (_error case final error?) {
@@ -1543,6 +1547,49 @@ class _Spinner extends StatelessWidget {
 
 /// A PDF's pages, rendered natively one by one as they scroll in; pinch to
 /// zoom.
+/// iOS: no page renderer behind `dsh/files`; the PDF (or the Host's PDF of
+/// an Office file) opens in Quick Look once on arrival and again on demand.
+class _QuickLookPdf extends ConsumerStatefulWidget {
+  const _QuickLookPdf({super.key, required this.path, required this.name});
+
+  final String path;
+  final String name;
+
+  @override
+  ConsumerState<_QuickLookPdf> createState() => _QuickLookPdfState();
+}
+
+class _QuickLookPdfState extends ConsumerState<_QuickLookPdf> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_open());
+    });
+  }
+
+  Future<void> _open() async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    try {
+      await ref.read(filesChannelProvider).open(widget.path, name: widget.name, mime: 'application/pdf');
+    } catch (e) {
+      messenger?.showSnackBar(SnackBar(content: Text(artifactErrorText(e))));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return PreviewNotice(
+      glyph: FileGlyph(name: widget.name, size: 56),
+      title: widget.name,
+      message: l10n.viewArtifactQuickLookHint,
+      actionLabel: l10n.viewArtifactQuickLook,
+      onAction: () => unawaited(_open()),
+    );
+  }
+}
+
 class _PdfPages extends ConsumerStatefulWidget {
   const _PdfPages({super.key, required this.path});
 

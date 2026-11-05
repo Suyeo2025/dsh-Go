@@ -1,0 +1,53 @@
+{
+  "pushTitle": "推送通知",
+  "pushDescription": "App 在后台或没打开时，由你服务器上的推送服务（DSH Watch bridge）提醒你：回复完成、等你审批、等你回答。点通知会打开对应的对话。",
+  "pushBridgeLabel": "推送服务地址",
+  "pushBridgeHint": "watch.example.com",
+  "pushHostLabel": "主机",
+  "pushNoDirectHost": "先在「远程主机」里添加并连接一台直连主机。",
+  "pushEnable": "开启推送",
+  "pushEnableFooter": "开启时，这台手机用已登录的 DSH 会话向推送服务证明是你本人；推送服务只校验这一次，不保存它。审批不会在通知里直接放行，要打开 App 在对话里处理。",
+  "pushUseLink": "改用配对链接",
+  "pushLinkTitle": "粘贴配对链接",
+  "pushLinkHint": "在服务器上运行 dsh-watch-bridge pair，把它输出的 dshwatch://pair… 链接粘贴到这里。",
+  "pushLinkPair": "配对",
+  "pushStatusLabel": "状态",
+  "pushStatusOff": "未开启",
+  "pushStatusNeedsPermission": "需要通知权限",
+  "pushStatusRegistering": "正在注册…",
+  "pushStatusOn": "已开启",
+  "pushStatusTokenFailed": "推送注册失败",
+  "pushStatusUnreachable": "连不上推送服务",
+  "pushStatusRevoked": "已在服务器上解除",
+  "pushBridgeRow": "推送服务",
+  "pushHostRow": "打开的主机",
+  "pushRetry": "重新注册",
+  "pushOpenSystem": "打开系统通知设置",
+  "pushUnpair": "解除配对",
+  "pushUnpairConfirmTitle": "解除推送配对？",
+  "pushUnpairConfirmText": "这台手机将不再收到推送，之后可以随时重新开启。",
+  "pushUnpairOffline": "已在本机解除，但没能通知推送服务；可以在服务器上用 dsh-watch-bridge devices revoke 删除这台设备。",
+  "pushRevokedText": "推送服务已经不认识这台手机了，请解除配对后重新开启。",
+  "pushPermissionText": "系统设置里关掉了 DSH Go 的通知，推送显示不出来。",
+  "pushErrBridgeUrl": "推送服务地址要是 https 地址",
+  "pushErrNoHost": "先选一台直连主机",
+  "pushErrNotSignedIn": "这台主机还没登录，先连接一次再开启",
+  "pushErrNotABridge": "这个地址不是推送服务",
+  "pushErrUnreachable": "连不上推送服务",
+  "pushErrCertificate": "推送服务的证书对不上",
+  "pushErrDshRejected": "推送服务没认可这次登录（可能已过期，或不是同一台服务器）",
+  "pushErrDshPairingOff": "推送服务没开启「用 DSH 登录配对」，请改用配对链接",
+  "pushErrCodeInvalid": "配对链接不对",
+  "pushErrCodeInvalidLeft": "配对码不对，还能再试 {count} 次",
+  "@pushErrCodeInvalidLeft": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "pushErrCodeExpired": "配对链接过期了，请重新生成",
+  "pushErrLocked": "尝试太多次，请稍后再试",
+  "pushErrFailed": "配对失败",
+  "searchKwPush": "推送,通知,APNs,提醒,后台提醒,配对,bridge"
+}

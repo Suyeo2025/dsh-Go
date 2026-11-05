@@ -525,8 +525,8 @@ class _SshHostFormPageState extends ConsumerState<SshHostFormPage> {
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            _SmallTextButton(label: l10n.remoteImportKeyFile, onPressed: _importKey),
-                            _SmallTextButton(label: l10n.commonPaste, onPressed: _pasteKey),
+                            RemoteSmallTextButton(label: l10n.remoteImportKeyFile, onPressed: _importKey),
+                            RemoteSmallTextButton(label: l10n.commonPaste, onPressed: _pasteKey),
                           ],
                         ),
                         child: TextField(
@@ -635,7 +635,7 @@ class _SshHostFormPageState extends ConsumerState<SshHostFormPage> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        _SmallTextButton(label: l10n.remoteReset, onPressed: _resetKey),
+                        RemoteSmallTextButton(label: l10n.remoteReset, onPressed: _resetKey),
                       ],
                     ),
                   ),
@@ -663,7 +663,7 @@ class _SshHostFormPageState extends ConsumerState<SshHostFormPage> {
                   label: Text(l10n.remoteDeleteHost),
                 ),
               ),
-            const SizedBox(height: _FormBar.height),
+            const SizedBox(height: RemoteFormBar.height),
           ],
         ),
       ],
@@ -679,7 +679,7 @@ class _SshHostFormPageState extends ConsumerState<SshHostFormPage> {
             left: 0,
             right: 0,
             bottom: MediaQuery.viewInsetsOf(context).bottom,
-            child: _FormBar(
+            child: RemoteFormBar(
               children: [
                 Expanded(
                   child: FilledButton.tonalIcon(
@@ -708,8 +708,8 @@ enum _F { host, user, port, password, key }
 
 /// A compact text action in a field label row; its label ends flush with the
 /// field's edge.
-class _SmallTextButton extends StatelessWidget {
-  const _SmallTextButton({required this.label, required this.onPressed});
+class RemoteSmallTextButton extends StatelessWidget {
+  const RemoteSmallTextButton({super.key, required this.label, required this.onPressed});
 
   final String label;
   final VoidCallback? onPressed;
@@ -732,8 +732,8 @@ class _SmallTextButton extends StatelessWidget {
 
 /// The form page's bottom bar: the actions stay put above the page (and above
 /// the keyboard), over a soft fade of the page background.
-class _FormBar extends StatelessWidget {
-  const _FormBar({required this.children});
+class RemoteFormBar extends StatelessWidget {
+  const RemoteFormBar({super.key, required this.children});
 
   final List<Widget> children;
 

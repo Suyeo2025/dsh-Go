@@ -6,6 +6,8 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 
+import '../../../platform/native_channel.dart';
+
 /// What the phone can do.
 class VoiceCapabilities {
   const VoiceCapabilities({
@@ -109,7 +111,7 @@ abstract class VoiceBridge {
 
 class MethodChannelVoiceBridge implements VoiceBridge {
   static const _methods = MethodChannel('dsh/voice');
-  static const _events = EventChannel('dsh/voice/events');
+  static EventChannel get _events => nativeEventChannel('dsh/voice/events');
 
   Stream<VoiceEvent>? _stream;
   static int _nextSession = 0;

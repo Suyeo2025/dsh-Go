@@ -1,0 +1,7 @@
+/* 推送通知文案（dsh-watch bridge 发来的 aps.alert.loc-key）。故意只用通用文案：
+   不经 Apple 传递任何对话内容。 */
+"DG_APPROVAL" = "有对话在等你审批";
+"DG_QUESTION" = "有对话在等你回答";
+"DG_DONE" = "回复完成了";
+"DG_FAILED" = "回复出错了";
+"DG_NOTICE" = "推送服务需要在服务器上处理";

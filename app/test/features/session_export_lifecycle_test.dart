@@ -23,7 +23,7 @@ class _PendingExporter extends SessionLogExporter {
   bool get supported => true;
 
   @override
-  Future<void> share(String sessionId) async {
+  Future<void> share(String sessionId, {Rect? origin}) async {
     calls.add('share:$sessionId');
     try {
       await pending.future;

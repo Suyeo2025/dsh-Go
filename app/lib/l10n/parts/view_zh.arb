@@ -1,4 +1,6 @@
 {
+  "viewArtifactQuickLook": "用快速查看打开",
+  "viewArtifactQuickLookHint": "在快速查看里翻页、缩放，也可以从那里分享或存到「文件」",
   "viewArtifactSaved": "已存到 {value}",
   "@viewArtifactSaved": {
     "placeholders": {

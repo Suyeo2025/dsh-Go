@@ -10,6 +10,8 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../l10n/l10n.dart';
 import '../../../media/gallery.dart';
+import '../../../platform/platform_caps.dart';
+import '../../common/share_origin.dart';
 import '../../common/brief_notice.dart';
 import '../../shell/page_frame.dart' show GlassIconButton;
 import '../../theme/app_icons.dart';
@@ -21,7 +23,7 @@ typedef ImageBytes = Future<Uint8List> Function();
 
 /// The toast for a picture that did not reach the gallery.
 String gallerySaveErrorText(String code) => switch (code) {
-  'permission' => appL10n.chatImageStorageDenied,
+  'permission' => hasAndroidNativeLayer ? appL10n.chatImageStorageDenied : appL10n.chatImagePhotosDenied,
   'unsupported' => appL10n.chatImageCannotSave,
   'download' => appL10n.chatImageDownloadFailed,
   _ => appL10n.chatImageSaveFailed,
@@ -62,17 +64,21 @@ Future<bool> saveImageToGallery(BuildContext context, ImageBytes load, {String? 
 }
 
 /// 「分享」 a picture: the Android share sheet with it as a file named
-/// [name].
+/// [name]; on iPad its popover points at [context] (`shareOriginOf`).
 Future<void> shareImageFile(BuildContext context, ImageBytes load, {String? name}) async {
   final l10n = context.l10n;
   final messenger = ScaffoldMessenger.maybeOf(context);
+  final origin = shareOriginOf(context);
   try {
     final image = await galleryImage(await load());
     final file = galleryFileName(name, image.mime);
     await SharePlus.instance.share(
-      ShareParams(
-        files: [XFile.fromData(image.bytes, mimeType: image.mime, name: file)],
-        fileNameOverrides: [file],
+      withShareOrigin(
+        ShareParams(
+          files: [XFile.fromData(image.bytes, mimeType: image.mime, name: file)],
+          fileNameOverrides: [file],
+        ),
+        origin,
       ),
     );
   } catch (_) {

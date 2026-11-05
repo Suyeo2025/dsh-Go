@@ -92,18 +92,21 @@ class AppearancePage extends ConsumerWidget {
           title: l10n.pluginsFeatureIcons,
           children: [SpotAnchor(spot: Spots.tileStyle, child: const TileStylePicker())],
         ),
-        SettingsSection(
-          title: l10n.pluginsAppIcon,
-          children: [
-            SpotAnchor(spot: Spots.appIcon, child: const AppIconPicker()),
-            const IconShortcutTile(),
-          ],
-        ),
-        SettingsSection(
-          title: l10n.launchScreenTitle,
-          footer: Text(l10n.launchFooter),
-          children: [SpotAnchor(spot: Spots.launchScreen, child: const LaunchScreenSection())],
-        ),
+        // Launcher icons and the launch window are Android's (no native layer on iOS).
+        if (SettingsIndex.has(Spots.appIcon))
+          SettingsSection(
+            title: l10n.pluginsAppIcon,
+            children: [
+              SpotAnchor(spot: Spots.appIcon, child: const AppIconPicker()),
+              const IconShortcutTile(),
+            ],
+          ),
+        if (SettingsIndex.has(Spots.launchScreen))
+          SettingsSection(
+            title: l10n.launchScreenTitle,
+            footer: Text(l10n.launchFooter),
+            children: [SpotAnchor(spot: Spots.launchScreen, child: const LaunchScreenSection())],
+          ),
         SettingsSection(
           title: l10n.wallpaperTitle,
           footer: Text(l10n.wallpaperFooter),

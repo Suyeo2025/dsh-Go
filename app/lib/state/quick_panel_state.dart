@@ -19,8 +19,14 @@ class QuickPanelPrefs {
   /// What the panel lists, in order.
   final List<DrawerDestination> items;
 
+  /// [items] this build has ([DrawerDestination.available]).
+  List<DrawerDestination> get shown => [
+    for (final d in items)
+      if (d.available) d,
+  ];
+
   /// There is a panel to pull: the swipe is on and it would list something.
-  bool get available => swipe && items.isNotEmpty;
+  bool get available => swipe && shown.isNotEmpty;
 
   QuickPanelPrefs copyWith({bool? swipe, List<DrawerDestination>? items}) =>
       QuickPanelPrefs(swipe: swipe ?? this.swipe, items: items ?? this.items);

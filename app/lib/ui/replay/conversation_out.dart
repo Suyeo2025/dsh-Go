@@ -6,6 +6,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' show Rect;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
@@ -18,6 +19,7 @@ import '../../share_code/share_codec.dart' show shareFileExtension, shareFileMim
 import '../../share_hosted/hosted_client.dart' show HostedShareException;
 import '../share_hosted/hosted_link_maker.dart' show hostedConversationLinkMaker;
 import '../../state/artifacts.dart' show FilesChannel, filesChannelProvider;
+import '../common/share_origin.dart' show withShareOrigin;
 
 /// 「我的分享链接」 for the share panel's link page.
 export '../share_hosted/manage_links_button.dart' show ManageLinksButton;
@@ -85,14 +87,17 @@ class ConversationOut {
   }
 
   /// The Android share sheet with the file.
-  Future<void> shareFile(File file, ConversationFormat format) => _share(
-    ShareParams(
-      files: [XFile(file.path, mimeType: format.mime, name: file.uri.pathSegments.last)],
+  Future<void> shareFile(File file, ConversationFormat format, {Rect? origin}) => _share(
+    withShareOrigin(
+      ShareParams(
+        files: [XFile(file.path, mimeType: format.mime, name: file.uri.pathSegments.last)],
+      ),
+      origin,
     ),
   );
 
   /// The Android share sheet with a link.
-  Future<void> shareText(String text) => _share(ShareParams(text: text));
+  Future<void> shareText(String text, {Rect? origin}) => _share(withShareOrigin(ShareParams(text: text), origin));
 
   /// Into `Download/DSH-Go`; returns where it landed.
   Future<String> save(String name, String content, ConversationFormat format) async {

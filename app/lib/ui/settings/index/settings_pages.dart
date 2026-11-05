@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 
+import '../../../push/push_settings_page.dart';
 import '../../account/account_page.dart';
 import '../../engine/engine_screen.dart';
 import '../../engine_settings/engine_settings_hub.dart';
@@ -51,6 +52,7 @@ Widget settingsPage(SettingsPageId id, {String? sessionId}) => switch (id) {
   SettingsPageId.performance => const PerformancePage(),
   SettingsPageId.voice => const VoiceSettingsPage(),
   SettingsPageId.notifications => const NotificationSettingsPage(),
+  SettingsPageId.pushNotifications => const PushSettingsPage(),
   SettingsPageId.replyPrefs => const ReplyPrefsPage(),
   SettingsPageId.sharedLinks => const HostedLinksPage(),
   SettingsPageId.phone => const PhoneControlScreen(),
@@ -84,8 +86,12 @@ Widget settingsPage(SettingsPageId id, {String? sessionId}) => switch (id) {
 /// What a settings link id opens: a page (by any of its link ids), or the
 /// page a row is on. Null for ids the index doesn't know.
 Widget? settingsPageForLink(String id, {String? sessionId}) {
-  if (SettingsIndex.pageForLink(id) case final page?) return settingsPage(page.id, sessionId: sessionId);
-  if (SettingsIndex.spotForLink(id) case final spot?) return spotPage(spot, sessionId: sessionId);
+  if (SettingsIndex.pageForLink(id) case final page?) {
+    return SettingsIndex.hasPage(page.id) ? settingsPage(page.id, sessionId: sessionId) : null;
+  }
+  if (SettingsIndex.spotForLink(id) case final spot?) {
+    return SettingsIndex.has(spot) ? spotPage(spot, sessionId: sessionId) : null;
+  }
   return null;
 }
 

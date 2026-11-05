@@ -350,22 +350,37 @@ class _Line extends StatelessWidget {
             duration: AppMotion.of(context, AppMotion.quick),
             layoutBuilder: (current, previous) =>
                 Stack(alignment: Alignment.centerLeft, children: [...previous, ?current]),
-            child: Row(
+            // The title keeps its width and the detail takes the rest; on a
+            // narrow pill (a long tool name beside the clock) the title itself
+            // ends in an ellipsis rather than overflowing.
+            child: LayoutBuilder(
               key: ValueKey('${a.title}\u0000$second'),
-              children: [
-                Text(a.title, style: titleStyle),
-                if (second.isNotEmpty) ...[
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text.rich(
-                      TextSpan(children: spans),
+              builder: (context, constraints) => Row(
+                children: [
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                    child: Text(
+                      a.title,
+                      style: titleStyle,
                       maxLines: 1,
                       softWrap: false,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  if (second.isNotEmpty)
+                    Flexible(
+                      child: Padding(
+                        padding: const EdgeInsetsDirectional.only(start: 6),
+                        child: Text.rich(
+                          TextSpan(children: spans),
+                          maxLines: 1,
+                          softWrap: false,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
                 ],
-              ],
+              ),
             ),
           ),
         ),

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../../platform/platform_caps.dart';
 import 'access_step.dart';
 import 'appearance_step.dart';
 import 'connect_page.dart';
 import 'onboarding_scaffold.dart';
+import 'remote_only_setup.dart';
 import 'runtime_setup_page.dart';
 import 'welcome_page.dart';
 
@@ -33,6 +35,7 @@ class OnboardingFlow extends StatefulWidget {
     required this.onKeyDone,
     this.chooseRuntime = false,
     this.onRemote,
+    this.onRemoteConnected,
     this.onLocal,
     this.onAppearanceDone,
     this.onAccessDone,
@@ -51,6 +54,10 @@ class OnboardingFlow extends StatefulWidget {
 
   /// Picked 「远程主机」 (or gave up on a failed install for one).
   final VoidCallback? onRemote;
+
+  /// A remote host was added and picked inside first run (the remote-only
+  /// setup page): first run is over.
+  final VoidCallback? onRemoteConnected;
 
   /// Picked 「本机」: the caller starts the unpack and moves on to
   /// [OnboardingStep.appearance]. Null: the runtime page installs itself.
@@ -83,6 +90,17 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
   @override
   Widget build(BuildContext context) {
     final step = widget.step;
+    // A remote-only device (iOS) has no runtime, look-and-access walk or
+    // DeepSeek key to set up: past the welcome, the one page is how to reach
+    // a host.
+    if (isRemoteOnlyPlatform && step != OnboardingStep.welcome) {
+      return OnboardingSwitcher(
+        child: KeyedSubtree(
+          key: const ValueKey('remote-only'),
+          child: RemoteOnlySetupView(onOther: widget.onRemote ?? () {}, onConnected: widget.onRemoteConnected),
+        ),
+      );
+    }
     final Widget page = switch (step) {
       OnboardingStep.welcome => WelcomePage(onStart: widget.onWelcomeDone),
       OnboardingStep.runtime => RuntimeSetupPage(

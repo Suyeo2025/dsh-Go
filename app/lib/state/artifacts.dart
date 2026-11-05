@@ -9,8 +9,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/l10n.dart';
+import '../platform/platform_caps.dart';
 import 'chat_state.dart';
 import 'connection_state.dart';
+import 'ios_files_channel.dart';
 import 'settings_state.dart';
 
 /// What sort of file an artifact is (icon, label, preview, MIME type).
@@ -513,7 +515,11 @@ class FilesChannel {
   Future<void> pdfClose() => channel.invokeMethod<void>('pdfClose');
 }
 
-final filesChannelProvider = Provider<FilesChannel>((ref) => const FilesChannel());
+/// Android: the Kotlin side. Elsewhere (iOS): Quick Look and the Files app
+/// ([IosFilesChannel]).
+final filesChannelProvider = Provider<FilesChannel>(
+  (ref) => hasAndroidNativeLayer ? const FilesChannel() : IosFilesChannel(),
+);
 
 /// The local engine's output folder ([phoneOutputDir]); empty unless the
 /// engine is on this phone with "访问手机文件" on. Scanned when first needed

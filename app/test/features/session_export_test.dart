@@ -57,7 +57,7 @@ class _Recording extends SessionLogExporter {
   final calls = <String>[];
 
   @override
-  Future<void> share(String sessionId) async => calls.add('share $sessionId');
+  Future<void> share(String sessionId, {Rect? origin}) async => calls.add('share $sessionId');
 
   @override
   Future<String> saveToDownloads(String sessionId) async {

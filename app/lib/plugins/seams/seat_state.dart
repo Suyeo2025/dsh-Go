@@ -1,7 +1,9 @@
 // Providers behind the seats (docs/design/plugin-seams.md): the active host's
 // client inventory (§5), the adapter registry, and the hooks the islands
-// runtime and ui.json plug into. Nothing here runs until a PluginSeat is on
-// screen.
+// runtime and ui.json plug into. The inventory is read while the chat page
+// is there ([keepSeatInventory]) or a seat is on screen.
+
+import 'dart:async';
 
 import 'package:dsh_client/dsh_client.dart';
 import 'package:flutter/widgets.dart';
@@ -21,13 +23,28 @@ import 'seat_planner.dart';
 
 // ── Inventory ────────────────────────────────────────────────────────────────
 
+/// Reads [ref]'s provider again when the installed list changes.
+///
+/// Not `ref.watch`: a page over the chat pauses the chat's seats, and coming
+/// back resumes them inside the build that re-enables TickerMode, flushing
+/// the installed list there. A watch on it would invalidate this provider in
+/// that flush, and Riverpod would rebuild ProviderScope during the build
+/// (快捷入口 → 插件 → back). The read waits for the microtask after it.
+void _rereadOnInstalledChange(Ref ref) {
+  ref.listen(installedPluginsProvider.select((s) => s.value), (_, _) {
+    scheduleMicrotask(() {
+      if (ref.mounted) ref.invalidateSelf();
+    });
+  });
+}
+
 /// Tier A: the boot graph of the active host's web page; read again whenever
 /// the installed list changes. Null without a page (relay) or when it could
 /// not be read.
 final webBootProvider = FutureProvider.autoDispose<WebBootGraph?>((ref) async {
   final client = ref.watch(activeConnectionProvider.select((c) => c.value?.client));
   if (client == null || !client.canReadWebBoot) return null;
-  ref.watch(installedPluginsProvider.select((s) => s.value));
+  _rereadOnInstalledChange(ref);
   try {
     return await client.readWebBoot();
   } on DshException {
@@ -41,7 +58,7 @@ final webBootProvider = FutureProvider.autoDispose<WebBootGraph?>((ref) async {
 final bridgeInventoryProvider = FutureProvider.autoDispose<BridgeInventory?>((ref) async {
   final client = ref.watch(activeConnectionProvider.select((c) => c.value?.client));
   if (client == null || !client.canReadWebBoot) return null;
-  ref.watch(installedPluginsProvider.select((s) => s.value));
+  _rereadOnInstalledChange(ref);
   try {
     return await client.readBridgeInventory();
   } on DshException {
@@ -65,6 +82,28 @@ final seatInventoryProvider = Provider.autoDispose<SeatInventory?>((ref) {
     nativePanels: ref.watch(nativePanelsProvider),
   );
 });
+
+/// The active host's inventory chain (installed list, boot graph, bridge
+/// table, route guard), for the chat page to hold with a container
+/// subscription ([keepSeatInventory]) while it is there.
+///
+/// Riverpod pauses a covered page's widget subscriptions (TickerMode) and
+/// resumes them inside the build that uncovers it, flushing what changed
+/// meanwhile. A shared provider that changed or finished a read while only
+/// the covered chat listened would then invalidate its dependents in that
+/// flush, and Riverpod rebuilds ProviderScope during the build ("setState()
+/// called during build": 快捷入口 → 插件 → back). A container subscription
+/// is not paused: the chain stays current on its own schedule and has
+/// nothing left to flush on the way back.
+final seatInventoryKeepAliveProvider = Provider.autoDispose<void>((ref) {
+  ref.watch(seatInventoryProvider);
+  ref.watch(seatRouteGuardReportProvider(ref.watch(activeHostProvider)));
+});
+
+/// Holds [seatInventoryKeepAliveProvider] until the returned subscription is
+/// closed; call from `initState` (and close in `dispose`).
+ProviderSubscription<void> keepSeatInventory(BuildContext context) =>
+    ProviderScope.containerOf(context, listen: false).listen(seatInventoryKeepAliveProvider, (_, _) {});
 
 // ── Hooks ────────────────────────────────────────────────────────────────────
 

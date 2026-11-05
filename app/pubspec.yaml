@@ -83,9 +83,20 @@ dependencies:
   # WebRTC DataChannel for DSH Remote's direct (P2P / TURN) path; the transport
   # logic lives in packages/dsh_remote. MIT, bundles libwebrtc (BSD-3).
   flutter_webrtc: ^1.6.3
+  # iOS stand-ins for Kotlin channels (lib/platform/platform_caps.dart; Android
+  # keeps dsh/media, dsh/files and dsh/voice): photo library saves (gal,
+  # BSD-3), Quick Look / open-in (open_filex, BSD-3), 16 kHz WAV dictation for
+  # the Host's speech/transcribe (record, BSD-3), in-app video (BSD-3).
+  gal: ^2.3.3
+  open_filex: ^5.0.0
+  record: ^7.1.2
+  video_player: ^2.14.1
 
 dev_dependencies:
   flutter_test:
+    sdk: flutter
+  # iOS simulator smoke test (integration_test/ios_smoke_test.dart, tooling/ios/sim-smoke.sh).
+  integration_test:
     sdk: flutter
 
   # The "flutter_lints" package below contains a set of recommended lints to

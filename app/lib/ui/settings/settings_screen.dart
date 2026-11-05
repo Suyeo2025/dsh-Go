@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
+import '../../platform/platform_caps.dart';
+import '../../push/push_settings_page.dart';
 import '../../runtime/local_footprint.dart';
 import '../../runtime/runtime_state.dart';
 import '../../state/account_state.dart';
@@ -166,13 +168,14 @@ class SettingsScreen extends ConsumerWidget {
         SettingsSection(
           title: l10n.hubGroupCapabilities,
           children: [
-            SettingsTile(
-              icon: AppIcons.phoneControl,
-              tint: SettingsHues.abilities,
-              spot: SettingsIndex.entry(SettingsPageId.phone),
-              value: text(phoneValue, color: phoneValue == l10n.hubValueOneStep ? colors.warning : null),
-              onTap: () => _push(context, const PhoneControlScreen()),
-            ),
+            if (SettingsIndex.hasPage(SettingsPageId.phone))
+              SettingsTile(
+                icon: AppIcons.phoneControl,
+                tint: SettingsHues.abilities,
+                spot: SettingsIndex.entry(SettingsPageId.phone),
+                value: text(phoneValue, color: phoneValue == l10n.hubValueOneStep ? colors.warning : null),
+                onTap: () => _push(context, const PhoneControlScreen()),
+              ),
             SettingsTile(
               icon: AppIcons.webSearch,
               tint: SettingsHues.abilities,
@@ -235,25 +238,30 @@ class SettingsScreen extends ConsumerWidget {
               onTap: () => _push(context, const InterfacePage()),
             ),
             const LanguageSettingsTile(tint: SettingsHues.general),
-            const NotificationSettingsTile(tint: SettingsHues.general),
-            const VoiceSettingsTile(tint: SettingsHues.general),
+            if (SettingsIndex.hasPage(SettingsPageId.notifications))
+              const NotificationSettingsTile(tint: SettingsHues.general),
+            if (SettingsIndex.hasPage(SettingsPageId.pushNotifications))
+              const PushSettingsTile(tint: SettingsHues.general),
+            if (SettingsIndex.hasPage(SettingsPageId.voice)) const VoiceSettingsTile(tint: SettingsHues.general),
             const PerformanceSettingsTile(tint: SettingsHues.general),
-            SettingsTile(
-              icon: AppIcons.keepAlive,
-              tint: SettingsHues.general,
-              spot: SettingsIndex.entry(SettingsPageId.background),
-              value: text(
-                exempt == null ? null : (exempt ? l10n.hubValueAllowed : l10n.hubValueNeedsSetup),
-                color: exempt == false ? colors.warning : null,
+            if (SettingsIndex.hasPage(SettingsPageId.background))
+              SettingsTile(
+                icon: AppIcons.keepAlive,
+                tint: SettingsHues.general,
+                spot: SettingsIndex.entry(SettingsPageId.background),
+                value: text(
+                  exempt == null ? null : (exempt ? l10n.hubValueAllowed : l10n.hubValueNeedsSetup),
+                  color: exempt == false ? colors.warning : null,
+                ),
+                onTap: () => _push(context, const BackgroundGuidePage()),
               ),
-              onTap: () => _push(context, const BackgroundGuidePage()),
-            ),
-            SettingsTile(
-              icon: AppIcons.systemAccess,
-              tint: SettingsHues.general,
-              spot: SettingsIndex.entry(SettingsPageId.systemAccess),
-              onTap: () => _push(context, const SystemAccessPage()),
-            ),
+            if (SettingsIndex.hasPage(SettingsPageId.systemAccess))
+              SettingsTile(
+                icon: AppIcons.systemAccess,
+                tint: SettingsHues.general,
+                spot: SettingsIndex.entry(SettingsPageId.systemAccess),
+                onTap: () => _push(context, const SystemAccessPage()),
+              ),
             SettingsTile(
               icon: AppIcons.privacy,
               tint: SettingsHues.general,
@@ -265,13 +273,14 @@ class SettingsScreen extends ConsumerWidget {
         SettingsSection(
           title: l10n.hubGroupHosts,
           children: [
-            SettingsTile(
-              icon: AppIcons.engine,
-              tint: SettingsHues.hosts,
-              spot: SettingsIndex.entry(SettingsPageId.engine),
-              value: StatusChip(tone: engine.tone, label: engine.label),
-              onTap: () => _push(context, const EngineScreen()),
-            ),
+            if (SettingsIndex.hasPage(SettingsPageId.engine))
+              SettingsTile(
+                icon: AppIcons.engine,
+                tint: SettingsHues.hosts,
+                spot: SettingsIndex.entry(SettingsPageId.engine),
+                value: StatusChip(tone: engine.tone, label: engine.label),
+                onTap: () => _push(context, const EngineScreen()),
+              ),
             SettingsTile(
               icon: AppIcons.remoteHosts,
               tint: SettingsHues.hosts,
@@ -392,7 +401,8 @@ class _SettingsOverviewState extends ConsumerState<SettingsOverview> {
     final engine = EngineStatusView.of(runtime);
     final colors = DshColors.of(context);
     final active = ref.watch(activeHostProvider);
-    final remoteOnly = runtime.status.runtimeMissing && !active.isLocal;
+    // No runtime on this phone (none at all on iOS) and a remote host in use.
+    final remoteOnly = (runtime.status.runtimeMissing || isRemoteOnlyPlatform) && !active.isLocal;
 
     // The account's wallets when signed in; otherwise the key's balance.
     final money = account.signedIn && wallets != null ? balanceFromAccount(wallets) : balance.balance;
@@ -465,11 +475,14 @@ class _SettingsOverviewState extends ConsumerState<SettingsOverview> {
             ? l10n.hubSettingsHostSemantics(title, hostLink)
             : l10n.hubSettingsAccountSemantics(title, subtitle),
         onTap: () => _push(hostLink != null ? const RemoteScreen() : const AccountPage()),
-        footer: OverviewFooter(
-          tone: engine.tone,
-          text: [l10n.hubSettingsEngine, engine.label, if (dsh != null) 'DSH $dsh'].join(' · '),
-        ),
-        onFooterTap: () => _push(const EngineScreen()),
+        // This phone's engine; none on a remote-only platform (iOS).
+        footer: SettingsIndex.hasPage(SettingsPageId.engine)
+            ? OverviewFooter(
+                tone: engine.tone,
+                text: [l10n.hubSettingsEngine, engine.label, if (dsh != null) 'DSH $dsh'].join(' · '),
+              )
+            : null,
+        onFooterTap: SettingsIndex.hasPage(SettingsPageId.engine) ? () => _push(const EngineScreen()) : null,
       ),
     );
   }

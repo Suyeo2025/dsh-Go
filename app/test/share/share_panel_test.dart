@@ -52,7 +52,7 @@ class _Exporter extends ShareExporter {
   final saved = <File>[];
 
   @override
-  Future<void> share(File image, {String? text}) async =>
+  Future<void> share(File image, {String? text, Rect? origin}) async =>
       shared.add(ShareParams(files: [XFile(image.path)], text: text));
 
   @override
@@ -70,10 +70,10 @@ class _Out extends ConversationOut {
   final texts = <String>[];
 
   @override
-  Future<void> shareFile(File file, ConversationFormat format) async => shared.add((file, format));
+  Future<void> shareFile(File file, ConversationFormat format, {Rect? origin}) async => shared.add((file, format));
 
   @override
-  Future<void> shareText(String text) async => texts.add(text);
+  Future<void> shareText(String text, {Rect? origin}) async => texts.add(text);
 
   @override
   Future<String> save(String name, String content, ConversationFormat format) async {

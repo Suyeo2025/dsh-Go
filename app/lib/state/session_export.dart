@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../l10n/l10n.dart';
+import '../ui/common/share_origin.dart' show withShareOrigin;
 import 'artifacts.dart';
 import 'connection_state.dart';
 
@@ -40,15 +41,19 @@ class SessionLogExporter {
   /// The system share sheet with this export's own archive. share_plus gives
   /// data-backed files unique temporary paths; its result is not a receipt
   /// that the native worker has finished reading the source.
-  Future<void> share(String sessionId) async {
+  /// [origin]: where the iPad popover points (`shareOriginOf`).
+  Future<void> share(String sessionId, {Rect? origin}) async {
     final conn = connection;
     if (conn == null) throw const DshTransportException('offline');
     final bytes = await conn.client.exportSessionLog(sessionId);
     final name = sessionLogZipName(sessionId);
     await _share(
-      ShareParams(
-        files: [XFile.fromData(bytes, mimeType: mime, name: name)],
-        fileNameOverrides: [name],
+      withShareOrigin(
+        ShareParams(
+          files: [XFile.fromData(bytes, mimeType: mime, name: name)],
+          fileNameOverrides: [name],
+        ),
+        origin,
       ),
     );
   }

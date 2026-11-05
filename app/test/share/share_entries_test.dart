@@ -33,10 +33,10 @@ class _Out extends ConversationOut {
   final texts = <String>[];
 
   @override
-  Future<void> shareFile(File file, ConversationFormat format) async => shared.add((file, format));
+  Future<void> shareFile(File file, ConversationFormat format, {Rect? origin}) async => shared.add((file, format));
 
   @override
-  Future<void> shareText(String text) async => texts.add(text);
+  Future<void> shareText(String text, {Rect? origin}) async => texts.add(text);
 }
 
 class _Links implements ConversationLinkMaker {

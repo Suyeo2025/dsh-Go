@@ -13,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../state/artifacts.dart' show FilesChannel, filesChannelProvider;
+import '../common/share_origin.dart' show withShareOrigin;
 import 'share_gallery.dart' show shareImagesSettled;
 
 /// Pixel ratio for a card [height] logical pixels tall: 3× (1170 px wide)
@@ -84,10 +85,13 @@ class ShareExporter {
   }
 
   /// The Android share sheet with the image (and [text], for apps that take both).
-  Future<void> share(File image, {String? text}) => _share(
-    ShareParams(
-      files: [XFile(image.path, mimeType: 'image/png', name: image.uri.pathSegments.last)],
-      text: text,
+  Future<void> share(File image, {String? text, Rect? origin}) => _share(
+    withShareOrigin(
+      ShareParams(
+        files: [XFile(image.path, mimeType: 'image/png', name: image.uri.pathSegments.last)],
+        text: text,
+      ),
+      origin,
     ),
   );
 

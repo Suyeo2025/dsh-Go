@@ -30,9 +30,9 @@ class _QuickPanelItemsSheetState extends ConsumerState<QuickPanelItemsSheet> {
   /// Every destination as the rows stand: what's stored first, in its order,
   /// then the rest. Only the ticked ones' order is stored.
   late final List<DrawerDestination> _rows = [
-    ...ref.read(quickPanelProvider).items,
+    ...ref.read(quickPanelProvider).shown,
     for (final d in DrawerDestination.values)
-      if (!ref.read(quickPanelProvider).items.contains(d)) d,
+      if (d.available && !ref.read(quickPanelProvider).items.contains(d)) d,
   ];
   late final Set<DrawerDestination> _ticked = {...ref.read(quickPanelProvider).items};
 

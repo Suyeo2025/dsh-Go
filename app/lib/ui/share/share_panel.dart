@@ -625,10 +625,11 @@ class SharePanelModel extends ChangeNotifier {
     if (!_disposed) _ref.read(usageStatsProvider.notifier).count(UsageCount.share);
   }
 
-  Future<void> shareText() => _busy(ShareWork.text, () async {
+  /// [origin]: where the iPad popover points (`shareOriginOf`); likewise below.
+  Future<void> shareText({Rect? origin}) => _busy(ShareWork.text, () async {
     try {
       final text = await shareTextContent();
-      await _ref.read(conversationOutProvider).shareText(text);
+      await _ref.read(conversationOutProvider).shareText(text, origin: origin);
       _shared();
     } catch (_) {
       _error = appL10n.viewShareOpenFailed;
@@ -714,12 +715,14 @@ class SharePanelModel extends ChangeNotifier {
     await Clipboard.setData(ClipboardData(text: link.url.toString()));
   }
 
-  Future<void> shareLink() async {
+  Future<void> shareLink({Rect? origin}) async {
     final link = this.link;
     final built = _built;
     if (link == null || built == null) return;
     try {
-      await _ref.read(conversationOutProvider).shareText(appL10n.viewShareLinkText(built.share.title, '${link.url}'));
+      await _ref
+          .read(conversationOutProvider)
+          .shareText(appL10n.viewShareLinkText(built.share.title, '${link.url}'), origin: origin);
     } catch (_) {
       _error = appL10n.viewShareOpenFailed;
       _notify();
@@ -773,16 +776,16 @@ class SharePanelModel extends ChangeNotifier {
     }
   });
 
-  Future<void> shareFile() => _busy(ShareWork.sharing, () async {
+  Future<void> shareFile({Rect? origin}) => _busy(ShareWork.sharing, () async {
     try {
       if (artifact case final a?) {
-        await _ref.read(artifactFilesProvider).share(a.sessionId, a.artifact, onProgress: _onProgress);
+        await _ref.read(artifactFilesProvider).share(a.sessionId, a.artifact, onProgress: _onProgress, origin: origin);
       } else {
         final out = _ref.read(conversationOutProvider);
         final built = await prepare();
         final content = built.of(_format).text;
         final file = await out.write(ConversationOut.fileName(built.share.title, _format), content);
-        await out.shareFile(file, _format);
+        await out.shareFile(file, _format, origin: origin);
       }
       _shared();
     } catch (e) {

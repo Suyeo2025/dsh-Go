@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
+import '../../platform/platform_caps.dart';
 import '../../runtime/runtime_state.dart';
 import '../../state/connection_state.dart';
 import '../../state/engine_settings_state.dart' show describeSettingsError;
@@ -252,7 +253,8 @@ class _PermissionPageState extends ConsumerState<PermissionPage> {
             ),
         ],
         const SizedBox(height: 24),
-        phone,
+        // Files and phone control on this phone: Android's native layer only.
+        if (hasAndroidNativeLayer) phone,
       ],
     );
   }

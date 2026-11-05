@@ -1,0 +1,8 @@
+// Manual App Store signing overrides, passed via `xcodebuild -xcconfig` by tooling/ios/tf-release.sh.
+// -xcconfig applies to every target (including Swift package targets), so the profile is picked
+// per target through TARGET_NAME indirection: only Runner gets one, other targets get none.
+CODE_SIGN_STYLE = Manual
+CODE_SIGN_IDENTITY = Apple Distribution
+DEVELOPMENT_TEAM = 4JV8BHB2KW
+DG_PROFILE_Runner = dg com.colex.dshgo
+PROVISIONING_PROFILE_SPECIFIER = $(DG_PROFILE_$(TARGET_NAME))

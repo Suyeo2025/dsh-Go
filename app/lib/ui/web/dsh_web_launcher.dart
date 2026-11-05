@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
+import '../../remote/direct/direct_link.dart';
 import '../../remote/ssh/ssh_link.dart';
 import '../../state/connection_state.dart';
 import '../../state/hosts_state.dart';
@@ -33,6 +34,14 @@ final class SshDshWeb extends DshWebAccess {
   final String hostName;
 }
 
+/// A direct host: its own URL. The WebView already holds the session cookie
+/// the app signed in with (connection_state.dart), so no token in the URL.
+final class DirectDshWeb extends DshWebAccess {
+  const DirectDshWeb(this.url, this.hostName);
+  final Uri url;
+  final String hostName;
+}
+
 /// No web page for this host right now; [reason] says why.
 final class NoDshWeb extends DshWebAccess {
   const NoDshWeb(this.reason);
@@ -58,6 +67,12 @@ final dshWebAccessProvider = Provider.autoDispose<DshWebAccess>((ref) {
         return NoDshWeb(appL10n.webConnectHostFirst(name));
       }
       return SshDshWeb(localWebUri('http://127.0.0.1:$port', token), name);
+    case HostKind.direct:
+      ref.watch(hostLinkStatusProvider(host));
+      final link = ref.watch(hostLinkProvider(host));
+      final name = ref.watch(hostNameProvider(host)) ?? appL10n.directHostFallback;
+      if (link is! DirectHostLink || link.cookie == null) return NoDshWeb(appL10n.webConnectHostFirst(name));
+      return DirectDshWeb(link.config.baseUri.replace(path: '${link.config.baseUri.path}/'), name);
   }
 });
 
@@ -101,6 +116,17 @@ void openDshWeb(BuildContext context, WidgetRef ref, {DshWebTarget target = cons
         subtitle: hostName,
         externalDisabledReason: context.l10n.webSshAppOnly,
         // Android suspends the page in the background and its socket drops.
+        reloadAfterBackground: const Duration(seconds: 60),
+        dshWeb: true,
+        phoneLayout: ref.read(settingsProvider).webPhoneLayout,
+        openTarget: target,
+      );
+    case DirectDshWeb(:final url, :final hostName):
+      page = WebViewPage(
+        url: url,
+        title: context.l10n.webTitle,
+        subtitle: hostName,
+        externalDisabledReason: context.l10n.directWebAppOnly,
         reloadAfterBackground: const Duration(seconds: 60),
         dshWeb: true,
         phoneLayout: ref.read(settingsProvider).webPhoneLayout,

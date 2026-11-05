@@ -7292,6 +7292,12 @@ abstract class L10n {
   /// **'没有存储权限，未能保存'**
   String get chatImageStorageDenied;
 
+  /// No description provided for @chatImagePhotosDenied.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有相册权限，未能保存'**
+  String get chatImagePhotosDenied;
+
   /// No description provided for @chatImageCannotSave.
   ///
   /// In zh, this message translates to:
@@ -8215,6 +8221,282 @@ abstract class L10n {
   /// In zh, this message translates to:
   /// **'{month}月{day}日'**
   String commonMonthDay(String month, int day);
+
+  /// No description provided for @directHostLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'{name} · 直连'**
+  String directHostLabel(String name);
+
+  /// No description provided for @directHostFallback.
+  ///
+  /// In zh, this message translates to:
+  /// **'直连主机'**
+  String get directHostFallback;
+
+  /// No description provided for @directErrTokenNeeded.
+  ///
+  /// In zh, this message translates to:
+  /// **'需要启动 token：在主机设置里粘贴 dsh web 的启动链接或 token'**
+  String get directErrTokenNeeded;
+
+  /// No description provided for @directErrTokenRejected.
+  ///
+  /// In zh, this message translates to:
+  /// **'启动 token 已失效（dsh web 重启过），请粘贴新的启动链接或 token'**
+  String get directErrTokenRejected;
+
+  /// No description provided for @directErrSignInExpired.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录已过期，正在用启动 token 重新登录'**
+  String get directErrSignInExpired;
+
+  /// No description provided for @directErrSignIn.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录 DSH 失败'**
+  String get directErrSignIn;
+
+  /// No description provided for @directErrNotDsh.
+  ///
+  /// In zh, this message translates to:
+  /// **'这个地址上没有找到 DSH Web'**
+  String get directErrNotDsh;
+
+  /// No description provided for @directErrUnreachable.
+  ///
+  /// In zh, this message translates to:
+  /// **'连不上 {address}'**
+  String directErrUnreachable(String address);
+
+  /// No description provided for @directErrForbidden.
+  ///
+  /// In zh, this message translates to:
+  /// **'DSH 拒绝了这个地址：启动 dsh web 时需要加上 --trusted-host {host}'**
+  String directErrForbidden(String host);
+
+  /// No description provided for @directWebAppOnly.
+  ///
+  /// In zh, this message translates to:
+  /// **'这台主机的网页版只在 App 内打开，以便沿用 App 的登录'**
+  String get directWebAppOnly;
+
+  /// No description provided for @directSection.
+  ///
+  /// In zh, this message translates to:
+  /// **'直连 URL'**
+  String get directSection;
+
+  /// No description provided for @directSectionFooter.
+  ///
+  /// In zh, this message translates to:
+  /// **'连接已经对外开放的 dsh web（启动时带上 --trusted-host 你的域名，建议走 HTTPS）。token 和登录 Cookie 只保存在系统钥匙串里。'**
+  String get directSectionFooter;
+
+  /// No description provided for @directAdd.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加直连主机'**
+  String get directAdd;
+
+  /// No description provided for @directAddHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'填网址和启动 token，不经过第三方服务器'**
+  String get directAddHint;
+
+  /// No description provided for @directFormIntro.
+  ///
+  /// In zh, this message translates to:
+  /// **'适合自己服务器上直接对外的 dsh web，例如 https://dsh.example.com。'**
+  String get directFormIntro;
+
+  /// No description provided for @directUrlLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'网址'**
+  String get directUrlLabel;
+
+  /// No description provided for @directUrlHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'https://dsh.example.com'**
+  String get directUrlHint;
+
+  /// No description provided for @directTokenLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'启动 token'**
+  String get directTokenLabel;
+
+  /// No description provided for @directTokenHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'粘贴 token 或整条启动链接'**
+  String get directTokenHint;
+
+  /// No description provided for @directTokenHelp.
+  ///
+  /// In zh, this message translates to:
+  /// **'dsh web 启动时会输出 https://…/?token=… 这样的链接，整条粘贴即可，会自动拆出网址和 token。token 每次重启都会变；登录后 App 改用有效期 30 天的登录 Cookie。'**
+  String get directTokenHelp;
+
+  /// No description provided for @directTokenSaved.
+  ///
+  /// In zh, this message translates to:
+  /// **'已保存 token。留空则继续使用；dsh web 重启后连不上时再粘贴新的。'**
+  String get directTokenSaved;
+
+  /// No description provided for @directUrlRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'填写主机网址'**
+  String get directUrlRequired;
+
+  /// No description provided for @directUrlInvalid.
+  ///
+  /// In zh, this message translates to:
+  /// **'网址无效，应为 https://… 或 http://…'**
+  String get directUrlInvalid;
+
+  /// No description provided for @directTokenRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'首次连接需要启动 token'**
+  String get directTokenRequired;
+
+  /// No description provided for @directLinkSplit.
+  ///
+  /// In zh, this message translates to:
+  /// **'已从启动链接拆出网址和 token'**
+  String get directLinkSplit;
+
+  /// No description provided for @directConnected.
+  ///
+  /// In zh, this message translates to:
+  /// **'已连接 · {address}'**
+  String directConnected(String address);
+
+  /// No description provided for @directSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'直连 · {address}'**
+  String directSubtitle(String address);
+
+  /// No description provided for @directNewToken.
+  ///
+  /// In zh, this message translates to:
+  /// **'粘贴新 token'**
+  String get directNewToken;
+
+  /// No description provided for @directDeleteBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'这台主机的设置和保存在手机上的 token、登录 Cookie 都会删除。主机上的 DSH 和对话不受影响。'**
+  String get directDeleteBody;
+
+  /// No description provided for @directOnboardingTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'连接你的 DSH'**
+  String get directOnboardingTitle;
+
+  /// No description provided for @directOnboardingMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'这台设备上不运行 DSH 引擎。连接电脑或服务器上的 dsh web，在这里接着用。'**
+  String get directOnboardingMessage;
+
+  /// No description provided for @directOnboardingAddHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务器上直接对外的 dsh web：填网址和启动 token'**
+  String get directOnboardingAddHint;
+
+  /// No description provided for @searchKwAddDirectHost.
+  ///
+  /// In zh, this message translates to:
+  /// **'直连,URL,网址,启动链接,token,添加主机,服务器'**
+  String get searchKwAddDirectHost;
+
+  /// No description provided for @directGoogleSection.
+  ///
+  /// In zh, this message translates to:
+  /// **'用 Google 登录'**
+  String get directGoogleSection;
+
+  /// No description provided for @directGoogleSignIn.
+  ///
+  /// In zh, this message translates to:
+  /// **'用 Google 登录'**
+  String get directGoogleSignIn;
+
+  /// No description provided for @directGoogleSigningIn.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在登录…'**
+  String get directGoogleSigningIn;
+
+  /// No description provided for @directGoogleSignInAgain.
+  ///
+  /// In zh, this message translates to:
+  /// **'用 Google 重新登录'**
+  String get directGoogleSignInAgain;
+
+  /// No description provided for @directGoogleFooter.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务器用 Google 账号保护时（例如 Cloudflare Access），在系统浏览器里登录后会自动拿到网址和 token，不用手动粘贴。token 失效后也能这样重新登录。'**
+  String get directGoogleFooter;
+
+  /// No description provided for @directSignInUrlLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录地址'**
+  String get directSignInUrlLabel;
+
+  /// No description provided for @directSignInUrlRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'填写登录地址'**
+  String get directSignInUrlRequired;
+
+  /// No description provided for @directSignInUrlInvalid.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录地址无效，应为 https://…'**
+  String get directSignInUrlInvalid;
+
+  /// No description provided for @directSignInUnsupported.
+  ///
+  /// In zh, this message translates to:
+  /// **'这台设备不支持在浏览器里登录'**
+  String get directSignInUnsupported;
+
+  /// No description provided for @directSignInFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'Google 登录没有完成，请重试'**
+  String get directSignInFailed;
+
+  /// No description provided for @directSignInBadReply.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录返回的信息不对，请确认登录地址'**
+  String get directSignInBadReply;
+
+  /// No description provided for @directManualEntry.
+  ///
+  /// In zh, this message translates to:
+  /// **'手动填写网址和 token'**
+  String get directManualEntry;
+
+  /// No description provided for @directOnboardingGoogleHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务器用 Google 账号保护：登录后自动完成连接'**
+  String get directOnboardingGoogleHint;
 
   /// No description provided for @engineNewChatDefaultsLast.
   ///
@@ -12584,6 +12866,12 @@ abstract class L10n {
   /// **'恢复默认'**
   String get featuresPermissionResetDefault;
 
+  /// No description provided for @fileSavedIosFiles.
+  ///
+  /// In zh, this message translates to:
+  /// **'「文件」App › DSH Go › {name}'**
+  String fileSavedIosFiles(String name);
+
   /// No description provided for @fileImageName.
   ///
   /// In zh, this message translates to:
@@ -14521,6 +14809,12 @@ abstract class L10n {
   /// In zh, this message translates to:
   /// **'在其他应用中打开'**
   String get mediaOpenElsewhere;
+
+  /// No description provided for @mediaPlayVideo.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放'**
+  String get mediaPlayVideo;
 
   /// No description provided for @mediaShowInFiles.
   ///
@@ -22081,6 +22375,270 @@ abstract class L10n {
   /// In zh, this message translates to:
   /// **'第 {index} 张'**
   String plugViewGalleryPicture(int index);
+
+  /// No description provided for @pushTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'推送通知'**
+  String get pushTitle;
+
+  /// No description provided for @pushDescription.
+  ///
+  /// In zh, this message translates to:
+  /// **'App 在后台或没打开时，由你服务器上的推送服务（DSH Watch bridge）提醒你：回复完成、等你审批、等你回答。点通知会打开对应的对话。'**
+  String get pushDescription;
+
+  /// No description provided for @pushBridgeLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'推送服务地址'**
+  String get pushBridgeLabel;
+
+  /// No description provided for @pushBridgeHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'watch.example.com'**
+  String get pushBridgeHint;
+
+  /// No description provided for @pushHostLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'主机'**
+  String get pushHostLabel;
+
+  /// No description provided for @pushNoDirectHost.
+  ///
+  /// In zh, this message translates to:
+  /// **'先在「远程主机」里添加并连接一台直连主机。'**
+  String get pushNoDirectHost;
+
+  /// No description provided for @pushEnable.
+  ///
+  /// In zh, this message translates to:
+  /// **'开启推送'**
+  String get pushEnable;
+
+  /// No description provided for @pushEnableFooter.
+  ///
+  /// In zh, this message translates to:
+  /// **'开启时，这台手机用已登录的 DSH 会话向推送服务证明是你本人；推送服务只校验这一次，不保存它。审批不会在通知里直接放行，要打开 App 在对话里处理。'**
+  String get pushEnableFooter;
+
+  /// No description provided for @pushUseLink.
+  ///
+  /// In zh, this message translates to:
+  /// **'改用配对链接'**
+  String get pushUseLink;
+
+  /// No description provided for @pushLinkTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'粘贴配对链接'**
+  String get pushLinkTitle;
+
+  /// No description provided for @pushLinkHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'在服务器上运行 dsh-watch-bridge pair，把它输出的 dshwatch://pair… 链接粘贴到这里。'**
+  String get pushLinkHint;
+
+  /// No description provided for @pushLinkPair.
+  ///
+  /// In zh, this message translates to:
+  /// **'配对'**
+  String get pushLinkPair;
+
+  /// No description provided for @pushStatusLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'状态'**
+  String get pushStatusLabel;
+
+  /// No description provided for @pushStatusOff.
+  ///
+  /// In zh, this message translates to:
+  /// **'未开启'**
+  String get pushStatusOff;
+
+  /// No description provided for @pushStatusNeedsPermission.
+  ///
+  /// In zh, this message translates to:
+  /// **'需要通知权限'**
+  String get pushStatusNeedsPermission;
+
+  /// No description provided for @pushStatusRegistering.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在注册…'**
+  String get pushStatusRegistering;
+
+  /// No description provided for @pushStatusOn.
+  ///
+  /// In zh, this message translates to:
+  /// **'已开启'**
+  String get pushStatusOn;
+
+  /// No description provided for @pushStatusTokenFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'推送注册失败'**
+  String get pushStatusTokenFailed;
+
+  /// No description provided for @pushStatusUnreachable.
+  ///
+  /// In zh, this message translates to:
+  /// **'连不上推送服务'**
+  String get pushStatusUnreachable;
+
+  /// No description provided for @pushStatusRevoked.
+  ///
+  /// In zh, this message translates to:
+  /// **'已在服务器上解除'**
+  String get pushStatusRevoked;
+
+  /// No description provided for @pushBridgeRow.
+  ///
+  /// In zh, this message translates to:
+  /// **'推送服务'**
+  String get pushBridgeRow;
+
+  /// No description provided for @pushHostRow.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开的主机'**
+  String get pushHostRow;
+
+  /// No description provided for @pushRetry.
+  ///
+  /// In zh, this message translates to:
+  /// **'重新注册'**
+  String get pushRetry;
+
+  /// No description provided for @pushOpenSystem.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开系统通知设置'**
+  String get pushOpenSystem;
+
+  /// No description provided for @pushUnpair.
+  ///
+  /// In zh, this message translates to:
+  /// **'解除配对'**
+  String get pushUnpair;
+
+  /// No description provided for @pushUnpairConfirmTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'解除推送配对？'**
+  String get pushUnpairConfirmTitle;
+
+  /// No description provided for @pushUnpairConfirmText.
+  ///
+  /// In zh, this message translates to:
+  /// **'这台手机将不再收到推送，之后可以随时重新开启。'**
+  String get pushUnpairConfirmText;
+
+  /// No description provided for @pushUnpairOffline.
+  ///
+  /// In zh, this message translates to:
+  /// **'已在本机解除，但没能通知推送服务；可以在服务器上用 dsh-watch-bridge devices revoke 删除这台设备。'**
+  String get pushUnpairOffline;
+
+  /// No description provided for @pushRevokedText.
+  ///
+  /// In zh, this message translates to:
+  /// **'推送服务已经不认识这台手机了，请解除配对后重新开启。'**
+  String get pushRevokedText;
+
+  /// No description provided for @pushPermissionText.
+  ///
+  /// In zh, this message translates to:
+  /// **'系统设置里关掉了 DSH Go 的通知，推送显示不出来。'**
+  String get pushPermissionText;
+
+  /// No description provided for @pushErrBridgeUrl.
+  ///
+  /// In zh, this message translates to:
+  /// **'推送服务地址要是 https 地址'**
+  String get pushErrBridgeUrl;
+
+  /// No description provided for @pushErrNoHost.
+  ///
+  /// In zh, this message translates to:
+  /// **'先选一台直连主机'**
+  String get pushErrNoHost;
+
+  /// No description provided for @pushErrNotSignedIn.
+  ///
+  /// In zh, this message translates to:
+  /// **'这台主机还没登录，先连接一次再开启'**
+  String get pushErrNotSignedIn;
+
+  /// No description provided for @pushErrNotABridge.
+  ///
+  /// In zh, this message translates to:
+  /// **'这个地址不是推送服务'**
+  String get pushErrNotABridge;
+
+  /// No description provided for @pushErrUnreachable.
+  ///
+  /// In zh, this message translates to:
+  /// **'连不上推送服务'**
+  String get pushErrUnreachable;
+
+  /// No description provided for @pushErrCertificate.
+  ///
+  /// In zh, this message translates to:
+  /// **'推送服务的证书对不上'**
+  String get pushErrCertificate;
+
+  /// No description provided for @pushErrDshRejected.
+  ///
+  /// In zh, this message translates to:
+  /// **'推送服务没认可这次登录（可能已过期，或不是同一台服务器）'**
+  String get pushErrDshRejected;
+
+  /// No description provided for @pushErrDshPairingOff.
+  ///
+  /// In zh, this message translates to:
+  /// **'推送服务没开启「用 DSH 登录配对」，请改用配对链接'**
+  String get pushErrDshPairingOff;
+
+  /// No description provided for @pushErrCodeInvalid.
+  ///
+  /// In zh, this message translates to:
+  /// **'配对链接不对'**
+  String get pushErrCodeInvalid;
+
+  /// No description provided for @pushErrCodeInvalidLeft.
+  ///
+  /// In zh, this message translates to:
+  /// **'配对码不对，还能再试 {count} 次'**
+  String pushErrCodeInvalidLeft(int count);
+
+  /// No description provided for @pushErrCodeExpired.
+  ///
+  /// In zh, this message translates to:
+  /// **'配对链接过期了，请重新生成'**
+  String get pushErrCodeExpired;
+
+  /// No description provided for @pushErrLocked.
+  ///
+  /// In zh, this message translates to:
+  /// **'尝试太多次，请稍后再试'**
+  String get pushErrLocked;
+
+  /// No description provided for @pushErrFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'配对失败'**
+  String get pushErrFailed;
+
+  /// No description provided for @searchKwPush.
+  ///
+  /// In zh, this message translates to:
+  /// **'推送,通知,APNs,提醒,后台提醒,配对,bridge'**
+  String get searchKwPush;
 
   /// No description provided for @readListUpdating.
   ///
@@ -30104,6 +30662,18 @@ abstract class L10n {
   /// **'关闭'**
   String get usageUpgradeOff;
 
+  /// No description provided for @viewArtifactQuickLook.
+  ///
+  /// In zh, this message translates to:
+  /// **'用快速查看打开'**
+  String get viewArtifactQuickLook;
+
+  /// No description provided for @viewArtifactQuickLookHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'在快速查看里翻页、缩放，也可以从那里分享或存到「文件」'**
+  String get viewArtifactQuickLookHint;
+
   /// No description provided for @viewArtifactSaved.
   ///
   /// In zh, this message translates to:
@@ -32233,6 +32803,12 @@ abstract class L10n {
   /// In zh, this message translates to:
   /// **'系统识别用不了，可以在语音设置里下载语音模型'**
   String get voiceConfigureEither;
+
+  /// No description provided for @voiceHostModelNotReady.
+  ///
+  /// In zh, this message translates to:
+  /// **'主机上的语音模型未就绪'**
+  String get voiceHostModelNotReady;
 
   /// No description provided for @voiceErrorNetworkTimeout.
   ///

@@ -33,7 +33,9 @@ export function render() {
   const map = {}
   for (const [target, src] of Object.entries(sources())) {
     const name = assetName(target)
-    files[name] = readFileSync(src, 'utf8')
+    // Drop a leading `#!` line: App Store validation treats any bundled file starting with `#!`
+    // as an unsigned script (ITMS-90035). The installed skill runs it as `node …/check.mjs`.
+    files[name] = readFileSync(src, 'utf8').replace(/^#![^\n]*\n/, '')
     map[name] = target
   }
   files['manifest.json'] = `${JSON.stringify({ name: 'dsh-go-plugin', files: map }, null, 2)}\n`

@@ -12,6 +12,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../links/app_links.dart';
 import '../../pets/overlay_channel.dart' show petOverlayChannelProvider;
 import '../../pets/pet_overlay_bridge.dart';
+import '../../platform/platform_caps.dart';
+import '../../push/push_tap_host.dart';
 import '../../state/adaptive_layout_state.dart';
 import '../../state/drawer_view_state.dart' show drawerSelectionProvider;
 import '../../state/quick_panel_state.dart';
@@ -331,6 +333,8 @@ class _HomeShellState extends ConsumerState<HomeShell> with TickerProviderStateM
                     children: [
                       // Notifications: routes taps, raises the in-app banner (draws nothing here).
                       ChatAlertHost(onReveal: _revealChat),
+                      // iOS: push notification taps open their conversation (draws nothing).
+                      if (isRemoteOnlyPlatform) PushTapHost(onReveal: _revealChat),
                       // Background running cut off by the phone: one line under the header (draws nothing here).
                       const BackgroundNetHost(),
                       // Daily update check + install resume (draws nothing).

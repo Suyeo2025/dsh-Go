@@ -13,6 +13,7 @@ import '../common/list_page_row.dart';
 import '../theme/app_icons.dart';
 import '../theme/theme.dart';
 import '../common/brief_notice.dart';
+import '../common/share_origin.dart';
 
 enum _Action { share, save }
 
@@ -66,6 +67,7 @@ class _DiagnosticsExportCardState extends ConsumerState<DiagnosticsExportCard> {
 
   Future<void> _run(_Action action) async {
     if (_busy != null) return;
+    final origin = shareOriginOf(context);
     setState(() {
       _busy = action;
       _step = DiagnosticsStep.collecting;
@@ -74,7 +76,7 @@ class _DiagnosticsExportCardState extends ConsumerState<DiagnosticsExportCard> {
     try {
       switch (action) {
         case _Action.share:
-          final sent = await exporter.share(onStep: _onStep);
+          final sent = await exporter.share(onStep: _onStep, origin: origin);
           if (sent) widget.onShared?.call();
         case _Action.save:
           final where = await exporter.saveToDownloads(onStep: _onStep);

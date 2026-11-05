@@ -44,7 +44,8 @@ class AboutPage extends ConsumerWidget {
               spot: Spots.version,
               value: Text(version, style: AppType.tabular(theme.textTheme.bodyMedium!)),
             ),
-            const AppUpdateTiles(),
+            // APK updates: Android only (iOS builds come through the App Store / TestFlight).
+            if (SettingsIndex.has(Spots.updateCheck)) const AppUpdateTiles(),
             SettingsTile(
               key: const ValueKey('settings-star'),
               spot: Spots.star,

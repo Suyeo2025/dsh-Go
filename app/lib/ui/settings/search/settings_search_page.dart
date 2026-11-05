@@ -160,7 +160,7 @@ class _SettingsSearchPageState extends ConsumerState<SettingsSearchPage> {
         ? const <SearchHit>[]
         : searchSettings(
             query,
-            spots: [...SettingsIndex.spots, ...extra],
+            spots: [...SettingsIndex.spots.where(SettingsIndex.has), ...extra],
             features: ref.watch(featureSectionsProvider),
             zh: _zh,
             en: _en,

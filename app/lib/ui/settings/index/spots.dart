@@ -8,6 +8,7 @@
 // row can import it.
 
 import '../../../l10n/l10n.dart';
+import '../../../platform/platform_caps.dart';
 
 /// A piece of UI text, resolved in a given language.
 typedef Label = String Function(L10n l10n);
@@ -74,6 +75,7 @@ enum SettingsPageId {
   pets,
   interface,
   notifications,
+  pushNotifications,
   voice,
   performance,
   background,
@@ -236,6 +238,48 @@ abstract final class SettingsIndex {
 
   /// Every link id the index answers.
   static Set<String> get linkIds => {for (final p in _pages) ...p.links, for (final s in _rows) ?s.link};
+
+  /// Pages that need Android's native layer (the on-device engine, phone
+  /// control, system permissions, notifications, voice): without it (iOS)
+  /// no row, search hit or link leads there, nor to the pages under them.
+  static const androidOnlyPages = {
+    SettingsPageId.phone,
+    SettingsPageId.engine,
+    SettingsPageId.background,
+    SettingsPageId.systemAccess,
+    SettingsPageId.notifications,
+    SettingsPageId.voice,
+  };
+
+  /// Rows on pages that stay which need Android's native layer.
+  static final List<SettingSpot> androidOnlyRows = [
+    Spots.appIcon,
+    Spots.iconShortcut,
+    Spots.launchScreen,
+    Spots.petOutsideApp,
+    Spots.petDisplayWhen,
+    Spots.refreshRate,
+    Spots.updateCheck,
+    Spots.updateAuto,
+  ];
+
+  /// Pages only a remote-only build (iOS) has: 推送通知 goes through the
+  /// push bridge, where Android posts its own notifications.
+  static const remoteOnlyPages = {SettingsPageId.pushNotifications};
+
+  /// Whether page [id] is in this build.
+  static bool hasPage(SettingsPageId id) =>
+      (hasAndroidNativeLayer || !chain(id).any(androidOnlyPages.contains)) &&
+      (isRemoteOnlyPlatform || !chain(id).any(remoteOnlyPages.contains));
+
+  /// Rows only a remote-only build (iOS) shows: Android keeps its remote page.
+  static final List<SettingSpot> remoteOnlyRows = [Spots.addDirectHost];
+
+  /// Whether [spot] is in this build.
+  static bool has(SettingSpot spot) =>
+      (isRemoteOnlyPlatform || !remoteOnlyRows.any((s) => s.id == spot.id)) &&
+      hasPage(spot.isEntry ? spot.opens! : spot.page) &&
+      (hasAndroidNativeLayer || !androidOnlyRows.any((s) => s.id == spot.id));
 
   /// Pages from the hub down to [id], both included.
   static List<SettingsPageId> chain(SettingsPageId id) {
@@ -422,6 +466,12 @@ final _pages = <SettingsPageMeta>[
     keywords: (l) => l.searchKwNotifications,
     freq: Freq.medium,
     links: const ['notifications'],
+  ),
+  SettingsPageMeta(
+    SettingsPageId.pushNotifications,
+    title: (l) => l.pushTitle,
+    group: _general,
+    keywords: (l) => l.searchKwPush,
   ),
   SettingsPageMeta(
     SettingsPageId.voice,
@@ -975,6 +1025,12 @@ abstract final class Spots {
     title: (l) => l.remoteAddSshHost,
     keywords: (l) => l.searchKwAddSshHost,
   );
+  static final addDirectHost = SettingSpot(
+    'add-direct-host',
+    page: SettingsPageId.remote,
+    title: (l) => l.directAdd,
+    keywords: (l) => l.searchKwAddDirectHost,
+  );
   static final remoteAutoConnect = SettingSpot(
     'remote-auto-connect',
     page: SettingsPageId.remote,
@@ -1101,6 +1157,7 @@ final _rows = <SettingSpot>[
   Spots.engineReset,
   Spots.engineUninstall,
   Spots.addSshHost,
+  Spots.addDirectHost,
   Spots.remoteAutoConnect,
   Spots.subagentDepth,
   Spots.parallelCalls,

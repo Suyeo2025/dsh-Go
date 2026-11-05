@@ -4,6 +4,8 @@ import 'package:dsh_client/dsh_client.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/l10n.dart';
+import '../remote/direct/direct_link.dart';
+import '../remote/direct/direct_web_cookie.dart';
 import '../remote/link_status.dart';
 import '../remote/network_watch.dart';
 import '../remote/relay/relay_backend.dart';
@@ -177,6 +179,9 @@ final sshLinkFactoryProvider = Provider<SshLinkFactory>(
   },
 );
 
+/// Builds the client a direct host's link logs in with; tests swap in fakes.
+final directClientFactoryProvider = Provider<DirectClientFactory?>((ref) => null);
+
 /// The live link to a remote host; null for 本机 or an unknown host. Kept while
 /// something watches it (the active connection, a status row); closed after.
 final hostLinkProvider = Provider.autoDispose.family<HostLink?, HostRef>((ref, host) {
@@ -222,18 +227,53 @@ final hostLinkProvider = Provider.autoDispose.family<HostLink?, HostRef>((ref, h
         unawaited(link.close());
       });
       return link;
+    case HostKind.direct:
+      // Reconnect only for a new URL; a rename applies in place.
+      final key = ref.watch(hostsProvider.select((s) => s.directById(host.id)?.connectionKey));
+      if (key == null) return null;
+      final hosts = ref.read(hostsProvider.notifier);
+      final link = DirectHostLink(
+        config: ref.read(hostsProvider).directById(host.id)!,
+        loadSecrets: () => hosts.loadDirectSecrets(host.id),
+        saveCookie: (cookie) => hosts.saveDirectCookie(host.id, cookie),
+        clientFactory: ref.read(directClientFactoryProvider),
+        kicks: ref.read(networkKicksProvider),
+      );
+      ref.listen(hostsProvider.select((s) => s.directById(host.id)), (_, next) {
+        if (next != null) link.updateConfig(next);
+      });
+      // The 网页版 shares the app's sign-in: each (re)login's cookie goes to
+      // the WebView too.
+      final webCookie = ref.read(directWebCookieSinkProvider);
+      final cookies = link.statuses.listen((status) {
+        final cookie = status.isConnected ? link.cookie : null;
+        if (cookie != null) unawaited(webCookie(link.config.baseUri, cookie));
+      });
+      ref.onDispose(() {
+        unawaited(cookies.cancel());
+        unawaited(link.close());
+      });
+      return link;
   }
 });
 
 /// Status of a host's link for the UI (idle for 本机).
-final hostLinkStatusProvider = StreamProvider.autoDispose.family<HostLinkStatus, HostRef>((ref, host) async* {
+///
+/// Subscribes to the link's (broadcast) statuses before handing out the
+/// current one, and buffers while paused: Riverpod pauses this provider while
+/// its widgets are off screen, and a status emitted then (connected, say)
+/// must still arrive, or the row keeps showing the step it last saw.
+final hostLinkStatusProvider = StreamProvider.autoDispose.family<HostLinkStatus, HostRef>((ref, host) {
   final link = ref.watch(hostLinkProvider(host));
-  if (link == null) {
-    yield HostLinkStatus.idle;
-    return;
-  }
-  yield link.status;
-  yield* link.statuses;
+  if (link == null) return Stream.value(HostLinkStatus.idle);
+  final out = StreamController<HostLinkStatus>();
+  final sub = link.statuses.listen(out.add, onDone: () => unawaited(out.close()));
+  out.add(link.status);
+  ref.onDispose(() {
+    unawaited(sub.cancel());
+    unawaited(out.close());
+  });
+  return out.stream;
 });
 
 /// Display name of a host as currently known.
@@ -242,6 +282,7 @@ final hostNameProvider = Provider.autoDispose.family<String?, HostRef>((ref, hos
     HostKind.local => appL10n.commonThisPhone,
     HostKind.ssh => ref.watch(hostsProvider.select((s) => s.sshById(host.id)?.name)),
     HostKind.relay => ref.watch(relayAccountProvider.select((a) => a.value?.hostById(host.id)?.name)) ?? host.name,
+    HostKind.direct => ref.watch(hostsProvider.select((s) => s.directById(host.id)?.name)),
   };
 });
 
@@ -419,6 +460,12 @@ AsyncValue<HostConnection?> _connectionForHost(Ref ref, HostRef host) {
       if (!loaded) return const AsyncLoading();
       return ref.watch(remoteConnectionProvider(host));
     case HostKind.relay:
+      return ref.watch(remoteConnectionProvider(host));
+    case HostKind.direct:
+      final known = ref.watch(hostsProvider.select((s) => !s.loaded || s.directById(host.id) != null));
+      if (!known) return ref.watch(localConnectionProvider);
+      final loaded = ref.watch(hostsProvider.select((s) => s.loaded));
+      if (!loaded) return const AsyncLoading();
       return ref.watch(remoteConnectionProvider(host));
   }
 }

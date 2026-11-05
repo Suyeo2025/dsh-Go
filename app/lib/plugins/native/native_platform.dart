@@ -2,6 +2,8 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../platform/native_channel.dart';
+
 abstract interface class NativeMediaPlatform {
   Future<Set<String>> capabilities();
   Future<Object?> call(String method, Map<String, Object?> arguments);
@@ -10,7 +12,7 @@ abstract interface class NativeMediaPlatform {
 
 class MethodNativeMediaPlatform implements NativeMediaPlatform {
   static const _methods = MethodChannel('dsh/native-media');
-  static const _events = EventChannel('dsh/native-media/events');
+  static EventChannel get _events => nativeEventChannel('dsh/native-media/events');
   @override
   Future<Set<String>> capabilities() async {
     try {

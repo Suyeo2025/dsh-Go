@@ -1,0 +1,83 @@
+{
+  "directHostLabel": "{name} · Direct",
+  "@directHostLabel": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "directHostFallback": "Direct host",
+  "directErrTokenNeeded": "A launch token is needed: paste the dsh web launch link or token in the host settings",
+  "directErrTokenRejected": "The launch token is no longer valid (dsh web restarted). Paste the new launch link or token",
+  "directErrSignInExpired": "Sign-in expired; signing in again with the launch token",
+  "directErrSignIn": "Couldn’t sign in to DSH",
+  "directErrNotDsh": "No DSH Web found at this address",
+  "directErrUnreachable": "Can’t reach {address}",
+  "@directErrUnreachable": {
+    "placeholders": {
+      "address": {
+        "type": "String"
+      }
+    }
+  },
+  "directErrForbidden": "DSH refused this address: start dsh web with --trusted-host {host}",
+  "@directErrForbidden": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "directWebAppOnly": "This host’s web page opens in the app, so it keeps the app’s sign-in",
+  "directSection": "Direct URL",
+  "directSectionFooter": "Connect to a dsh web that is already reachable (started with --trusted-host your-domain, preferably behind HTTPS). The token and sign-in cookie are kept in the system keychain only.",
+  "directAdd": "Add direct host",
+  "directAddHint": "Enter its URL and launch token; no third-party server",
+  "directFormIntro": "For a dsh web your own server exposes directly, such as https://dsh.example.com.",
+  "directUrlLabel": "URL",
+  "directUrlHint": "https://dsh.example.com",
+  "directTokenLabel": "Launch token",
+  "directTokenHint": "Paste the token or the whole launch link",
+  "directTokenHelp": "dsh web prints a link like https://…/?token=… when it starts. Paste the whole link and the URL and token are split out. The token changes on every restart; after signing in the app uses a sign-in cookie that lasts 30 days.",
+  "directTokenSaved": "A token is saved. Leave this empty to keep it; paste a new one if dsh web restarted and the connection fails.",
+  "directUrlRequired": "Enter the host URL",
+  "directUrlInvalid": "Invalid URL; it should start with https:// or http://",
+  "directTokenRequired": "The first connection needs the launch token",
+  "directLinkSplit": "URL and token taken from the launch link",
+  "directConnected": "Connected · {address}",
+  "@directConnected": {
+    "placeholders": {
+      "address": {
+        "type": "String"
+      }
+    }
+  },
+  "directSubtitle": "Direct · {address}",
+  "@directSubtitle": {
+    "placeholders": {
+      "address": {
+        "type": "String"
+      }
+    }
+  },
+  "directNewToken": "Paste new token",
+  "directDeleteBody": "This host’s settings and the token and sign-in cookie saved on this phone will be deleted. DSH and chats on the host stay.",
+  "directOnboardingTitle": "Connect to your DSH",
+  "directOnboardingMessage": "The DSH engine doesn’t run on this device. Connect to dsh web on your computer or server and keep using it here.",
+  "directOnboardingAddHint": "A dsh web your server exposes: enter its URL and launch token",
+  "searchKwAddDirectHost": "direct,URL,address,launch link,token,add host,server",
+  "directGoogleSection": "Sign in with Google",
+  "directGoogleSignIn": "Sign in with Google",
+  "directGoogleSigningIn": "Signing in…",
+  "directGoogleSignInAgain": "Sign in with Google again",
+  "directGoogleFooter": "If the server is protected by a Google sign-in (such as Cloudflare Access), signing in in the system browser fills in the URL and token for you. Do the same when the token expires.",
+  "directSignInUrlLabel": "Sign-in address",
+  "directSignInUrlRequired": "Enter the sign-in address",
+  "directSignInUrlInvalid": "Invalid sign-in address; it should start with https://",
+  "directSignInUnsupported": "This device can’t sign in through the browser",
+  "directSignInFailed": "Google sign-in didn’t finish; try again",
+  "directSignInBadReply": "The sign-in reply wasn’t valid; check the sign-in address",
+  "directManualEntry": "Enter the URL and token yourself",
+  "directOnboardingGoogleHint": "For a server behind a Google sign-in: sign in and you’re connected"
+}

@@ -67,22 +67,24 @@ class PerformancePage extends ConsumerWidget {
               ),
           ],
         ),
-        SettingsSection(
-          footer: Text(l10n.performanceRefreshHint),
-          children: [
-            SettingsSegmentTile<RefreshRateMode>(
-              key: const ValueKey('performance-refresh-rate'),
-              spot: Spots.refreshRate,
-              segments: [
-                PillSegment(RefreshRateMode.auto, l10n.performanceAuto),
-                PillSegment(RefreshRateMode.max, l10n.performanceRefreshMax),
-                PillSegment(RefreshRateMode.system, l10n.performanceRefreshSystem),
-              ],
-              selected: prefs.refreshRate,
-              onChanged: (mode) => unawaited(notifier.setRefreshRate(mode)),
-            ),
-          ],
-        ),
+        // Only Android's window takes a refresh-rate preference.
+        if (SettingsIndex.has(Spots.refreshRate))
+          SettingsSection(
+            footer: Text(l10n.performanceRefreshHint),
+            children: [
+              SettingsSegmentTile<RefreshRateMode>(
+                key: const ValueKey('performance-refresh-rate'),
+                spot: Spots.refreshRate,
+                segments: [
+                  PillSegment(RefreshRateMode.auto, l10n.performanceAuto),
+                  PillSegment(RefreshRateMode.max, l10n.performanceRefreshMax),
+                  PillSegment(RefreshRateMode.system, l10n.performanceRefreshSystem),
+                ],
+                selected: prefs.refreshRate,
+                onChanged: (mode) => unawaited(notifier.setRefreshRate(mode)),
+              ),
+            ],
+          ),
         SettingsSection(
           title: l10n.performanceEffects,
           children: [

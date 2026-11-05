@@ -3962,6 +3962,9 @@ class L10nZh extends L10n {
   String get chatImageStorageDenied => '没有存储权限，未能保存';
 
   @override
+  String get chatImagePhotosDenied => '没有相册权限，未能保存';
+
+  @override
   String get chatImageCannotSave => '这张图片无法保存';
 
   @override
@@ -4460,6 +4463,157 @@ class L10nZh extends L10n {
   String commonMonthDay(String month, int day) {
     return '$month月$day日';
   }
+
+  @override
+  String directHostLabel(String name) {
+    return '$name · 直连';
+  }
+
+  @override
+  String get directHostFallback => '直连主机';
+
+  @override
+  String get directErrTokenNeeded => '需要启动 token：在主机设置里粘贴 dsh web 的启动链接或 token';
+
+  @override
+  String get directErrTokenRejected => '启动 token 已失效（dsh web 重启过），请粘贴新的启动链接或 token';
+
+  @override
+  String get directErrSignInExpired => '登录已过期，正在用启动 token 重新登录';
+
+  @override
+  String get directErrSignIn => '登录 DSH 失败';
+
+  @override
+  String get directErrNotDsh => '这个地址上没有找到 DSH Web';
+
+  @override
+  String directErrUnreachable(String address) {
+    return '连不上 $address';
+  }
+
+  @override
+  String directErrForbidden(String host) {
+    return 'DSH 拒绝了这个地址：启动 dsh web 时需要加上 --trusted-host $host';
+  }
+
+  @override
+  String get directWebAppOnly => '这台主机的网页版只在 App 内打开，以便沿用 App 的登录';
+
+  @override
+  String get directSection => '直连 URL';
+
+  @override
+  String get directSectionFooter =>
+      '连接已经对外开放的 dsh web（启动时带上 --trusted-host 你的域名，建议走 HTTPS）。token 和登录 Cookie 只保存在系统钥匙串里。';
+
+  @override
+  String get directAdd => '添加直连主机';
+
+  @override
+  String get directAddHint => '填网址和启动 token，不经过第三方服务器';
+
+  @override
+  String get directFormIntro => '适合自己服务器上直接对外的 dsh web，例如 https://dsh.example.com。';
+
+  @override
+  String get directUrlLabel => '网址';
+
+  @override
+  String get directUrlHint => 'https://dsh.example.com';
+
+  @override
+  String get directTokenLabel => '启动 token';
+
+  @override
+  String get directTokenHint => '粘贴 token 或整条启动链接';
+
+  @override
+  String get directTokenHelp =>
+      'dsh web 启动时会输出 https://…/?token=… 这样的链接，整条粘贴即可，会自动拆出网址和 token。token 每次重启都会变；登录后 App 改用有效期 30 天的登录 Cookie。';
+
+  @override
+  String get directTokenSaved => '已保存 token。留空则继续使用；dsh web 重启后连不上时再粘贴新的。';
+
+  @override
+  String get directUrlRequired => '填写主机网址';
+
+  @override
+  String get directUrlInvalid => '网址无效，应为 https://… 或 http://…';
+
+  @override
+  String get directTokenRequired => '首次连接需要启动 token';
+
+  @override
+  String get directLinkSplit => '已从启动链接拆出网址和 token';
+
+  @override
+  String directConnected(String address) {
+    return '已连接 · $address';
+  }
+
+  @override
+  String directSubtitle(String address) {
+    return '直连 · $address';
+  }
+
+  @override
+  String get directNewToken => '粘贴新 token';
+
+  @override
+  String get directDeleteBody => '这台主机的设置和保存在手机上的 token、登录 Cookie 都会删除。主机上的 DSH 和对话不受影响。';
+
+  @override
+  String get directOnboardingTitle => '连接你的 DSH';
+
+  @override
+  String get directOnboardingMessage => '这台设备上不运行 DSH 引擎。连接电脑或服务器上的 dsh web，在这里接着用。';
+
+  @override
+  String get directOnboardingAddHint => '服务器上直接对外的 dsh web：填网址和启动 token';
+
+  @override
+  String get searchKwAddDirectHost => '直连,URL,网址,启动链接,token,添加主机,服务器';
+
+  @override
+  String get directGoogleSection => '用 Google 登录';
+
+  @override
+  String get directGoogleSignIn => '用 Google 登录';
+
+  @override
+  String get directGoogleSigningIn => '正在登录…';
+
+  @override
+  String get directGoogleSignInAgain => '用 Google 重新登录';
+
+  @override
+  String get directGoogleFooter =>
+      '服务器用 Google 账号保护时（例如 Cloudflare Access），在系统浏览器里登录后会自动拿到网址和 token，不用手动粘贴。token 失效后也能这样重新登录。';
+
+  @override
+  String get directSignInUrlLabel => '登录地址';
+
+  @override
+  String get directSignInUrlRequired => '填写登录地址';
+
+  @override
+  String get directSignInUrlInvalid => '登录地址无效，应为 https://…';
+
+  @override
+  String get directSignInUnsupported => '这台设备不支持在浏览器里登录';
+
+  @override
+  String get directSignInFailed => 'Google 登录没有完成，请重试';
+
+  @override
+  String get directSignInBadReply => '登录返回的信息不对，请确认登录地址';
+
+  @override
+  String get directManualEntry => '手动填写网址和 token';
+
+  @override
+  String get directOnboardingGoogleHint => '服务器用 Google 账号保护：登录后自动完成连接';
 
   @override
   String get engineNewChatDefaultsLast => '新对话默认（上次选择）';
@@ -6872,6 +7026,11 @@ class L10nZh extends L10n {
   String get featuresPermissionResetDefault => '恢复默认';
 
   @override
+  String fileSavedIosFiles(String name) {
+    return '「文件」App › DSH Go › $name';
+  }
+
+  @override
   String get fileImageName => '图片';
 
   @override
@@ -7918,6 +8077,9 @@ class L10nZh extends L10n {
 
   @override
   String get mediaOpenElsewhere => '在其他应用中打开';
+
+  @override
+  String get mediaPlayVideo => '播放';
 
   @override
   String get mediaShowInFiles => '在文件中显示';
@@ -12042,6 +12204,140 @@ class L10nZh extends L10n {
   String plugViewGalleryPicture(int index) {
     return '第 $index 张';
   }
+
+  @override
+  String get pushTitle => '推送通知';
+
+  @override
+  String get pushDescription => 'App 在后台或没打开时，由你服务器上的推送服务（DSH Watch bridge）提醒你：回复完成、等你审批、等你回答。点通知会打开对应的对话。';
+
+  @override
+  String get pushBridgeLabel => '推送服务地址';
+
+  @override
+  String get pushBridgeHint => 'watch.example.com';
+
+  @override
+  String get pushHostLabel => '主机';
+
+  @override
+  String get pushNoDirectHost => '先在「远程主机」里添加并连接一台直连主机。';
+
+  @override
+  String get pushEnable => '开启推送';
+
+  @override
+  String get pushEnableFooter => '开启时，这台手机用已登录的 DSH 会话向推送服务证明是你本人；推送服务只校验这一次，不保存它。审批不会在通知里直接放行，要打开 App 在对话里处理。';
+
+  @override
+  String get pushUseLink => '改用配对链接';
+
+  @override
+  String get pushLinkTitle => '粘贴配对链接';
+
+  @override
+  String get pushLinkHint => '在服务器上运行 dsh-watch-bridge pair，把它输出的 dshwatch://pair… 链接粘贴到这里。';
+
+  @override
+  String get pushLinkPair => '配对';
+
+  @override
+  String get pushStatusLabel => '状态';
+
+  @override
+  String get pushStatusOff => '未开启';
+
+  @override
+  String get pushStatusNeedsPermission => '需要通知权限';
+
+  @override
+  String get pushStatusRegistering => '正在注册…';
+
+  @override
+  String get pushStatusOn => '已开启';
+
+  @override
+  String get pushStatusTokenFailed => '推送注册失败';
+
+  @override
+  String get pushStatusUnreachable => '连不上推送服务';
+
+  @override
+  String get pushStatusRevoked => '已在服务器上解除';
+
+  @override
+  String get pushBridgeRow => '推送服务';
+
+  @override
+  String get pushHostRow => '打开的主机';
+
+  @override
+  String get pushRetry => '重新注册';
+
+  @override
+  String get pushOpenSystem => '打开系统通知设置';
+
+  @override
+  String get pushUnpair => '解除配对';
+
+  @override
+  String get pushUnpairConfirmTitle => '解除推送配对？';
+
+  @override
+  String get pushUnpairConfirmText => '这台手机将不再收到推送，之后可以随时重新开启。';
+
+  @override
+  String get pushUnpairOffline => '已在本机解除，但没能通知推送服务；可以在服务器上用 dsh-watch-bridge devices revoke 删除这台设备。';
+
+  @override
+  String get pushRevokedText => '推送服务已经不认识这台手机了，请解除配对后重新开启。';
+
+  @override
+  String get pushPermissionText => '系统设置里关掉了 DSH Go 的通知，推送显示不出来。';
+
+  @override
+  String get pushErrBridgeUrl => '推送服务地址要是 https 地址';
+
+  @override
+  String get pushErrNoHost => '先选一台直连主机';
+
+  @override
+  String get pushErrNotSignedIn => '这台主机还没登录，先连接一次再开启';
+
+  @override
+  String get pushErrNotABridge => '这个地址不是推送服务';
+
+  @override
+  String get pushErrUnreachable => '连不上推送服务';
+
+  @override
+  String get pushErrCertificate => '推送服务的证书对不上';
+
+  @override
+  String get pushErrDshRejected => '推送服务没认可这次登录（可能已过期，或不是同一台服务器）';
+
+  @override
+  String get pushErrDshPairingOff => '推送服务没开启「用 DSH 登录配对」，请改用配对链接';
+
+  @override
+  String get pushErrCodeInvalid => '配对链接不对';
+
+  @override
+  String pushErrCodeInvalidLeft(int count) {
+    return '配对码不对，还能再试 $count 次';
+  }
+
+  @override
+  String get pushErrCodeExpired => '配对链接过期了，请重新生成';
+
+  @override
+  String get pushErrLocked => '尝试太多次，请稍后再试';
+
+  @override
+  String get pushErrFailed => '配对失败';
+
+  @override
+  String get searchKwPush => '推送,通知,APNs,提醒,后台提醒,配对,bridge';
 
   @override
   String get readListUpdating => '更新中 · 上次结果';
@@ -16461,6 +16757,12 @@ class L10nZh extends L10n {
   String get usageUpgradeOff => '关闭';
 
   @override
+  String get viewArtifactQuickLook => '用快速查看打开';
+
+  @override
+  String get viewArtifactQuickLookHint => '在快速查看里翻页、缩放，也可以从那里分享或存到「文件」';
+
+  @override
   String viewArtifactSaved(String value) {
     return '已存到 $value';
   }
@@ -17783,6 +18085,9 @@ class L10nZh extends L10n {
 
   @override
   String get voiceConfigureEither => '系统识别用不了，可以在语音设置里下载语音模型';
+
+  @override
+  String get voiceHostModelNotReady => '主机上的语音模型未就绪';
 
   @override
   String get voiceErrorNetworkTimeout => '语音识别连接超时，请检查网络';

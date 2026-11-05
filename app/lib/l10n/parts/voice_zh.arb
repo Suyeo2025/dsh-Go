@@ -10,6 +10,7 @@
   "voiceChooseSystem": "请在系统设置中选择语音识别服务",
   "voiceConfigureEngine": "请先在语音设置里下载语音模型",
   "voiceConfigureEither": "系统识别用不了，可以在语音设置里下载语音模型",
+  "voiceHostModelNotReady": "主机上的语音模型未就绪",
   "voiceErrorNetworkTimeout": "语音识别连接超时，请检查网络",
   "voiceErrorNetwork": "语音识别网络连接失败",
   "voiceErrorAudio": "语音录音失败，请检查麦克风",

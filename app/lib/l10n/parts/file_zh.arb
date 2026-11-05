@@ -1,4 +1,12 @@
 {
+  "fileSavedIosFiles": "「文件」App › DSH Go › {name}",
+  "@fileSavedIosFiles": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "fileImageName": "图片",
   "fileSharedText": "分享的文字.txt",
   "fileChatFallback": "对话"

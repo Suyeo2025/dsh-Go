@@ -1,4 +1,6 @@
 {
+  "viewArtifactQuickLook": "Open in Quick Look",
+  "viewArtifactQuickLookHint": "Page through and zoom in Quick Look, or share it or save it to Files from there",
   "viewArtifactSaved": "Saved to {value}",
   "viewDownloadFolder": "Downloads/",
   "viewArtifactNoPreview": "Can’t preview",

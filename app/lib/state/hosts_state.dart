@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:dsh_client/dsh_client.dart' show DshCookie;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../l10n/l10n.dart';
+import '../remote/direct/direct_host_config.dart';
 import '../remote/link_status.dart';
 import '../remote/relay/dsh_remote_backend.dart';
 import 'app_info.dart';
@@ -21,12 +23,14 @@ export '../remote/link_status.dart' show HostLinkStatus, HostLinkPhase, HostLink
 export '../remote/ssh/ssh_transport.dart' show PresentedHostKey;
 export '../remote/relay/relay_backend.dart' show RelayHost, RelayTrust, RelayUser;
 export '../remote/ssh/ssh_host_config.dart';
+export '../remote/direct/direct_host_config.dart';
 
-/// The three kinds of DSH host the app can talk to.
-enum HostKind { local, ssh, relay }
+/// The kinds of DSH host the app can talk to. [direct] is a `dsh web` the
+/// phone reaches at its own URL (no SSH, no relay).
+enum HostKind { local, ssh, relay, direct }
 
-/// Identifies a host: the on-device engine, a saved SSH host, or a relay
-/// (ds-harness-remote) device. Equality is by kind + id; [name] is only a
+/// Identifies a host: the on-device engine, a saved SSH host, a relay
+/// (ds-harness-remote) device, or a saved direct-URL host. Equality is by kind + id; [name] is only a
 /// cached display name for relay hosts (their list lives on the server).
 class HostRef {
   const HostRef._(this.kind, this.id, [this.name]);
@@ -36,6 +40,8 @@ class HostRef {
   const HostRef.ssh(String id) : this._(HostKind.ssh, id);
 
   const HostRef.relay(String id, {String? name}) : this._(HostKind.relay, id, name);
+
+  const HostRef.direct(String id) : this._(HostKind.direct, id);
 
   final HostKind kind;
   final String id;
@@ -56,6 +62,7 @@ class HostRef {
       return switch (map['kind']) {
         'ssh' => HostRef.ssh(id),
         'relay' => HostRef.relay(id, name: name is String ? name : null),
+        'direct' => HostRef.direct(id),
         _ => local,
       };
     } catch (_) {
@@ -78,6 +85,7 @@ String hostLabel(HostKind kind, String? name) => switch (kind) {
   HostKind.local => appL10n.commonThisPhone,
   HostKind.ssh => '${_short(name ?? appL10n.stateSshHost)} · SSH',
   HostKind.relay => appL10n.stateHostRemoteLabel(_short(name ?? appL10n.commonRemoteHost)),
+  HostKind.direct => appL10n.directHostLabel(_short(name ?? appL10n.directHostFallback)),
 };
 
 String _short(String name) {
@@ -90,12 +98,13 @@ String _short(String name) {
 /// Keystore-backed in the app; tests override with [MemorySecretStore].
 final secretStoreProvider = Provider<SecretStore>((ref) => SecureSecretStore());
 
-// ── Saved SSH hosts ──────────────────────────────────────────────────────────
+// ── Saved SSH and direct hosts ───────────────────────────────────────────────
 
 class HostsState {
-  const HostsState({this.ssh = const [], this.loaded = false});
+  const HostsState({this.ssh = const [], this.direct = const [], this.loaded = false});
 
   final List<SshHostConfig> ssh;
+  final List<DirectHostConfig> direct;
   final bool loaded;
 
   SshHostConfig? sshById(String id) {
@@ -104,11 +113,20 @@ class HostsState {
     }
     return null;
   }
+
+  DirectHostConfig? directById(String id) {
+    for (final h in direct) {
+      if (h.id == id) return h;
+    }
+    return null;
+  }
 }
 
-/// Saved SSH hosts: configs in SharedPreferences, secrets in [SecretStore].
+/// Saved SSH and direct hosts: configs in SharedPreferences, secrets in
+/// [SecretStore].
 class HostsController extends Notifier<HostsState> {
   static const prefsKey = 'remote_ssh_hosts';
+  static const directPrefsKey = 'remote_direct_hosts';
 
   SecretStore get _secrets => ref.read(secretStoreProvider);
   late Future<void> _loaded;
@@ -125,8 +143,10 @@ class HostsController extends Notifier<HostsState> {
 
   Future<void> _load() async {
     var hosts = const <SshHostConfig>[];
+    var direct = const <DirectHostConfig>[];
+    SharedPreferences? prefs;
     try {
-      final prefs = await SharedPreferences.getInstance();
+      prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString(prefsKey);
       if (raw != null) {
         final list = jsonDecode(raw);
@@ -135,11 +155,20 @@ class HostsController extends Notifier<HostsState> {
     } catch (_) {
       // No preferences backend (tests) or a corrupt entry: start empty.
     }
-    state = HostsState(ssh: hosts, loaded: true);
+    try {
+      final raw = prefs?.getString(directPrefsKey);
+      if (raw != null) {
+        final list = jsonDecode(raw);
+        if (list is List) direct = list.map(DirectHostConfig.fromJson).whereType<DirectHostConfig>().toList();
+      }
+    } catch (_) {
+      // A corrupt entry: no direct hosts, the SSH list stays.
+    }
+    state = HostsState(ssh: hosts, direct: direct, loaded: true);
   }
 
   Future<bool> _persist(List<SshHostConfig> hosts) async {
-    state = HostsState(ssh: List.unmodifiable(hosts), loaded: true);
+    state = HostsState(ssh: List.unmodifiable(hosts), direct: state.direct, loaded: true);
     try {
       final prefs = await SharedPreferences.getInstance();
       return await prefs.setString(prefsKey, jsonEncode([for (final h in hosts) h.toJson()]));
@@ -228,6 +257,95 @@ class HostsController extends Notifier<HostsState> {
     final host = state.sshById(id);
     if (host == null) return;
     await saveSsh(host.copyWith(hostKeyType: () => null, hostKeyFingerprint: () => null));
+  }
+
+  // ── Direct hosts ──
+
+  Future<bool> _persistDirect(List<DirectHostConfig> hosts) async {
+    state = HostsState(ssh: state.ssh, direct: List.unmodifiable(hosts), loaded: true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return await prefs.setString(directPrefsKey, jsonEncode([for (final h in hosts) h.toJson()]));
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Adds or replaces [config]. A non-empty [token] replaces the stored launch
+  /// token; [cookie] (one the form's test just bought) replaces the stored
+  /// session cookie. A new URL forgets the old cookie: it belonged to the old
+  /// address. Returns the preferences write result.
+  Future<bool> saveDirect(DirectHostConfig config, {String? token, DshCookie? cookie}) async {
+    await _loaded;
+    ref.read(readListCredentialEpochProvider.notifier).advance();
+    final id = config.id;
+    final previous = state.directById(id);
+    if (token != null && token.isNotEmpty) await _secrets.write(DirectSecrets.tokenKey(id), token);
+    if (cookie != null) {
+      await _secrets.write(DirectSecrets.cookieKey(id), DirectSecrets.encodeCookie(cookie));
+    } else if (previous != null && previous.connectionKey != config.connectionKey) {
+      await _secrets.delete(DirectSecrets.cookieKey(id));
+    }
+    final hosts = [...state.direct];
+    final index = hosts.indexWhere((h) => h.id == id);
+    if (index >= 0) {
+      hosts[index] = config;
+    } else {
+      hosts.add(config);
+    }
+    return _persistDirect(hosts);
+  }
+
+  Future<DirectSecrets> loadDirectSecrets(String id) async {
+    Future<String?> get(String key) async {
+      try {
+        return await _secrets.read(key);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    return DirectSecrets(
+      token: await get(DirectSecrets.tokenKey(id)),
+      cookie: DirectSecrets.decodeCookie(await get(DirectSecrets.cookieKey(id))),
+    );
+  }
+
+  /// The link's login result: a fresh cookie, or null when the Host refused it.
+  Future<void> saveDirectCookie(String id, DshCookie? cookie) async {
+    if (state.directById(id) == null) return;
+    final key = DirectSecrets.cookieKey(id);
+    if (cookie == null) {
+      await _secrets.delete(key);
+    } else {
+      await _secrets.write(key, DirectSecrets.encodeCookie(cookie));
+    }
+  }
+
+  /// A fresh launch token from a sign-in (and the address it named): the old
+  /// cookie goes, so the next connect logs in with the new token. Returns
+  /// false when the host is gone or preferences couldn't be written.
+  Future<bool> renewDirectToken(String id, {required String token, Uri? baseUri}) async {
+    await _loaded;
+    final host = state.directById(id);
+    if (host == null) return false;
+    final base = baseUri == null ? null : normalizeDirectBaseUrl(baseUri.toString())?.toString();
+    final saved = await saveDirect(host.copyWith(baseUrl: base), token: token);
+    await _secrets.delete(DirectSecrets.cookieKey(id));
+    return saved;
+  }
+
+  /// Removes the host and its token and cookie; switches back to 本机 if it
+  /// was active.
+  Future<void> removeDirect(String id) async {
+    await _loaded;
+    await _persistDirect([...state.direct.where((h) => h.id != id)]);
+    for (final key in [DirectSecrets.tokenKey(id), DirectSecrets.cookieKey(id)]) {
+      try {
+        await _secrets.delete(key);
+      } catch (_) {}
+    }
+    unawaited(ref.read(activeHostProvider.notifier).forget((h) => h == HostRef.direct(id)));
   }
 }
 

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
+import '../../platform/platform_caps.dart';
 import '../../runtime/local_footprint.dart';
 import '../../runtime/runtime_state.dart';
 import '../../state/connection_state.dart';
@@ -83,6 +84,7 @@ class HostSheet extends ConsumerWidget {
     final l10n = context.l10n;
     final active = ref.watch(activeHostProvider);
     final ssh = ref.watch(hostsProvider.select((s) => s.ssh));
+    final direct = ref.watch(hostsProvider.select((s) => s.direct));
     final account = ref.watch(relayAccountProvider).value;
     final relayHosts = account?.signedIn == true ? account!.hosts : const <RelayHost>[];
 
@@ -118,13 +120,15 @@ class HostSheet extends ConsumerWidget {
               SheetGroup(
                 margin: const EdgeInsets.fromLTRB(SheetTitleBar.inset, 0, SheetTitleBar.inset, 12),
                 children: [
-                  _HostRow(
-                    host: HostRef.local,
-                    title: l10n.commonThisPhone,
-                    subtitle: l10n.remoteThisPhoneDsh,
-                    active: active.isLocal,
-                    onTap: localMissing ? installLocal : () => pick(HostRef.local),
-                  ),
+                  // No engine on a remote-only device (iOS): nothing to switch back to.
+                  if (!isRemoteOnlyPlatform)
+                    _HostRow(
+                      host: HostRef.local,
+                      title: l10n.commonThisPhone,
+                      subtitle: l10n.remoteThisPhoneDsh,
+                      active: active.isLocal,
+                      onTap: localMissing ? installLocal : () => pick(HostRef.local),
+                    ),
                   for (final h in ssh)
                     _HostRow(
                       host: HostRef.ssh(h.id),
@@ -132,6 +136,14 @@ class HostSheet extends ConsumerWidget {
                       subtitle: 'SSH · ${h.address}',
                       active: active == HostRef.ssh(h.id),
                       onTap: () => pick(HostRef.ssh(h.id)),
+                    ),
+                  for (final h in direct)
+                    _HostRow(
+                      host: HostRef.direct(h.id),
+                      title: h.name,
+                      subtitle: l10n.directSubtitle(h.address),
+                      active: active == HostRef.direct(h.id),
+                      onTap: () => pick(HostRef.direct(h.id)),
                     ),
                   for (final h in relayHosts)
                     _HostRow(
@@ -158,10 +170,12 @@ class HostSheet extends ConsumerWidget {
                 margin: const EdgeInsets.fromLTRB(SheetTitleBar.inset, 0, SheetTitleBar.inset, 12),
                 children: [
                   SettingsTile(
-                    icon: ssh.isEmpty && relayHosts.isEmpty ? AppIcons.add : AppIcons.configure,
+                    icon: ssh.isEmpty && direct.isEmpty && relayHosts.isEmpty ? AppIcons.add : AppIcons.configure,
                     tinted: false,
-                    title: ssh.isEmpty && relayHosts.isEmpty ? l10n.remoteConnectComputer : l10n.remoteManageHosts,
-                    subtitle: ssh.isEmpty && relayHosts.isEmpty ? l10n.remoteConnectionMethods : null,
+                    title: ssh.isEmpty && direct.isEmpty && relayHosts.isEmpty
+                        ? l10n.remoteConnectComputer
+                        : l10n.remoteManageHosts,
+                    subtitle: ssh.isEmpty && direct.isEmpty && relayHosts.isEmpty ? l10n.remoteConnectionMethods : null,
                     onTap: () {
                       Navigator.of(context).pop();
                       onManage();

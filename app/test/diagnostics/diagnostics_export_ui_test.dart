@@ -45,7 +45,7 @@ class _ScriptedExporter extends DiagnosticsExporter {
   }
 
   @override
-  Future<bool> share({void Function(DiagnosticsStep step)? onStep}) async {
+  Future<bool> share({void Function(DiagnosticsStep step)? onStep, Rect? origin}) async {
     await _walk(onStep, DiagnosticsStep.sharing);
     shares++;
     return true;

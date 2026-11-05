@@ -25,6 +25,7 @@
   "mediaTitleImage": "生成图像",
   "mediaTitleVideo": "生成视频",
   "mediaOpenElsewhere": "在其他应用中打开",
+  "mediaPlayVideo": "播放",
   "mediaShowInFiles": "在文件中显示",
   "mediaGenerating": "生成中",
   "mediaGeneratingProgress": "生成中 · {progress}",
