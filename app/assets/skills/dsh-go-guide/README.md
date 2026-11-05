@@ -12,7 +12,7 @@
 - [宠物](zh/06-pets.md)：选择宠物、气泡、App 外显示
 - [分享与回放](zh/07-sharing.md)：一个面板分享链接、图片、文件或文字，回放与接着聊
 - [插件](zh/08-plugins.md)：安装、开关、更新与卸载、原生设置与网页版编辑、原生界面
-- [外观](zh/09-appearance.md)：明暗、配色、图标与图片快捷方式、启动画面、壁纸、对话字号
+- [外观](zh/09-appearance.md)：明暗、配色、字体、图标与图片快捷方式、启动画面、壁纸、对话字号
 - [设置](zh/10-settings.md)：设置页每一项的作用、检查更新
 - [常见问题](zh/11-faq.md)：连不上、后台被关、引擎启动、手机操控、宠物、插件、App 发送的数据
 - [DS Bot](zh/12-bots.md)：手机端支持、工作目录、复制 Bot
@@ -27,7 +27,7 @@
 - [Pets](en/06-pets.md): choosing a pet, bubbles, showing outside the app
 - [Sharing and replay](en/07-sharing.md): one panel for a link, an image, a file or text; replay and continue
 - [Plugins](en/08-plugins.md): installing, turning on and off, updating and uninstalling, native settings and web editing, native UI
-- [Appearance](en/09-appearance.md): light and dark, colors, icons and picture shortcuts, launch screen, wallpaper, chat text size
+- [Appearance](en/09-appearance.md): light and dark, colors, font, icons and picture shortcuts, launch screen, wallpaper, chat text size
 - [Settings](en/10-settings.md): what each setting does, checking for updates
 - [Troubleshooting](en/11-faq.md): connection, background, engine start, phone control, pets, plugins, what the app sends
 - [DS Bot](en/12-bots.md): mobile support, working directories, duplicating a Bot

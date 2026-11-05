@@ -31,10 +31,23 @@ import 'package:flutter/material.dart';
 /// 中日韩统一码同一个码位在不同地区字形不同(如「直」「写」)。务必在
 /// `MaterialApp` 里声明 `supportedLocales: [Locale('zh', 'CN'), ...]` 并接入
 /// `GlobalMaterialLocalizations`,否则在非中文系统语言下会取到日文字形。
+///
+/// ## 可选字体(设置 › 主题 › 字体)
+///
+/// 无衬线族由设置决定(`state/font_state.dart` 的 `appSansFamilyProvider`):
+/// null = 系统默认;选了霞鹜文楷则是首次选用时下载的 `LXGW WenKai`,经
+/// `buildLightTheme(sansFamily:)` 落到整套 textTheme 与各组件样式上。下面的
+/// [display] / [wordmark] / [eyebrow] 不写族名,随所在处的主题文字走。
+/// 等宽([mono])与图标字体不受影响。
 abstract final class AppType {
-  /// 无衬线族。`null` = 系统默认(Android:Roboto + 系统中文字体)。
-  /// 将来若打包拉丁 UI 字体,只改这一处。
-  static const String? sansFamily = null;
+  /// 当前生效的无衬线族(null = 系统默认),由 `DshApp` 按 `appSansFamilyProvider`
+  /// 写入,别处只读。局部另建的主题(终端、媒体查看器、分享卡片…)不传
+  /// `sansFamily` 时用它,跟整个 App 一致。
+  static String? sansFamily;
+
+  /// 下载字体缺字时的回退:系统中文无衬线(iOS 苹方、Android Noto Sans CJK),
+  /// 再交给系统按字符匹配(emoji 等)。只在选了下载字体时用。
+  static const sansFallback = <String>['PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'sans-serif'];
 
   /// 打包的等宽族名(pubspec `fonts:` 里的 family)。
   static const monoFamily = 'JetBrainsMono';
@@ -104,7 +117,6 @@ abstract final class AppType {
 
   /// 欢迎语 / 空状态大字:大而轻,不靠粗。
   static TextStyle display({double size = 28, Color? color}) => TextStyle(
-    fontFamily: sansFamily,
     fontSize: size,
     fontWeight: FontWeight.w300,
     height: 1.25,
@@ -113,18 +125,11 @@ abstract final class AppType {
   );
 
   /// 字标「DSH」:无衬线粗体 + 轻微字距。
-  static TextStyle wordmark({double size = 18, Color? color}) => TextStyle(
-    fontFamily: sansFamily,
-    fontSize: size,
-    fontWeight: FontWeight.w600,
-    letterSpacing: 0.6,
-    height: 1.2,
-    color: color,
-  );
+  static TextStyle wordmark({double size = 18, Color? color}) =>
+      TextStyle(fontSize: size, fontWeight: FontWeight.w600, letterSpacing: 0.6, height: 1.2, color: color);
 
   /// 分区小标题(「最近会话」「引擎」):小字号 + 字距,替代粗分割线。
   static TextStyle eyebrow({Color? color}) => TextStyle(
-    fontFamily: sansFamily,
     fontSize: 12,
     fontWeight: FontWeight.w600,
     letterSpacing: 0.8,

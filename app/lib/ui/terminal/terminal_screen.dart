@@ -26,12 +26,12 @@ class TerminalCardFrame extends StatelessWidget {
 
   final Widget child;
 
-  /// The dark theme of the current palette (light mode keeps the card dark).
-  static final _darkThemes = <AppAccent, ThemeData>{};
+  /// The dark theme of the current palette and text font (light mode keeps the card dark).
+  static final _darkThemes = <(AppAccent, String?), ThemeData>{};
 
   static ThemeData _darkThemeFor(AppAccent accent) {
     if (_darkThemes.length > 4) _darkThemes.clear();
-    return _darkThemes.putIfAbsent(accent, () => buildDarkTheme(accent: accent));
+    return _darkThemes.putIfAbsent((accent, AppType.sansFamily), () => buildDarkTheme(accent: accent));
   }
 
   @override

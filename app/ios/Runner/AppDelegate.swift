@@ -10,7 +10,24 @@ import UserNotifications
   ) -> Bool {
     // Before anything else, so the tap that cold-started the app reaches PushChannel.
     UNUserNotificationCenter.current().delegate = self
+    excludeFontsFromBackup()
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  /// Downloaded fonts (lib/state/font_state.dart: Application Support/fonts, 霞鹜文楷 ~49 MB) can be
+  /// fetched again, so they stay out of iCloud / device backups. The flag is on the folder, which
+  /// covers everything put in it later.
+  private func excludeFontsFromBackup() {
+    guard var dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return }
+    dir.appendPathComponent("fonts", isDirectory: true)
+    do {
+      try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+      var values = URLResourceValues()
+      values.isExcludedFromBackup = true
+      try dir.setResourceValues(values)
+    } catch {
+      NSLog("DSH Go: could not exclude fonts from backup: %@", error.localizedDescription)
+    }
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {

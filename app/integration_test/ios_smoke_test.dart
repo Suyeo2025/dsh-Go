@@ -24,6 +24,7 @@ import 'package:dsh_app/app.dart';
 import 'package:dsh_app/diagnostics/app_error_log.dart';
 import 'package:dsh_app/launch/launch_state.dart';
 import 'package:dsh_app/state/artifacts.dart' show ArtifactKind;
+import 'package:dsh_app/state/font_state.dart';
 import 'package:dsh_app/state/locale_state.dart';
 import 'package:dsh_app/ui/chat/artifact_preview.dart' show artifactPreviewable;
 import 'package:dsh_app/ui/chat/chat_list.dart' show ChatList;
@@ -32,7 +33,9 @@ import 'package:dsh_app/ui/chat/widgets/attachments.dart' show SentAttachments;
 import 'package:dsh_app/ui/common/third_party_licenses.dart';
 import 'package:dsh_app/ui/engine/diagnostics_export_card.dart' show DiagnosticsExportCard;
 import 'package:dsh_app/ui/onboarding/welcome_page.dart';
+import 'package:dsh_app/ui/settings/appearance/font_picker.dart' show FontEntryTile, FontSheet;
 import 'package:dsh_app/ui/settings/font_licenses.dart';
+import 'package:dsh_app/update/update_http.dart';
 import 'package:dsh_app/ui/settings/index/settings_pages.dart';
 import 'package:dsh_app/ui/settings/settings_widgets.dart';
 import 'package:dsh_app/ui/shell/home_shell.dart';
@@ -93,6 +96,39 @@ class _Skip implements Exception {
   @override
   String toString() => 'skipped: $reason';
 }
+
+/// Every request the font download makes: which source it is on, what it got.
+final _fontRequests = <String>[];
+
+final class _LoggingHttp implements UpdateHttp {
+  _LoggingHttp(this._inner);
+  final UpdateHttp _inner;
+
+  @override
+  Future<UpdateHttpResponse> get(
+    Uri url, {
+    Map<String, String> headers = const {},
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    final started = DateTime.now();
+    final what = '${url.host}${headers.containsKey('range') ? ' ${headers['range']}' : ''}';
+    try {
+      final r = await _inner.get(url, headers: headers, timeout: timeout);
+      _fontRequests.add('$what -> ${r.status} (${DateTime.now().difference(started).inMilliseconds} ms)');
+      return r;
+    } catch (e) {
+      _fontRequests.add('$what -> ${e.runtimeType} (${DateTime.now().difference(started).inMilliseconds} ms)');
+      rethrow;
+    }
+  }
+}
+
+/// The app as main() starts it, the font download's HTTP logged.
+Widget _app() => ProviderScope(
+  observers: const [_BuildPhaseObserver()],
+  overrides: [fontEnvironmentProvider.overrideWithValue(FontEnvironment(http: () => _LoggingHttp(IoUpdateHttp())))],
+  child: const DshApp(),
+);
 
 String _scrub(String s) => _token.isEmpty ? s : s.replaceAll(_token, '<token>');
 
@@ -357,7 +393,7 @@ Future<void> _smoke(WidgetTester tester, IntegrationTestWidgetsFlutterBinding bi
     await Future.wait([AppLanguageController.load(), LaunchController.begin()]);
     registerThirdPartyLicenses();
     registerFontLicenses();
-    await tester.pumpWidget(const ProviderScope(observers: [_BuildPhaseObserver()], child: DshApp()));
+    await tester.pumpWidget(_app());
 
     await step('welcome', () async {
       if (!await waitFor(find.byType(WelcomePage), seconds: 30)) throw StateError('no welcome page');
@@ -403,7 +439,7 @@ Future<void> _smoke(WidgetTester tester, IntegrationTestWidgetsFlutterBinding bi
         await prefs.setBool('onboarding_welcome_seen', true);
         await prefs.setBool('onboarding_local_declined', true);
         await tester.pumpWidget(const SizedBox());
-        await tester.pumpWidget(const ProviderScope(observers: [_BuildPhaseObserver()], child: DshApp()));
+        await tester.pumpWidget(_app());
         if (!await waitFor(find.byType(HomeShell), seconds: 30)) throw StateError('no home shell');
         await frames(1500);
       }, recover: false);
@@ -702,6 +738,91 @@ Future<void> _smoke(WidgetTester tester, IntegrationTestWidgetsFlutterBinding bi
       await tapAndSettle(find.byKey(const ValueKey('identity-host-switcher')), 1500);
     });
     await step('host-switcher-close', () async => home(), shoot: false);
+
+    /// 设置 › 外观 › 字体 (the page must be on top): the row tapped, its sheet up.
+    Future<void> openFontSheet() async {
+      final tile = find.byType(FontEntryTile);
+      if (!await reveal(tile)) throw StateError('no 字体 row on 外观');
+      // Mid-screen: at the top it sits under the page's floating title bar.
+      await Scrollable.ensureVisible(tester.element(tile.first), alignment: 0.5);
+      await frames(600);
+      if (tile.hitTestable().evaluate().isEmpty) {
+        throw StateError('字体 row not tappable at ${tester.getRect(tile.first)}');
+      }
+      await tester.tap(tile.hitTestable().first);
+      await frames(1500);
+      if (find.byType(FontSheet).evaluate().isEmpty) {
+        throw StateError('tapping 字体 at ${tester.getRect(tile.first)} opened no sheet');
+      }
+    }
+
+    // 设置 › 外观 › 字体: 霞鹜文楷 downloaded (at most 5 minutes), in use, then back to the system font.
+    await step('font-wenkai', () async {
+      _fontRequests.clear();
+      await home();
+      unawaited(rootNav().push(MaterialPageRoute<void>(builder: (_) => settingsPage(SettingsPageId.appearance))));
+      await frames(1500);
+      await openFontSheet();
+      await tapAndSettle(find.byKey(const ValueKey('font-wenkai')), 500);
+      final container = ProviderScope.containerOf(tester.element(find.byType(FontSheet)));
+      final started = DateTime.now();
+      var last = '';
+      while (true) {
+        final f = container.read(fontProvider);
+        last = '${f.phase.name} ${(f.progress * 100).toStringAsFixed(0)}% failure=${f.failure?.name}';
+        if (f.phase == FontPhase.ready && f.family != null) break;
+        if (f.phase != FontPhase.downloading && f.failure != null) {
+          throw StateError('download failed: $last; requests: ${_fontRequests.join('; ')}');
+        }
+        if (DateTime.now().difference(started) > const Duration(minutes: 5)) {
+          throw StateError('not downloaded in 5 min: $last; requests: ${_fontRequests.join('; ')}');
+        }
+        await frames(1000);
+      }
+      final took = DateTime.now().difference(started).inSeconds;
+      await frames(1500);
+      await screenshot('font-wenkai-sheet');
+      Navigator.of(tester.element(find.byType(FontSheet))).pop();
+      await frames(1200);
+      final family = container.read(fontProvider).family;
+      final themed = Theme.of(tester.element(find.byType(FontEntryTile).first)).textTheme.bodyMedium?.fontFamily;
+      await screenshot('font-wenkai-settings');
+      steps.add({
+        'step':
+            'font-wenkai: ready in ${took}s, family=$family, theme bodyMedium=$themed, '
+            'requests: ${_fontRequests.join('; ')}',
+        'ok': family != null && themed == family,
+      });
+      if (themed != family) throw StateError('theme font is $themed, not $family');
+      // A conversation in it.
+      await home();
+      await openDrawer();
+      final session = find.byWidgetPredicate(
+        (w) => w.key is ValueKey<String> && RegExp(r'^session-(?!delete)').hasMatch((w.key! as ValueKey<String>).value),
+      );
+      if (session.hitTestable().evaluate().isNotEmpty) {
+        await tapAndSettle(session, 3500);
+        await screenshot('font-wenkai-session');
+      }
+      // sim-smoke-mac.zsh looks at the files on disk now (the app is still installed).
+      debugPrint('SMOKE_FONTS_READY');
+      await frames(6000);
+    }, shoot: false);
+    await step('font-system', () async {
+      await home();
+      unawaited(rootNav().push(MaterialPageRoute<void>(builder: (_) => settingsPage(SettingsPageId.appearance))));
+      await frames(1500);
+      await openFontSheet();
+      await tapAndSettle(find.byKey(const ValueKey('font-system')), 1500);
+      final container = ProviderScope.containerOf(tester.element(find.byType(FontSheet)));
+      Navigator.of(tester.element(find.byType(FontSheet))).pop();
+      await frames(1200);
+      final themed = Theme.of(tester.element(find.byType(FontEntryTile).first)).textTheme.bodyMedium?.fontFamily;
+      if (container.read(fontProvider).family != null) throw StateError('still on WenKai after choosing 系统默认');
+      steps.add({'step': 'font-system: theme bodyMedium=$themed', 'ok': true});
+      await screenshot('font-system-settings');
+      await home();
+    }, shoot: false);
 
     await step('settings', () async {
       await openDrawer();

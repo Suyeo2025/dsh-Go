@@ -9,6 +9,7 @@ import 'performance/performance_state.dart';
 import 'performance/refresh_rate.dart';
 import 'state/app_info.dart';
 import 'state/appearance_state.dart';
+import 'state/font_state.dart';
 import 'state/locale_state.dart';
 import 'state/star_prompt.dart' show starPromptGateProvider, starPromptProvider;
 import 'state/tile_style_state.dart';
@@ -38,6 +39,7 @@ class _DshAppState extends ConsumerState<DshApp> with WidgetsBindingObserver {
   bool? _glassBlur;
   bool? _instantPages;
   bool? _fluid;
+  String? _sans;
   late ThemeData _light;
   late ThemeData _dark;
 
@@ -55,6 +57,9 @@ class _DshAppState extends ConsumerState<DshApp> with WidgetsBindingObserver {
     // Start loading the stored tile style now, so 全部功能 opens in it rather
     // than flashing the default first.
     ref.read(tileStyleProvider);
+    // 字体: a downloaded font (霞鹜文楷) is read and registered in the
+    // background; the theme switches to it once that is done.
+    ref.read(fontProvider);
     // Anonymous usage statistics live as long as the app, in either 界面
     // (release builds: today is noted, and earlier days go out).
     ref.read(usageStatsProvider);
@@ -84,14 +89,18 @@ class _DshAppState extends ConsumerState<DshApp> with WidgetsBindingObserver {
   @override
   void didChangeAccessibilityFeatures() => setState(() {});
 
-  void _themesFor(AppAccent accent, bool english, bool glassBlur, bool instantPages, bool fluid) {
+  void _themesFor(AppAccent accent, bool english, bool glassBlur, bool instantPages, bool fluid, String? sans) {
     if (accent == _accent &&
         english == _english &&
         glassBlur == _glassBlur &&
         instantPages == _instantPages &&
-        fluid == _fluid) {
+        fluid == _fluid &&
+        sans == _sans) {
       return;
     }
+    _sans = sans;
+    // Themes built elsewhere (terminal, media viewer, share cards) follow it too.
+    AppType.sansFamily = sans;
     _accent = accent;
     _english = english;
     _glassBlur = glassBlur;
@@ -107,6 +116,7 @@ class _DshAppState extends ConsumerState<DshApp> with WidgetsBindingObserver {
       glassBlur: glassBlur,
       instantPages: instantPages,
       fluid: fluid,
+      sansFamily: sans,
     );
     _dark = buildDarkTheme(
       accent: accent,
@@ -114,6 +124,7 @@ class _DshAppState extends ConsumerState<DshApp> with WidgetsBindingObserver {
       glassBlur: glassBlur,
       instantPages: instantPages,
       fluid: fluid,
+      sansFamily: sans,
     );
   }
 
@@ -157,7 +168,14 @@ class _DshAppState extends ConsumerState<DshApp> with WidgetsBindingObserver {
         performance.reduceMotion || WidgetsBinding.instance.platformDispatcher.accessibilityFeatures.disableAnimations;
     final fluid = performance.fluidMotion && !reduced;
     FrameClock.instance.enabled = fluid;
-    _themesFor(ref.watch(accentProvider), locale.languageCode == 'en', performance.blur, reduced, fluid);
+    _themesFor(
+      ref.watch(accentProvider),
+      locale.languageCode == 'en',
+      performance.blur,
+      reduced,
+      fluid,
+      ref.watch(appSansFamilyProvider),
+    );
     if (!waiting && !_settled) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _settled = true);
     }

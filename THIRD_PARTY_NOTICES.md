@@ -214,6 +214,18 @@ DS Bot 的 NOTICE 原文附在文末。
 | 用途 | 代码字体，随 App 分发，也注入网页版 |
 | 文件 | `app/assets/fonts/JetBrainsMono-*.ttf` |
 
+### 霞鹜文楷 LXGW WenKai（SIL OFL 1.1）
+
+| 项 | 内容 |
+|---|---|
+| 项目 | 霞鹜文楷 LXGW WenKai v1.530，https://github.com/lxgw/LxgwWenKai |
+| 版权人 | Copyright 2021-2026 LXGW (https://github.com/lxgw/LxgwWenKai)，保留字体名称「霞鹜」「霞鶩」「落霞孤鹜」「落霞孤鶩」「LXGW」；Copyright 2020 The Klee Project Authors (https://github.com/fontworks-fonts/Klee) |
+| 许可 | SIL Open Font License 1.1（正文同 `app/assets/fonts/OFL.txt`；该版本的 `OFL.txt` 原文收在 `app/lib/ui/settings/font_licenses.dart`） |
+| 用途 | 可选的界面文字字体（设置 › 主题 › 字体）。**不随 App 分发**：用户第一次选用时下载该版本 GitHub Release 中的 `LXGWWenKai-Regular.ttf`、`LXGWWenKai-Medium.ttf`（依次经公开加速镜像 ghfast.top、gh-proxy.com，再 GitHub、SourceForge，见 `app/lib/state/font_state.dart`），按写死的 SHA-256 校验，未作任何修改 |
+| 文件 | 下载到 App 私有目录 `Application Support/fonts/lxgw-wenkai-1.530/`；版本、大小、SHA-256 与下载源见 `app/lib/state/font_state.dart` |
+
+App 内「开源许可」页无论是否已下载都列出这条声明。
+
 ## 三、随 App 分发的原生库
 
 以下库作为 Gradle 依赖打包进 APK，未复制进源码。

@@ -1,0 +1,32 @@
+{
+  "fontTitle": "字体",
+  "fontSystem": "系统默认",
+  "fontWenKai": "霞鹜文楷",
+  "fontSample": "落霞与孤鹜齐飞 The quick brown fox",
+  "fontDownloadSize": "约 {size} MB，首次使用需下载",
+  "@fontDownloadSize": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "fontDownloading": "正在下载 {percent}%",
+  "@fontDownloading": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
+  "fontDownloaded": "已下载",
+  "fontDownload": "下载",
+  "fontNeedsDownload": "需要重新下载",
+  "fontFailNetwork": "下载失败：连不上下载源，请检查网络后重试",
+  "fontFailUnavailable": "下载失败：下载源暂时不可用",
+  "fontFailChecksum": "下载失败：文件校验不通过，已删除",
+  "fontFailStorage": "下载失败：存储空间不足或无法写入",
+  "fontFailLoad": "字体文件已损坏，需要重新下载",
+  "fontFooter": "霞鹜文楷用于整个 App 的文字，代码和终端仍用等宽字体。字体按 SIL 开源字体许可（OFL 1.1）分发，见 关于 › 开源许可",
+  "searchKwFont": "字体,楷体,文楷,霞鹜,落霞,霞鹜文楷,字形,换字体"
+}

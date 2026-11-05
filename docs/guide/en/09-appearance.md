@@ -1,6 +1,6 @@
 # Appearance
 
-Adjust light and dark, colors, icons, the launch screen, the wallpaper and chat text size. The app icon updates when you return to the home screen; other changes apply right away.
+Adjust light and dark, colors, the font, icons, the launch screen, the wallpaper and chat text size. The app icon updates when you return to the home screen; other changes apply right away.
 
 ## Theme
 
@@ -9,6 +9,7 @@ Adjust light and dark, colors, icons, the launch screen, the wallpaper and chat 
 
 - **Light and dark**: **Light**, **Dark** or **System** (default).
 - **Colors**: Mist, Teal, Dusk, Aqua, Amber, Slate, or **Custom** to drag the hue bar or pick a suggested color. On Android 12 and later, **Use wallpaper colors** follows your wallpaper.
+- **Font**: **System default** or **LXGW WenKai**. LXGW WenKai is used for all text in the app (code and the terminal stay monospace). It is downloaded the first time you choose it (about 49 MB) and works offline after that; tap **Cancel** to stop a download, **Retry** if it fails, and **Delete** to remove it.
 - **Feature icons**: the style of tiles in All features and elsewhere: Duotone, Geometric or Glass.
 - **App icon**: Mist blue, Nightfall, Frost white or Ink. When it's done you'll see **Icon selected. Return to your home screen to see the change.** Below it, **Picture shortcut** puts a separate shortcut to DSH Go on the home screen with your own picture: choose one, drag or pinch to fit, name it, tap **Add to home screen** and confirm in the system dialog.
 - **Launch screen**: **Default** or **Custom**. A custom one can be a picture or an animation (up to 8 MB) or a video (up to 30 MB) of any length; it plays through once on a cold start, and a tap skips it. Pick its **Fit** and **Background**, and tap **Preview** to watch it once.

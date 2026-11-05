@@ -62,6 +62,19 @@ echo "--- flutter test $(date '+%F %T')"
   while [[ ! -f $OUT/.done ]]; do
     dir=$(sed -n 's/.*SMOKE_OUT_DIR=//p' $OUT/run.log | tail -1)
     [[ -n $dir && -d $dir ]] && rsync -a --exclude=.probe "$dir/" $OUT/
+    # The test says when the downloaded font is on disk: list it and its backup flag
+    # (NSURLIsExcludedFromBackupKey is the com.apple.metadata:com_apple_backup_excludeItem xattr).
+    if [[ ! -f $OUT/fonts-check.txt && -n $dir ]] && grep -q SMOKE_FONTS_READY $OUT/run.log; then
+      fonts="${dir:h:h}/Library/Application Support/fonts"
+      {
+        echo "# $fonts"
+        ls -la "$fonts" "$fonts"/*/ 2>&1
+        du -sh "$fonts" 2>&1
+        echo "# xattr on fonts/"
+        xattr -l "$fonts" 2>&1
+        print -r -- "excludedFromBackup=$(xattr "$fonts" 2>/dev/null | grep -c com_apple_backup_excludeItem)"
+      } > $OUT/fonts-check.txt
+    fi
     sleep 1
   done
 ) &

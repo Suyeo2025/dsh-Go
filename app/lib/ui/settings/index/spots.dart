@@ -764,6 +764,12 @@ abstract final class Spots {
     title: (l) => l.pluginsColors,
     keywords: (l) => l.searchKwAccent,
   );
+  static final font = SettingSpot(
+    'font',
+    page: SettingsPageId.appearance,
+    title: (l) => l.fontTitle,
+    keywords: (l) => l.searchKwFont,
+  );
   static final tileStyle = SettingSpot(
     'tile-style',
     page: SettingsPageId.appearance,
@@ -1118,6 +1124,7 @@ final _rows = <SettingSpot>[
   Spots.webSearchKey,
   Spots.darkMode,
   Spots.accent,
+  Spots.font,
   Spots.tileStyle,
   Spots.appIcon,
   Spots.iconShortcut,

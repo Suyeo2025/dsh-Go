@@ -12890,6 +12890,102 @@ abstract class L10n {
   /// **'对话'**
   String get fileChatFallback;
 
+  /// No description provided for @fontTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'字体'**
+  String get fontTitle;
+
+  /// No description provided for @fontSystem.
+  ///
+  /// In zh, this message translates to:
+  /// **'系统默认'**
+  String get fontSystem;
+
+  /// No description provided for @fontWenKai.
+  ///
+  /// In zh, this message translates to:
+  /// **'霞鹜文楷'**
+  String get fontWenKai;
+
+  /// No description provided for @fontSample.
+  ///
+  /// In zh, this message translates to:
+  /// **'落霞与孤鹜齐飞 The quick brown fox'**
+  String get fontSample;
+
+  /// No description provided for @fontDownloadSize.
+  ///
+  /// In zh, this message translates to:
+  /// **'约 {size} MB，首次使用需下载'**
+  String fontDownloadSize(String size);
+
+  /// No description provided for @fontDownloading.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在下载 {percent}%'**
+  String fontDownloading(String percent);
+
+  /// No description provided for @fontDownloaded.
+  ///
+  /// In zh, this message translates to:
+  /// **'已下载'**
+  String get fontDownloaded;
+
+  /// No description provided for @fontDownload.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载'**
+  String get fontDownload;
+
+  /// No description provided for @fontNeedsDownload.
+  ///
+  /// In zh, this message translates to:
+  /// **'需要重新下载'**
+  String get fontNeedsDownload;
+
+  /// No description provided for @fontFailNetwork.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载失败：连不上下载源，请检查网络后重试'**
+  String get fontFailNetwork;
+
+  /// No description provided for @fontFailUnavailable.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载失败：下载源暂时不可用'**
+  String get fontFailUnavailable;
+
+  /// No description provided for @fontFailChecksum.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载失败：文件校验不通过，已删除'**
+  String get fontFailChecksum;
+
+  /// No description provided for @fontFailStorage.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载失败：存储空间不足或无法写入'**
+  String get fontFailStorage;
+
+  /// No description provided for @fontFailLoad.
+  ///
+  /// In zh, this message translates to:
+  /// **'字体文件已损坏，需要重新下载'**
+  String get fontFailLoad;
+
+  /// No description provided for @fontFooter.
+  ///
+  /// In zh, this message translates to:
+  /// **'霞鹜文楷用于整个 App 的文字，代码和终端仍用等宽字体。字体按 SIL 开源字体许可（OFL 1.1）分发，见 关于 › 开源许可'**
+  String get fontFooter;
+
+  /// No description provided for @searchKwFont.
+  ///
+  /// In zh, this message translates to:
+  /// **'字体,楷体,文楷,霞鹜,落霞,霞鹜文楷,字形,换字体'**
+  String get searchKwFont;
+
   /// No description provided for @hostDetailsConnectionType.
   ///
   /// In zh, this message translates to:

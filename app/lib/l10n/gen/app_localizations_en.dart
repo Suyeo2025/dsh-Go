@@ -7437,6 +7437,59 @@ class L10nEn extends L10n {
   String get fileChatFallback => 'chat';
 
   @override
+  String get fontTitle => 'Font';
+
+  @override
+  String get fontSystem => 'System default';
+
+  @override
+  String get fontWenKai => 'LXGW WenKai';
+
+  @override
+  String get fontSample => '落霞与孤鹜齐飞 The quick brown fox';
+
+  @override
+  String fontDownloadSize(String size) {
+    return 'About $size MB, downloaded the first time it’s used';
+  }
+
+  @override
+  String fontDownloading(String percent) {
+    return 'Downloading $percent%';
+  }
+
+  @override
+  String get fontDownloaded => 'Downloaded';
+
+  @override
+  String get fontDownload => 'Download';
+
+  @override
+  String get fontNeedsDownload => 'Needs downloading again';
+
+  @override
+  String get fontFailNetwork => 'Download failed: couldn’t reach a download source. Check your connection and retry';
+
+  @override
+  String get fontFailUnavailable => 'Download failed: the download sources are unavailable right now';
+
+  @override
+  String get fontFailChecksum => 'Download failed: the file didn’t pass its check and was deleted';
+
+  @override
+  String get fontFailStorage => 'Download failed: not enough storage, or it couldn’t be written';
+
+  @override
+  String get fontFailLoad => 'The font files are damaged and need downloading again';
+
+  @override
+  String get fontFooter =>
+      'LXGW WenKai is used for all text in the app; code and the terminal stay monospace. The font is distributed under the SIL Open Font License 1.1, see About › Open-source licenses';
+
+  @override
+  String get searchKwFont => 'font,typeface,kai,kaiti,LXGW,WenKai,字体,楷体,文楷,霞鹜,落霞';
+
+  @override
   String get hostDetailsConnectionType => 'Connection type';
 
   @override

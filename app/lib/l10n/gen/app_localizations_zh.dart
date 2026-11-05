@@ -7040,6 +7040,58 @@ class L10nZh extends L10n {
   String get fileChatFallback => '对话';
 
   @override
+  String get fontTitle => '字体';
+
+  @override
+  String get fontSystem => '系统默认';
+
+  @override
+  String get fontWenKai => '霞鹜文楷';
+
+  @override
+  String get fontSample => '落霞与孤鹜齐飞 The quick brown fox';
+
+  @override
+  String fontDownloadSize(String size) {
+    return '约 $size MB，首次使用需下载';
+  }
+
+  @override
+  String fontDownloading(String percent) {
+    return '正在下载 $percent%';
+  }
+
+  @override
+  String get fontDownloaded => '已下载';
+
+  @override
+  String get fontDownload => '下载';
+
+  @override
+  String get fontNeedsDownload => '需要重新下载';
+
+  @override
+  String get fontFailNetwork => '下载失败：连不上下载源，请检查网络后重试';
+
+  @override
+  String get fontFailUnavailable => '下载失败：下载源暂时不可用';
+
+  @override
+  String get fontFailChecksum => '下载失败：文件校验不通过，已删除';
+
+  @override
+  String get fontFailStorage => '下载失败：存储空间不足或无法写入';
+
+  @override
+  String get fontFailLoad => '字体文件已损坏，需要重新下载';
+
+  @override
+  String get fontFooter => '霞鹜文楷用于整个 App 的文字，代码和终端仍用等宽字体。字体按 SIL 开源字体许可（OFL 1.1）分发，见 关于 › 开源许可';
+
+  @override
+  String get searchKwFont => '字体,楷体,文楷,霞鹜,落霞,霞鹜文楷,字形,换字体';
+
+  @override
   String get hostDetailsConnectionType => '连接方式';
 
   @override

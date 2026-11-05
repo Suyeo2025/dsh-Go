@@ -150,11 +150,12 @@ class ShareCard extends StatelessWidget {
   /// Line height of the body text.
   static double leadingFor(ShareTemplate template) => template == ShareTemplate.paper ? 1.8 : 1.65;
 
-  static final _themes = <(ShareTemplate, AppAccent), ThemeData>{};
+  static final _themes = <(ShareTemplate, AppAccent, String?), ThemeData>{};
 
-  /// The theme [template] is drawn in, in [accent]'s colours.
+  /// The theme [template] is drawn in, in [accent]'s colours and the app's
+  /// current text font (设置 › 主题 › 字体), so the exported image matches.
   static ThemeData themeFor(ShareTemplate template, {AppAccent accent = AppAccent.mist}) {
-    final key = (template, accent);
+    final key = (template, accent, AppType.sansFamily);
     final hit = _themes.remove(key);
     if (hit != null) return _themes[key] = hit;
     if (_themes.length >= 12) _themes.remove(_themes.keys.first);

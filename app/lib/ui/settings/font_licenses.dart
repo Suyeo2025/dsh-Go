@@ -1,19 +1,25 @@
 import 'package:flutter/foundation.dart';
 
-/// Registers the SIL Open Font License for the bundled JetBrains Mono.
+/// Registers the SIL Open Font License for the bundled JetBrains Mono and for
+/// 霞鹜文楷 (LXGW WenKai), which 设置 › 主题 › 字体 downloads on first use.
 ///
 /// OFL 1.1 requires the licence to travel with the font; the APK bundles the font
 /// (pubspec `fonts:`) but not `assets/fonts/OFL.txt`, so the text is embedded here
 /// and shown on the open-source licences page next to the other third-party
-/// notices (`registerThirdPartyLicenses()`).
+/// notices (`registerThirdPartyLicenses()`). WenKai's notice is listed whether or
+/// not it has been downloaded.
 void registerFontLicenses() {
   LicenseRegistry.addLicense(
-    () => Stream<LicenseEntry>.value(const LicenseEntryWithLineBreaks(<String>['JetBrains Mono'], _jetbrainsMonoOfl)),
+    () => Stream<LicenseEntry>.fromIterable(const [
+      LicenseEntryWithLineBreaks(<String>['JetBrains Mono'], _jetbrainsMonoOfl),
+      LicenseEntryWithLineBreaks(<String>['LXGW WenKai'], _wenKaiOfl),
+    ]),
   );
 }
 
 /// Verbatim copy of `assets/fonts/OFL.txt`.
-const _jetbrainsMonoOfl = r'''
+const _jetbrainsMonoOfl =
+    r'''
 Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
@@ -21,6 +27,33 @@ This license is copied below, and is also available with a FAQ at:
 https://scripts.sil.org/OFL
 
 
+''' +
+    _oflBody;
+
+/// Where the release `lib/state/font_state.dart` downloads comes from, then a
+/// verbatim copy of its `OFL.txt` (https://github.com/lxgw/LxgwWenKai/blob/v1.530/OFL.txt).
+const _wenKaiOfl =
+    r'''
+霞鹜文楷 LXGW WenKai v1.530 (LXGWWenKai-Regular.ttf, LXGWWenKai-Medium.ttf), unmodified,
+downloaded on first use from https://github.com/lxgw/LxgwWenKai/releases/tag/v1.530
+
+''' +
+    _wenKaiNotice +
+    _oflBody;
+
+const _wenKaiNotice = r'''
+Copyright 2021-2026 LXGW (https://github.com/lxgw/LxgwWenKai), with Reserved Font Name '霞鹜', '霞鶩', '落霞孤鹜', '落霞孤鶩' and 'LXGW'. [ADDITIONAL PERMISSION] The Reserved Font Names '霞鹜', '霞鶩', '落霞孤鹜', '落霞孤鶩' and 'LXGW' may continue to be used in Modified Versions recompiled from the Original Version, without modifications to the font source code; or in Modified Versions subsetted or converted to other formats (e.g., WOFF/WOFF2) solely for web font delivery, provided such Modified Versions are not made available as installable desktop fonts (e.g., on mainstream platforms like Google Fonts, or third-party non-commercial platforms recognized by the author @lxgw; other web font platforms please contact the author @lxgw for confirmation).
+Copyright 2020 The Klee Project Authors (https://github.com/fontworks-fonts/Klee)
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is copied below, and is also available with a FAQ at:
+https://openfontlicense.org
+
+
+''';
+
+/// The licence itself, the same in both fonts' OFL.txt.
+const _oflBody = r'''
 -----------------------------------------------------------
 SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
 -----------------------------------------------------------

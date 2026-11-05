@@ -26,12 +26,17 @@ import 'typography.dart';
 /// [instantPages] 让二级页的推入 / 退出不花时间(动画开关关掉时)。
 ///
 /// [fluid] 灵动档:默认水波换成按压光晕([AppInkGlow])。
+///
+/// [sansFamily] 是文字字体(已注册给引擎的族名);不传时用 [AppType.sansFamily]
+/// (设置里当前选的),两者都是 null 即系统默认,主题和加这个参数之前完全
+/// 一样。等宽和图标字体不受它影响。
 ThemeData buildLightTheme({
   AppAccent accent = AppAccent.mist,
   bool glassBlur = true,
   Locale? glyphLocale,
   bool instantPages = false,
   bool fluid = false,
+  String? sansFamily,
 }) => _build(
   DshPalette.lightScheme(accent),
   DshColors.forAccent(Brightness.light, accent),
@@ -40,6 +45,7 @@ ThemeData buildLightTheme({
   glyphLocale,
   instantPages,
   fluid,
+  sansFamily,
 );
 
 /// 深色主题。
@@ -49,6 +55,7 @@ ThemeData buildDarkTheme({
   Locale? glyphLocale,
   bool instantPages = false,
   bool fluid = false,
+  String? sansFamily,
 }) => _build(
   DshPalette.darkScheme(accent),
   DshColors.forAccent(Brightness.dark, accent),
@@ -57,6 +64,7 @@ ThemeData buildDarkTheme({
   glyphLocale,
   instantPages,
   fluid,
+  sansFamily,
 );
 
 /// 边到边(edge-to-edge)的系统栏样式:状态栏、导航栏全透明,图标随明暗。
@@ -94,7 +102,9 @@ ThemeData _build(
   Locale? glyphLocale,
   bool instantPages,
   bool fluid,
+  String? sansFamilyOverride,
 ) {
+  final sansFamily = sansFamilyOverride ?? AppType.sansFamily;
   // iOS 式水平推入,上一页左移变暗;系统预测返回与边缘右滑都跟手
   // (见 page_transitions.dart)。全平台同一套,二级页的观感只此一处。
   final pages = instantPages
@@ -112,10 +122,14 @@ ThemeData _build(
   final knobBlends = contrastRatio(lightKnob, scheme.primary) < 1.6;
   final onKnob = knobBlends ? scheme.onPrimary : lightKnob;
   final checkOn = knobBlends ? scheme.primary : (isDark ? scheme.inversePrimary : scheme.primary);
-  final textTheme = AppType.withGlyphLocale(
+  var textTheme = AppType.withGlyphLocale(
     AppType.textTheme,
     glyphLocale,
   ).apply(bodyColor: scheme.onSurface, displayColor: scheme.onSurface);
+  // 选了下载字体:族名写进每一级字阶,下面各组件样式(按钮、菜单、对话框…)
+  // 都从这里取,也就跟着换;缺字回退系统中文字体。系统默认时不动,和以前一样。
+  final sansFallback = sansFamily == null ? null : AppType.sansFallback;
+  if (sansFamily != null) textTheme = textTheme.apply(fontFamily: sansFamily, fontFamilyFallback: sansFallback);
   // 输入框 / Chip 的填充:与卡片玻璃同值,保证"表单是长在页面上的"。
   final fieldFill = surfaces.card.fallbackFill;
   // 弹出层(对话框、菜单)用不透明面:它们压在遮罩上,不需要也不应该透。
@@ -123,6 +137,9 @@ ThemeData _build(
 
   return ThemeData(
     useMaterial3: true,
+    // primaryTextTheme 和 Typography 的底色也换(null 时不传,同以前)。
+    fontFamily: sansFamily,
+    fontFamilyFallback: sansFallback,
     colorScheme: scheme,
     scaffoldBackgroundColor: scheme.surface,
     canvasColor: scheme.surface,

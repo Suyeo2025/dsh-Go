@@ -31,6 +31,7 @@ const _expected = <String, String>{
   'Material Icons': 'Google',
   'discourse-emojis': 'Joffrey Jaffeux',
   'JetBrains Mono': 'Copyright 2020 The JetBrains Mono Project Authors',
+  'LXGW WenKai': 'Copyright 2021-2026 LXGW',
 };
 
 const _mit = 'Permission is hereby granted, free of charge';
@@ -118,5 +119,6 @@ void main() {
     expect(textOf('WebRTC'), allOf(contains('Neither the name of Google'), contains('Additional IP Rights Grant')));
     expect(textOf('XZ for Java'), contains('Permission to use, copy, modify, and/or distribute'));
     expect(textOf('JetBrains Mono'), contains('SIL OPEN FONT LICENSE Version 1.1'));
+    expect(textOf('LXGW WenKai'), allOf(contains('SIL OPEN FONT LICENSE Version 1.1'), contains('v1.530')));
   });
 }
