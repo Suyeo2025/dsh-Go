@@ -378,12 +378,21 @@ class _ChatListState extends ConsumerState<ChatList> with SingleTickerProviderSt
 
   void jumpToBottom() {
     _pinned = true;
+    // A tap on a row left the list "held"; the user now asks for the bottom.
+    _held = false;
     _goingUp = false;
     _followNow = true;
     _snapNext = true;
     _stopGlide();
     _hasNew.value = false;
     _showJump.value = false;
+    // Jump now: left for the next frame, a fling or bounce still running would
+    // report the list away from the bottom first and unpin it again.
+    if (_scroll.hasClients) {
+      final p = _scroll.position;
+      p.jumpTo(p.maxScrollExtent);
+      _pinned = true;
+    }
     _follow();
   }
 
