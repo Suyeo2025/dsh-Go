@@ -6,6 +6,7 @@
 #   tooling/ios/sim-smoke.sh --offline       # no real host: first run skipped via SharedPreferences
 #   tooling/ios/sim-smoke.sh --keep          # keep the simulator device afterwards
 #   tooling/ios/sim-smoke.sh --ipad          # iPad Pro 13-inch instead of iPhone (logs/sim-smoke-ipad/)
+#   tooling/ios/sim-smoke.sh --tour [--dark] [--ipad]   # UX review screenshots (logs/ux-tour/<variant>/)
 #   tooling/ios/sim-smoke.sh --no-sync
 #
 # Real host: SMOKE_URL (tooling/ios/local.env, or the environment) with the launch token from the last
@@ -23,7 +24,7 @@ LIVE=1; SYNC=1; MAC_ARGS=()
 for a in "$@"; do
   case "$a" in
     --offline) LIVE=0 ;;
-    --keep|--ipad) MAC_ARGS+=("$a") ;;
+    --keep|--ipad|--tour|--dark) MAC_ARGS+=("$a") ;;
     --no-sync) SYNC=0 ;;
     -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
     *) echo "unknown arg: $a" >&2; exit 2 ;;
@@ -70,7 +71,7 @@ while :; do
   sleep 15
   OUTPUT=$(ssh -o ConnectTimeout=20 "$MAC_HOST" "tail -n +$((SEEN + 1)) $LOG" 2>/dev/null) || continue
   if [[ -n $OUTPUT ]]; then
-    printf '%s\n' "$OUTPUT" | grep -E 'SMOKE_|^--- |^device |files in|no report' || true
+    printf '%s\n' "$OUTPUT" | grep -E 'SMOKE_|TOUR_PART|TOUR_PROBLEM|TOUR_SKIP|^TOUR |^--- |^device |files in|no report' || true
     SEEN=$((SEEN + $(printf '%s\n' "$OUTPUT" | wc -l)))
   fi
   RC=$(printf '%s\n' "$OUTPUT" | sed -n 's/^SMOKE_RC=//p' | tail -1)

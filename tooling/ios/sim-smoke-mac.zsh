@@ -2,21 +2,27 @@
 # Mac half of tooling/ios/sim-smoke.sh: runs app/integration_test/ios_smoke_test.dart on a
 # dedicated simulator and leaves screenshots + report.json + run.log in ~/Workspace/dsh-go/logs/sim-smoke/.
 #
-#   SMOKE_DEFINES=<0600 json> zsh sim-smoke-mac.zsh [--keep] [--ipad]
+#   SMOKE_DEFINES=<0600 json> zsh sim-smoke-mac.zsh [--keep] [--ipad] [--tour] [--dark]
 #     SMOKE_DEFINES: optional --dart-define-from-file (SMOKE_DIRECT_URL / SMOKE_DIRECT_TOKEN), in a
 #                    temp dir of its own: read only by flutter, the token is scrubbed from run.log,
 #                    and the dir is deleted when this script exits (however it exits).
 #     --keep:        keep the simulator device (default: shut down and delete it, which also
 #                    drops the app's data and keychain).
 #     --ipad:        iPad Pro 13-inch (M5) instead of iPhone 18 Pro; results in logs/sim-smoke-ipad/.
+#     --tour:        the UX tour (integration_test/ios_ux_tour_test.dart) instead of the smoke test:
+#                    screenshots for review in logs/ux-tour/{iphone-light,iphone-dark,ipad}/ (iPad in
+#                    landscape), tour.json describing them.
+#     --dark:        the simulator in dark appearance (the app follows the system).
 # Ends with SMOKE_RC=<flutter test exit code>.
 set -uo pipefail
 source ${0:A:h}/env.sh
-KEEP=0; IPAD=0
+KEEP=0; IPAD=0; TOUR=0; DARK=0
 for a in "$@"; do
   case $a in
     --keep) KEEP=1 ;;
     --ipad) IPAD=1 ;;
+    --tour) TOUR=1 ;;
+    --dark) DARK=1 ;;
     *) echo "unknown arg $a"; exit 2 ;;
   esac
 done
@@ -34,6 +40,15 @@ else
   DEV_NAME=dsh-go-smoke
   DEV_TYPE=com.apple.CoreSimulator.SimDeviceType.iPhone-18-Pro
 fi
+TEST=integration_test/ios_smoke_test.dart
+EXTRA=()
+if (( TOUR )); then
+  TEST=integration_test/ios_ux_tour_test.dart
+  VARIANT=$( (( IPAD )) && echo ipad || { (( DARK )) && echo iphone-dark || echo iphone-light; } )
+  OUT=$DG_LOGS/ux-tour/$VARIANT
+  EXTRA=(--dart-define=TOUR_VARIANT=$VARIANT)
+  (( IPAD )) && EXTRA+=(--dart-define=TOUR_LANDSCAPE=true)
+fi
 RUNTIME=$(xcrun simctl list runtimes -j | python3 -c 'import json,sys; r=[x for x in json.load(sys.stdin)["runtimes"] if x["platform"]=="iOS" and x["isAvailable"]]; print(r[-1]["identifier"])')
 
 rm -rf $OUT; mkdir -p $OUT
@@ -44,6 +59,7 @@ xcrun simctl boot $UDID 2>/dev/null
 xcrun simctl bootstatus $UDID -b >/dev/null
 xcrun simctl uninstall $UDID $DG_BUNDLE_ID 2>/dev/null
 xcrun simctl keychain $UDID reset
+xcrun simctl ui $UDID appearance $( (( DARK )) && echo dark || echo light )
 
 # The token never reaches run.log: every line passes through this filter.
 TOK=""
@@ -59,9 +75,19 @@ echo "--- flutter test $(date '+%F %T')"
 # (SMOKE_OUT_DIR=…). flutter test uninstalls the app when it ends, so copy while it runs.
 : > $OUT/run.log
 (
+  typeset -A captured
   while [[ ! -f $OUT/.done ]]; do
     dir=$(sed -n 's/.*SMOKE_OUT_DIR=//p' $OUT/run.log | tail -1)
-    [[ -n $dir && -d $dir ]] && rsync -a --exclude=.probe "$dir/" $OUT/
+    # UX tour: a full device screenshot when the test asks (TOUR_CAPTURE <file>), into the
+    # app's folder where the test waits for it.
+    if [[ -n $dir && -d $dir ]]; then
+      for f in $(sed -n 's/.*TOUR_CAPTURE \([A-Za-z0-9_.-]*\.png\).*/\1/p' $OUT/run.log); do
+        [[ -n ${captured[$f]:-} ]] && continue
+        captured[$f]=1
+        xcrun simctl io $UDID screenshot --type=png "$dir/$f.tmp" >/dev/null 2>&1 && mv "$dir/$f.tmp" "$dir/$f"
+      done
+    fi
+    [[ -n $dir && -d $dir ]] && rsync -a --exclude=.probe --exclude="*.tmp" "$dir/" $OUT/
     # The test says when the downloaded font is on disk: list it and its backup flag
     # (NSURLIsExcludedFromBackupKey is the com.apple.metadata:com_apple_backup_excludeItem xattr).
     if [[ ! -f $OUT/fonts-check.txt && -n $dir ]] && grep -q SMOKE_FONTS_READY $OUT/run.log; then
@@ -75,16 +101,16 @@ echo "--- flutter test $(date '+%F %T')"
         print -r -- "excludedFromBackup=$(xattr "$fonts" 2>/dev/null | grep -c com_apple_backup_excludeItem)"
       } > $OUT/fonts-check.txt
     fi
-    sleep 1
+    sleep 0.3
   done
 ) &
 COPIER=$!
-flutter test integration_test/ios_smoke_test.dart -d $UDID \
+flutter test $TEST -d $UDID "${EXTRA[@]}" \
   --dart-define=SMOKE_OUT=$OUT --dart-define=DSH_APP_VERSION=$(sed -n 's/^version: *\([^+]*\).*/\1/p' pubspec.yaml)+0 \
   ${SMOKE_DEFINES:+--dart-define-from-file=$SMOKE_DEFINES} 2>&1 | scrub | tee $OUT/run.log
 RC=${pipestatus[1]}
 touch $OUT/.done; wait $COPIER; rm -f $OUT/.done $OUT/.probe
-[[ -f $OUT/report.json ]] || { echo "no report.json"; (( RC == 0 )) && RC=1; }
+[[ -f $OUT/report.json || -f $OUT/tour.json ]] || { echo "no report.json / tour.json"; (( RC == 0 )) && RC=1; }
 
 echo "--- cleanup $(date '+%F %T')"
 xcrun simctl uninstall $UDID $DG_BUNDLE_ID 2>/dev/null
