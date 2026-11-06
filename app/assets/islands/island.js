@@ -23,6 +23,39 @@
   var MARK = 'data-dsh-go-island';
   var FORM = 'data-dsh-go-island-form';
 
+  // Every island of a host is the same origin in the same WebView data
+  // store, so they share localStorage, and the official client follows
+  // what another document writes there (the selected conversation, the
+  // right pane's layout). One island hopping into its conversation then
+  // closed another island's settings dialog, or switched its conversation
+  // under it. An island is one isolated slot: no other document's writes
+  // reach this client while it lives (they are read again on its next
+  // load, as before).
+  window.addEventListener('storage', function (e) {
+    e.stopImmediatePropagation();
+  }, true);
+
+  // The conversation this page itself selected (its own sessions service
+  // writing `dsh.sessions.current`), not one another document wrote to the
+  // shared storage: only that is a plugin asking for a conversation.
+  var SELECTION = 'dsh.sessions.current';
+  var ownWrites = [];
+  // (On the prototype: an assignment to `localStorage.setItem` would store
+  // an item by that name.)
+  try {
+    var proto = window.Storage && Storage.prototype;
+    var setItem = proto && proto.setItem;
+    if (setItem) {
+      proto.setItem = function (key, value) {
+        var r = setItem.apply(this, arguments);
+        if (key === SELECTION && this === window.localStorage) {
+          try { ownWrites.push(JSON.parse(value).sessionId || null); } catch (e) { ownWrites.push(null); }
+        }
+        return r;
+      };
+    }
+  } catch (e) {}
+
   var st = {
     cfg: null,
     phase: 'idle', // idle → opening → waiting → ready | failed
@@ -82,14 +115,25 @@
     setTimeout(run, 50);
   }
 
+  // A tick that comes far later than asked: the page's timers stopped (a
+  // WebView the system took for hidden, a long task). Said in the trace, a
+  // few times, with what the page thinks of its visibility.
+  var stalls = 0;
+  function stalled(late) {
+    if (late > 2000 && stalls++ < 5) step('stall ' + late + 'ms ' + (document.visibilityState || '?'));
+  }
+
   function waitFor(find, ms) {
     var until = Date.now() + (ms || 8000);
+    var due = 0;
     return new Promise(function (resolve) {
       (function tick() {
+        if (due) stalled(Date.now() - due);
         var el = null;
         try { el = find(); } catch (e) {}
         if (el) return resolve(el);
         if (Date.now() > until) return resolve(null);
+        due = Date.now() + 120;
         setTimeout(tick, 120);
       })();
     });
@@ -469,14 +513,53 @@
         ok = now.length === st.slotEls.length && now.every(function (el, i) { return el === st.slotEls[i]; });
       }
       if (!ok && !apply()) {
-        st.phase = 'failed';
-        post({ t: 'empty', slot: st.cfg.slot, code: 'slot-missing', detail: 'gone' });
+        recover();
         return;
       }
       if (st.frame && !st.frame.getAttribute(MARK)) apply();
       markLayers();
       measure();
     });
+  }
+
+  // The slot went after ready: the client navigated under the island. At
+  // boot it restores the stored conversation once its lists arrive, which
+  // closes the settings dialog an island opened before that; a resize (an
+  // iPad turned) can redraw the layout. Go there again, twice at most per
+  // page; then it is gone.
+  var MAX_RECOVERIES = 2;
+
+  async function recover() {
+    if (st.phase !== 'ready') return;
+    if ((st.recoveries = (st.recoveries || 0) + 1) > MAX_RECOVERIES) {
+      st.phase = 'failed';
+      post({ t: 'empty', slot: st.cfg.slot, code: 'slot-missing', detail: 'gone' });
+      return;
+    }
+    st.phase = 'recovering';
+    step('recover#' + st.recoveries);
+    // Let whatever moved the page finish first.
+    await sleep(600);
+    var opened = false;
+    try { opened = await navigate(st.cfg.target, 1); } catch (e) {}
+    if (opened === 'hop') return; // the page reloads; init starts over
+    await sleep(st.cfg.settleMs || 150);
+    var outlet = opened === true || !(st.cfg.target && st.cfg.target.then)
+      ? await waitFor(function () { return findAny(st.cfg); }, st.cfg.slotMs || 3000)
+      : null;
+    if (!outlet || !apply()) {
+      st.phase = 'failed';
+      post({ t: 'empty', slot: st.cfg.slot, code: 'slot-missing', detail: 'gone' });
+      return;
+    }
+    st.baseline = Array.prototype.slice.call(document.body.children);
+    st.phase = 'ready';
+    step('recovered');
+    watchContent();
+    st.lastSize = -1;
+    measure();
+    st.lastHit = '';
+    reportHits();
   }
 
   // Menus and popovers the island's content opens are portals on <body>:
@@ -726,12 +809,40 @@
     var before = drawnIn(slot);
     if (isCurrent(control) && before) return hit(what, 'already current');
     control.click();
+    // A long conversation behind the dialog (the wide layout draws it)
+    // makes the client slow to draw the section on a phone or tablet.
     var ok = await waitFor(function () {
       var now = again();
       var drawn = drawnIn(slot);
       return now.length === 1 && isCurrent(now[0]) && drawn && drawn !== before ? true : null;
-    }, 2500);
-    return ok ? hit(what, 'current') : miss(what, 'not current after the click');
+    }, 6000);
+    if (ok) return hit(what, 'current');
+    // What the page shows instead: how many by the name, which current,
+    // whether the slot drew anything new.
+    var after = again();
+    var drawnNow = drawnIn(slot);
+    return miss(what, 'not current after the click (' + after.length + ' by the name, current ' +
+      (after.length === 1 && isCurrent(after[0])) + ', drawn ' + (drawnNow ? (drawnNow === before ? 'same' : 'new') : 'none') +
+      ', ' + viewport() + ')');
+  }
+
+  // The page's own idea of its size and visibility, for a trace that has
+  // to tell a narrow layout from a wide one, or a WebView half off screen.
+  function viewport() {
+    var vv = window.visualViewport;
+    return 'viewport ' + window.innerWidth + 'x' + window.innerHeight +
+      (vv ? ' vv ' + Math.round(vv.width) + 'x' + Math.round(vv.height) : '') +
+      ' ' + (document.visibilityState || '?') + ' dpr ' + (window.devicePixelRatio || 1);
+  }
+
+  // Each outlet of [slot]: its first box's size and whether it is in this
+  // island's own tab (a failure says why none counted).
+  function outletSizes(slot) {
+    return outlets(slot).slice(0, 4).map(function (o) {
+      var box = firstBoxChild(o);
+      var r = box ? box.getBoundingClientRect() : null;
+      return (r ? Math.round(r.width) + 'x' + Math.round(r.height) : 'nobox') + (ownTab(o, slot) ? '' : ' other-tab');
+    }).join(', ');
   }
 
   async function openPlugin(pkg, row) {
@@ -756,6 +867,19 @@
       if (!open) return false;
       open.click();
       if (!(await waitFor(function () { return document.querySelector(detail); }, 3000))) return false;
+    }
+    // A bundle's form (`plugins.bundle.config`): the page draws its section
+    // only for a plugin that registered one (rc.5 `configured`). A detail
+    // page without it after a moment has none: say so at once instead of
+    // looking again.
+    if (!row && st.cfg && st.cfg.slot === 'plugins.bundle.config') {
+      var section = await waitFor(function () {
+        return document.querySelector(detail + ' [data-plugin-config], ' + detail + ' [data-slot="plugins.bundle.config"]');
+      }, 2500);
+      if (!section) {
+        step('plugin miss: no config section');
+        return 'absent';
+      }
     }
     if (!row) return true;
     var rowEl = await waitFor(function () {
@@ -808,16 +932,56 @@
     }
     if (namedElsewhere('sidebar.right.pane.tab', names)) return miss('tab', 'another tab by its name');
     var rightbar = function () { return document.querySelector('[data-slot="rightbar"]'); };
+    // A tab of it is open already (an earlier island, or the person's own):
+    // its chip by exactly the name, made the active tab. Otherwise the
+    // pane's guide (a new tab's start page): the one entry by exactly the
+    // name, whose kind the pane must then record as its active tab. On the
+    // way: the right sidebar opened, then a new tab, each pressed once.
+    var pressed = {};
     var way = await waitFor(function () {
-      if (allByExactName(rightbar(), 'button', names).length) return { entry: true };
-      var control = byName(document, 'button', labels.openRightbar) || byName(rightbar(), 'button', labels.newTab);
-      return control ? { control: control } : null;
+      var chips = openChips(rightbar(), names);
+      if (chips.length) return { chips: chips };
+      var guide = allByExactName(rightbar(), 'button[data-sidebar-right-guide-entry]', names);
+      if (guide.length) return { guide: guide };
+      var expand = byName(document, 'button', labels.openRightbar);
+      if (expand && !pressed.expand) {
+        pressed.expand = true;
+        expand.click();
+        return null;
+      }
+      var add = byName(rightbar(), 'button', labels.newTab);
+      if (add && !pressed.add) {
+        pressed.add = true;
+        add.click();
+      }
+      return null;
     }, 8000);
     if (!way) return miss('tab', 'no way in');
-    if (way.control) way.control.click();
-    var entry = await onlyByName(rightbar, 'button', names, 4000);
-    if (entry === 'two') return miss('tab', 'two by its name');
-    if (!entry) return miss('tab', 'none by its name');
+    if (way.chips) {
+      if (way.chips.length > 1) return miss('tab', 'two open tabs by its name');
+      var chip = way.chips[0];
+      var tabId = chip.getAttribute(RIGHT_TAB);
+      var active = activeTab();
+      if (!(active && active.id === tabId)) {
+        (chip.closest('button, [role="tab"]') || chip).click();
+        active = await waitFor(function () {
+          var tab = activeTab();
+          return tab && tab.id === tabId ? tab : null;
+        }, 3000);
+      }
+      if (!active) return miss('tab', 'its open tab did not become active');
+      st.tabShown = tabId;
+      // A pane folded away (the wide layout keeps its tabs while the
+      // column is collapsed): the tab is active but drawn at no size.
+      var folded = byName(document, 'button', labels.openRightbar);
+      if (folded) {
+        folded.click();
+        step('tab: unfolded the pane');
+      }
+      return hit('tab', 'open tab ' + active.kind + ' made active');
+    }
+    if (way.guide.length > 1) return miss('tab', 'two by its name');
+    var entry = way.guide[0];
     var kind = entry.getAttribute('data-sidebar-right-guide-entry');
     if (!kind) return miss('tab', 'an entry without its kind');
     entry.click();
@@ -828,6 +992,24 @@
     if (!opened) return miss('tab', 'not recorded as the active tab');
     st.tabShown = opened.id;
     return hit('tab', kind + ' is the active tab');
+  }
+
+  // The chips of this conversation's open tabs going by exactly one of
+  // [names]: the tab strip's titles (`sidebar.right.pane.tab.title`, each
+  // in a `data-sidebar-right-tab` span), one per tab.
+  function openChips(root, names) {
+    if (!root) return [];
+    var seen = {};
+    var out = [];
+    var spans = root.querySelectorAll('span[' + RIGHT_TAB + ']');
+    for (var i = 0; i < spans.length; i++) {
+      var id = spans[i].getAttribute(RIGHT_TAB);
+      if (!id || seen[id]) continue;
+      if (names.indexOf(text(spans[i])) < 0) continue;
+      seen[id] = true;
+      out.push(spans[i]);
+    }
+    return out;
   }
 
   // The active tab of this conversation's right pane, as the client records
@@ -1039,11 +1221,11 @@
       if (storedSession() !== target.session && !st.hopsSeen) {
         if (hopTo(target.session, hopId)) return 'hop';
       }
-      // The client restores the stored conversation at boot, sometimes
-      // slowly on a first start: wait for it.
+      // The client restores the stored conversation at boot, slowly when
+      // the host has many (5 s and more on a phone): wait for it.
       var shown = await waitFor(function () {
         return document.querySelector('[data-slot="conversation.session"]');
-      }, attempt === 0 ? 6000 : 2000);
+      }, attempt === 0 ? 12000 : 3000);
       step('conversation ' + (shown ? 'on screen' : 'missing'));
       // Stored but not restored: one more load, as the open bridge does.
       if (!shown && !st.hopsSeen && hopTo(target.session, hopId)) return 'hop';
@@ -1061,6 +1243,25 @@
     if (then.rightbar) return openRightbarTab(then.rightbar);
     if (then.view) return openView(then.view);
     return true;
+  }
+
+  // ---- a collapsed card ---------------------------------------------------------
+
+  // The slot's one entry is a card folded to its header (a disclosure
+  // button, aria-expanded="false", the only control on screen): open it
+  // once, as the person would, so the island shows what the card holds.
+  // Anything else (several entries, an open card, a card the person
+  // folded again) is left as it is.
+  function expandCard() {
+    if (st.expanded || !st.slotEl) return;
+    st.expanded = true;
+    var entry = firstBoxChild(st.slotEl);
+    if (!entry || entries(st.slotEl) !== 1) return step('expand: not one entry');
+    var all = entry.querySelectorAll('button, [role="button"], a[href], input, select, textarea');
+    var head = all.length === 1 ? all[0] : null;
+    if (!head || head.getAttribute('aria-expanded') !== 'false') return step('expand: no folded card');
+    head.click();
+    step('expand: opened');
   }
 
   // ---- probe -------------------------------------------------------------------
@@ -1139,13 +1340,22 @@
     window.addEventListener('resize', function () { measure(); reportHits(); });
     document.addEventListener('scroll', function () { reportHits(); }, true);
     setInterval(function () { if (st.cfg && st.cfg.mode === 'overlay') reportHits(); }, 250);
-    // A plugin that selects another conversation (the official sessions
-    // service writes the stored selection): the app opens it natively.
+    // A plugin that selects another conversation (this page's sessions
+    // service writes the stored selection, right after a touch or key in
+    // the island): the app opens it natively. Writes by other documents
+    // (another island's hop) and the client's own restore at boot (no
+    // touch) don't count.
     st.selection = storedSession();
+    ownWrites = [];
     setInterval(function () {
-      var now = storedSession();
-      if (now && now !== st.selection) post({ t: 'session', id: now });
-      st.selection = now;
+      var mine = ownWrites;
+      ownWrites = [];
+      var asked = Date.now() - st.touchedAt <= LAYER_WINDOW;
+      for (var i = 0; i < mine.length; i++) {
+        var now = mine[i];
+        if (now && now !== st.selection && asked && !st.leaving) post({ t: 'session', id: now });
+        if (now) st.selection = now;
+      }
     }, 500);
   }
 
@@ -1215,6 +1425,7 @@
     step('init ' + cfg.slot);
     var boot = await waitFor(sidebar, cfg.bootMs || 15000);
     step(boot ? 'booted' : 'no boot');
+    step(viewport());
     if (!boot) {
       st.phase = 'failed';
       return post({ t: 'error', slot: cfg.slot, code: 'boot', detail: 'no client' });
@@ -1232,6 +1443,7 @@
     for (var attempt = 0; attempt < 3 && !outlet; attempt++) {
       try { opened = await navigate(cfg.target, attempt); } catch (e) { opened = false; }
       if (opened === 'hop') return; // the page reloads into the conversation
+      if (opened === 'absent') break; // the page has no such slot: no retry
       // A keyed slot swaps its occupant a render after the click: let it, so
       // the previous one (the conversation in `main`) isn't taken for ours.
       if (cfg.target && (cfg.target.web || cfg.target.then)) await sleep(cfg.settleMs || 150);
@@ -1249,11 +1461,12 @@
       // A view that didn't open may have left another one picked.
       restoreViewPreference();
       var exists = slotsOf(cfg).some(function (k) { return outlets(k).length > 0; });
+      if (exists) step('outlets ' + slotsOf(cfg).map(outletSizes).join(' | ') + ', tab ' + (st.tabShown || '-') + ', ' + viewport());
       return post({
         t: 'empty',
         slot: cfg.slot,
         code: exists ? 'empty' : 'slot-missing',
-        detail: opened ? '' : 'navigation',
+        detail: opened === 'absent' ? 'absent' : opened ? '' : 'navigation',
       });
     }
     if (cfg.mask && thirdPartyAll(cfg) === 0) {
@@ -1282,6 +1495,7 @@
     for (var f = 0; f < (st.slotEls || [outlet]).length; f++) found += entries((st.slotEls || [outlet])[f]);
     // A view's cell is the id the client has on screen, not just the one asked for.
     post({ t: 'ready', slot: cfg.slot, cell: st.viewShown || cfg.cell || null, release: release(), found: found });
+    if (cfg.expand) expandCard();
     measure();
     reportHits();
     if (st.viewPref) {

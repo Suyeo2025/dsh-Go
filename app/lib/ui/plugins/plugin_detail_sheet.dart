@@ -28,6 +28,7 @@ import 'plugin_actions.dart';
 import 'plugin_load_status.dart';
 import 'plugin_widgets.dart';
 import 'seats/plugin_web_places.dart';
+import 'seats/plugin_settings_tiles.dart' show PluginSectionRows;
 
 /// Market entry detail and the install confirmation: what it is, where it
 /// comes from, the trust warning, live progress and the one primary action.
@@ -396,6 +397,11 @@ class BundleSheet extends ConsumerWidget {
     final configSeat = PluginSeat(slot: Slots.bundleConfig, placement: SeatPlacement.row, package: bundle.name);
     final configSeated =
         !bundle.official && !gone && configurable.isEmpty && !ref.watch(seatPlanProvider(configSeat.request)).isEmpty;
+    // Its own settings sections in DSH Web (an island page each), in the same
+    // card as its settings, right under them.
+    final sections = !bundle.official && !gone && PluginSectionRows.itemsOf(ref, bundle.name).isNotEmpty
+        ? PluginSectionRows(package: bundle.name)
+        : null;
 
     // Local installs can't be shared; a market entry adds the picture card.
     final shareable = !gone && sharedPluginFromBundle(bundle) != null;
@@ -507,7 +513,10 @@ class BundleSheet extends ConsumerWidget {
                 // A third-party plugin's own config page in DSH Web: its
                 // schema form, its island page, or the way to DSH Web.
                 const SizedBox(height: 16),
-                ListPageCard(margin: EdgeInsets.zero, children: [configSeat]),
+                ListPageCard(margin: EdgeInsets.zero, children: [configSeat, ?sections]),
+              ] else if (configurable.isEmpty && sections != null) ...[
+                const SizedBox(height: 16),
+                ListPageCard(margin: EdgeInsets.zero, children: [sections]),
               ] else if (configurable.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 ListPageCard(
@@ -549,6 +558,7 @@ class BundleSheet extends ConsumerWidget {
                             ),
                           ),
                         ),
+                    ?sections,
                   ],
                 ),
               ],

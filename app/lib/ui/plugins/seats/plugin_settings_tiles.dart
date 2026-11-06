@@ -12,6 +12,7 @@ import '../../../l10n/l10n.dart';
 import '../../../plugins/seams/seams.dart';
 import '../../../state/plugins_state.dart';
 import '../../engine_settings/engine_settings_page.dart' show openSettingsPage, namespaceTitle;
+import '../../common/list_page_row.dart';
 import '../../engine_settings/schema_form.dart' show SchemaUnsupportedField;
 import '../../settings/settings_widgets.dart';
 import '../../theme/app_icons.dart';
@@ -89,6 +90,56 @@ class PluginSettingsTile extends ConsumerWidget {
       title: title,
       value: web ? Text(l10n.commonWeb) : null,
       onTap: () => open(context),
+    );
+  }
+}
+
+/// A plugin's own settings sections in DSH Web (`settings.section`), as rows
+/// of its details: each opens the section's island page, or DSH Web. Native
+/// forms are left out: the details list those as its settings already.
+/// Nothing when the plugin has none.
+class PluginSectionRows extends ConsumerWidget {
+  const PluginSectionRows({super.key, required this.package});
+
+  final String package;
+
+  /// The rows' seat.
+  static SeatRequest requestFor(String package) =>
+      SeatRequest(slot: Slots.settingsSection, placement: SeatPlacement.row, package: package);
+
+  /// The items [PluginSectionRows] draws for [package].
+  static List<SeatItem> itemsOf(WidgetRef ref, String package) => [
+    for (final item in ref.watch(seatPlanProvider(requestFor(package))).visible)
+      if (item.mode != SeatMode.native && item.configNamespace == null) item,
+  ];
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final items = itemsOf(ref, package);
+    if (items.isEmpty) return const SizedBox.shrink();
+    final seat = ref.watch(seatPlanProvider(requestFor(package))).seat;
+    final inventory = ref.watch(seatInventoryProvider);
+    final bundle = seatBundleOf(ref.watch(installedPluginsProvider.select((s) => s.value)), package);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final item in items)
+          Builder(
+            key: ValueKey('plugin-section|${item.occupant.cell}'),
+            builder: (context) {
+              final title = seatEntryTitle(item.occupant, inventory: inventory, bundle: bundle);
+              final entry = seatRowEntry(ref, seat, item, title: title);
+              return ListPageRow(
+                icon: AppIcons.configure,
+                title: title,
+                meta: entry.web ? context.l10n.commonWeb : null,
+                chevron: true,
+                onTap: () => entry.open(context),
+              );
+            },
+          ),
+      ],
     );
   }
 }

@@ -38,9 +38,11 @@
 // panel:     panels [{id, label}], active, sessions [titles] (conversation
 //            rows in the sidebar), ignoreClicks
 // settings:  sections [{id, label}] (the first shows first), ignoreClicks,
-//            sectionButtons [texts] (buttons inside the section drawn)
+//            sectionButtons [texts] (buttons inside the section drawn),
+//            closeAt [ms] (the client closes the dialog then)
 // rightbar:  types [{id, kind, title}], open [kind] (tabs already in the
-//            pane), split kind (another pane, before ours, showing it),
+//            pane, the last one active; a chip per tab, titled like its
+//            type, picks it), split kind (another pane, before ours, showing it),
 //            expanded, bridge 'openTab' | 'openTab-fail' (else none),
 //            layoutPersist (false: the layout is not written)
 //
@@ -209,6 +211,15 @@ class El {
   click() {
     if (this.clickName) out.clicks.push(this.clickName);
     for (let e = this; e; e = e.parentElement) if (e.onclick) e.onclick();
+  }
+}
+
+// Mutation observers island.js registered; [mutated] tells them the page
+// changed (only where a scenario changes the page under the island).
+const observers = [];
+function mutated() {
+  for (const o of observers.slice()) {
+    try { o.fn([]); } catch (e) { out.thrown = String(e && e.stack || e); }
   }
 }
 
@@ -426,13 +437,28 @@ if (target === 'settings') {
     });
   };
   model.shown = () => slot?.firstElementChild?.model ?? null;
+  // The client closing the dialog under the island (its boot-time restore
+  // of the stored conversation navigates the page), at each of [closeAt].
+  for (const at of s.closeAt || []) {
+    setTimeoutV(() => {
+      if (!dialog) return;
+      dialog.remove();
+      dialog = null;
+      slot = null;
+      navButtons.length = 0;
+      out.clicks.push('client closed settings');
+      mutated();
+    }, at);
+  }
 }
 
 if (target === 'rightbar') {
   const key = 'dsh.sidebar-right.v1.' + session;
   const types = s.types || [];
   let minted = 0;
-  const tab = (kind) => ({ id: 'tab' + ++minted, kind, contentId: 'page:' + kind, title: kind });
+  // A tab's chip shows its type's title (the kind for one the scenario doesn't name).
+  const titleOf = (kind) => (types.find((t) => t.kind === kind) || {}).title || kind;
+  const tab = (kind) => ({ id: 'tab' + ++minted, kind, contentId: 'page:' + kind, title: titleOf(kind) });
   const layout = { nodes: {}, tabs: {}, rootId: 'pane1', floats: [], activePaneId: 'pane1', expanded: !!s.expanded, mode: 'push' };
   const addTab = (paneId, kind) => {
     const t = tab(kind);
@@ -490,14 +516,25 @@ if (target === 'rightbar') {
 
   function render() {
     rightbar.clear();
+    // 「打开右侧边栏」 is there while the column is folded away.
+    if (layout.expanded) expand.remove();
+    else if (!expand.parentElement) body.append(expand);
     if (!layout.expanded) return;
     for (const paneId of Object.keys(layout.nodes).sort().reverse()) {
       const pane = layout.nodes[paneId];
       const el = new El('div', { 'data-dockkit-pane': paneId });
       const strip = new El('div', { role: 'tablist' });
       for (const id of pane.tabs) {
-        const title = new El('span', { 'data-sidebar-right-tab': id }, layout.tabs[id].title);
-        strip.append(title);
+        // The chip: its title in a span, inside the strip's tab button.
+        const chip = new El('div', { role: 'tab' });
+        chip.clickName = 'chip:' + layout.tabs[id].kind;
+        chip.onclick = () => {
+          pane.activeTabId = id;
+          layout.activePaneId = paneId;
+          change();
+        };
+        chip.append(new El('span', { 'data-sidebar-right-tab': id }, layout.tabs[id].title));
+        strip.append(chip);
       }
       if (paneId === 'pane1') {
         strip.append(button({ 'aria-label': '新标签页' }, undefined, 'new tab', () => {
@@ -599,7 +636,11 @@ const context = vm.createContext({
   clearTimeout: clearTimer,
   setInterval: setIntervalV,
   clearInterval: clearTimer,
-  MutationObserver: class { observe() {} disconnect() {} },
+  MutationObserver: class {
+    constructor(fn) { this.fn = fn; observers.push(this); }
+    observe() {}
+    disconnect() { observers.splice(observers.indexOf(this), 1); }
+  },
   Date: { now: () => now },
   URL,
 });

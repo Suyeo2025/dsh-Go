@@ -44,9 +44,10 @@ class SeatIslandView extends ConsumerWidget {
 }
 
 /// Every name the occupants of [items] go by in DSH Web: their own labels,
-/// in each language the bridge reported, and for a panel or a tab the label
-/// of its sidebar entry or tab title (the `main` or tab body itself is
-/// registered without one).
+/// in each language the bridge reported (or [knownPluginSeats] lists: DSH
+/// Web may show another language than the App), and for a panel or a tab
+/// the label of its sidebar entry or tab title (the `main` or tab body
+/// itself is registered without one).
 List<String> seatIslandLabels(List<SeatItem> items, BridgeInventory? bridge) {
   final names = <String>{};
   void add(String? name) {
@@ -57,6 +58,7 @@ List<String> seatIslandLabels(List<SeatItem> items, BridgeInventory? bridge) {
   for (final item in items) {
     final o = item.occupant;
     add(o.label);
+    knownSeat(o.package, o.slot, o.cell)?.labels.forEach(add);
     final reported = bridge?.slots ?? const <String, List<ClientSlotOccupant>>{};
     for (final r in reported[o.slot] ?? const <ClientSlotOccupant>[]) {
       if (r.package == o.package && r.cell == o.cell) r.label?.all.forEach(add);

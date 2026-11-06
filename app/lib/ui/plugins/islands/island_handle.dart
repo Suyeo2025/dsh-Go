@@ -49,10 +49,18 @@ abstract final class IslandTiming {
   /// worst); a sheet is a glance, so past 8 s it is the way to DSH Web.
   static const sheetReady = Duration(seconds: 8);
 
+  /// A right-pane tab's page island (`recipes.json` "ready": "tab"): the
+  /// conversation restored (5 s and more on a host with many), the pane
+  /// opened, then the plugin's own page mounted, which for a file tree or a
+  /// Git view is the slowest part (iOS simulator, dsh-better-sidebar 0.28:
+  /// past 15 s). Under the skeleton; a warm island comes back at once.
+  static const tabReady = Duration(seconds: 30);
+
   /// A recipe's `ready` name; null (unnamed or unknown): [ready].
   static Duration? named(Object? name) => switch (name) {
     'view' => viewReady,
     'sheet' => sheetReady,
+    'tab' => tabReady,
     _ => null,
   };
 
@@ -108,6 +116,11 @@ class IslandHandle extends ChangeNotifier {
 
   IslandFailure? get failure => _failure;
   IslandFailure? _failure;
+
+  /// It had been ready before it failed: the recipe fits this DSH, the page
+  /// moved under it (its slot gone after island.js's recoveries).
+  bool get failedAfterReady => _failedAfterReady;
+  bool _failedAfterReady = false;
 
   /// What `ready` said.
   IslandReady? get ready => _ready;
@@ -207,7 +220,26 @@ class IslandHandle extends ChangeNotifier {
     if (id != null) await _platform.attach(id, dark: _theme.dark, textZoom: _theme.textZoom);
     if (_phase != IslandPhase.loading) return;
     _readyTimer = Timer(recipe?.ready ?? IslandTiming.ready, () => _fail(IslandFailure.timeout));
+    _startPulse();
     await controller.loadRequest(_loadUrl).catchError((Object _) => _fail(IslandFailure.load));
+  }
+
+  /// iOS, while loading: a no-op script once a second. The WKWebView sits
+  /// under the skeleton at the least visible alpha, and its page's timers
+  /// were seen to stop for seconds there (island.js's `stall` lines): a
+  /// script run from the app gives the page a turn, and its overdue timers
+  /// with it. Ends with the loading phase.
+  Timer? _pulse;
+
+  void _startPulse() {
+    if (defaultTargetPlatform != TargetPlatform.iOS) return;
+    _pulse = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (_phase != IslandPhase.loading) {
+        t.cancel();
+        return;
+      }
+      unawaited(controller.runJavaScript('void 0').catchError((Object _) {}));
+    });
   }
 
   /// webview_flutter_android's `AndroidWebViewController.webViewIdentifier`,
@@ -259,6 +291,7 @@ class IslandHandle extends ChangeNotifier {
     'mask': spec.maskOfficial && spec.slot != rightPaneTabSlot,
     'stretch': (recipe?.stretch ?? IslandStretch.none).name,
     'pad': [recipe?.padX ?? 0, recipe?.padY ?? 0],
+    if (recipe?.expand ?? false) 'expand': true,
     'labels': book.labels,
     'target': target,
     'css': await _assets.css,
@@ -278,6 +311,7 @@ class IslandHandle extends ChangeNotifier {
       case IslandReady():
         if (_phase != IslandPhase.loading) return;
         _readyTimer?.cancel();
+        _pulse?.cancel();
         _ready = message;
         _readyAfter = clock.elapsed;
         _setPhase(IslandPhase.ready);
@@ -326,7 +360,9 @@ class IslandHandle extends ChangeNotifier {
   void _fail(IslandFailure failure) {
     if (_phase == IslandPhase.closed || _phase == IslandPhase.failed) return;
     _readyTimer?.cancel();
+    _pulse?.cancel();
     _failure = failure;
+    _failedAfterReady = _phase == IslandPhase.ready;
     if (kDebugMode) {
       debugPrint('[island] ${spec.slot} ${spec.cell ?? ''} gave up: ${failure.name}');
       // What island.js got to before giving up (debug builds only).
@@ -407,6 +443,7 @@ class IslandHandle extends ChangeNotifier {
   Future<void> close({IslandFailure? because}) async {
     if (_phase == IslandPhase.closed) return;
     _readyTimer?.cancel();
+    _pulse?.cancel();
     _themeTimer?.cancel();
     _requestGate?.cancel();
     if (because != null) _failure ??= because;
@@ -422,6 +459,7 @@ class IslandHandle extends ChangeNotifier {
   @override
   void dispose() {
     _readyTimer?.cancel();
+    _pulse?.cancel();
     _themeTimer?.cancel();
     _requestGate?.cancel();
     if (!_requests.isClosed) unawaited(_requests.close());

@@ -11,7 +11,9 @@ import '../../../plugins/native/native_state.dart';
 import '../../../plugins/seams/seams.dart';
 import '../../../state/plugins_state.dart';
 import '../../common/app_sheet.dart' show groupTitleStyle;
+import '../../common/capsule_chip.dart';
 import '../../common/list_page_row.dart';
+import '../../common/segmented_pill.dart';
 import '../../theme/app_icons.dart';
 import 'plugin_seat_page.dart';
 import 'seat_links.dart';
@@ -72,6 +74,19 @@ class SessionPluginsTab extends ConsumerWidget {
     }
 
     final seat = plan.seat;
+    // Several right-pane tabs that each come up in place (a sidebar
+    // plugin's Files, Git, Tasks…): one control over them, the picked one
+    // filling the page, as in DSH Web's right pane. Any of them only a way
+    // to DSH Web, drawn natively, or a conversation view: the list.
+    if (ref.watch(seatRenderersProvider).island != null &&
+        items.every((i) => i.mode == SeatMode.island && i.occupant.slot == Slots.rightPaneTab)) {
+      return _TabSwitcher(
+        key: ValueKey('switcher|$sessionId'),
+        seat: seat,
+        items: items,
+        names: [for (final item in items) name(item.occupant)],
+      );
+    }
     return ListView(
       padding: EdgeInsets.fromLTRB(0, 4, 0, MediaQuery.paddingOf(context).bottom + 24),
       children: [
@@ -114,11 +129,14 @@ class SessionPluginsTab extends ConsumerWidget {
 /// One plugin tab filling the page under its name; when its island can't
 /// come up, the way to DSH Web alone (it names the tab itself).
 class _SingleTab extends ConsumerStatefulWidget {
-  const _SingleTab({required this.seat, required this.item, required this.name});
+  const _SingleTab({required this.seat, required this.item, required this.name, this.named = true});
 
   final SeatContext seat;
   final SeatItem item;
   final String name;
+
+  /// Its name over the island ([_TabSwitcher] names it already).
+  final bool named;
 
   @override
   ConsumerState<_SingleTab> createState() => _SingleTabState();
@@ -165,11 +183,71 @@ class _SingleTabState extends ConsumerState<_SingleTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _TabName(widget.name),
+        if (widget.named) _TabName(widget.name),
         Expanded(
           child: KeyedSubtree(
             key: ValueKey('island|${spec.key}'),
             child: Builder(builder: (context) => island(context, spec, [item], fallback)),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Several island tabs: a segmented control (a scrolling row of capsules
+/// past four) over the picked one's page. Each keeps its own island, so
+/// going back to one is warm while the island host still holds it.
+class _TabSwitcher extends StatefulWidget {
+  const _TabSwitcher({super.key, required this.seat, required this.items, required this.names});
+
+  final SeatContext seat;
+  final List<SeatItem> items;
+  final List<String> names;
+
+  @override
+  State<_TabSwitcher> createState() => _TabSwitcherState();
+}
+
+class _TabSwitcherState extends State<_TabSwitcher> {
+  /// The picked tab, by its occupant (the list can change under it).
+  String? _picked;
+
+  static String _id(SeatItem item) => '${item.occupant.package}|${item.occupant.cell}';
+
+  @override
+  Widget build(BuildContext context) {
+    final items = widget.items;
+    final at = items.indexWhere((i) => _id(i) == _picked);
+    final index = at < 0 ? 0 : at;
+    void pick(int i) => setState(() => _picked = _id(items[i]));
+    final Widget control = items.length <= 4
+        ? SegmentedPill<int>(
+            key: const ValueKey('session-plugins-switcher'),
+            segments: [for (final (i, name) in widget.names.indexed) PillSegment(i, name)],
+            selected: index,
+            onChanged: pick,
+          )
+        : SingleChildScrollView(
+            key: const ValueKey('session-plugins-switcher'),
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              spacing: 8,
+              children: [
+                for (final (i, name) in widget.names.indexed)
+                  CapsuleChoiceChip(label: name, selected: i == index, onSelected: () => pick(i)),
+              ],
+            ),
+          );
+    final item = items[index];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 8), child: control),
+        Expanded(
+          child: KeyedSubtree(
+            key: ValueKey('tab|${_id(item)}'),
+            child: _SingleTab(seat: widget.seat, item: item, name: widget.names[index], named: false),
           ),
         ),
       ],

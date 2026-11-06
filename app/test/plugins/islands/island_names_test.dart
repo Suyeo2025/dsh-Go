@@ -230,6 +230,37 @@ void main() {
       opened(out, cell: 'memo', content: 'memo');
       expect(out['clicks'], ['open settings:general', 'section:memo']);
     }, skip: skip);
+
+    // The official client restores the stored conversation once its lists
+    // arrive, after the island is up, and that closes the settings dialog
+    // (iOS simulator: `post empty slot-missing gone` 18 s in).
+    test('the client closing the dialog after ready: opened again, still the one ready', () async {
+      final out = await open(
+        section([general, memo], {
+          'closeAt': [5000],
+        }),
+      );
+      opened(out, cell: 'memo', content: 'memo');
+      expect(out['clicks'], [
+        'open settings:general',
+        'section:memo',
+        'client closed settings',
+        'open settings:general',
+        'section:memo',
+      ]);
+      expect(out['trace'], containsAll([contains('recover#1'), contains('recovered')]));
+    }, skip: skip);
+
+    test('closed again and again: gone after two recoveries', () async {
+      final out = await open(
+        section([general, memo], {
+          'closeAt': [5000, 10000, 15000],
+        }),
+      );
+      final said = messages(out);
+      expect(said.map((m) => m['t']), ['ready', 'empty'], reason: '${out['trace']}');
+      expect(said.last['detail'], 'gone');
+    }, skip: skip);
   });
 
   group('a right pane tab', () {
@@ -292,6 +323,44 @@ void main() {
     test('without the bridge: another pane showing a tab first is not taken for this one', () async {
       final out = await open(tab([notes], {'split': 'files'}));
       opened(out, cell: 't-notes', content: 'notes');
+    }, skip: skip);
+
+    // dsh-better-sidebar on the official client (no bridge): its tab is often
+    // open already (an earlier island, the person's own). Opening another
+    // from the guide each time would pile up tabs, or find its chip by the
+    // name and miss.
+    const files = {'id': 't-files', 'kind': 'files', 'title': 'Files'};
+
+    test('without the bridge: its tab open already is made the active one, nothing new opened', () async {
+      final out = await open(tab([notes, files], {'open': ['notes', 'files'], 'expanded': true}));
+      opened(out, cell: 't-notes', content: 'notes');
+      expect(out['clicks'], ['chip:notes']);
+      final layout = (out['layout']! as Map)['bySession'] as Map;
+      expect(((layout['s1'] as Map)['layout'] as Map)['tabs'] as Map, hasLength(2));
+    }, skip: skip);
+
+    test('without the bridge: its tab open and active already: nothing pressed', () async {
+      final out = await open(tab([notes, files], {'open': ['files', 'notes'], 'expanded': true}));
+      opened(out, cell: 't-notes', content: 'notes');
+      expect(out['clicks'], isEmpty);
+    }, skip: skip);
+
+    test('without the bridge: an open pane of other tabs gets a new tab, then the entry', () async {
+      final out = await open(tab([notes, files], {'open': ['files'], 'expanded': true}));
+      opened(out, cell: 't-notes', content: 'notes');
+      expect(out['clicks'], ['new tab', 'entry:notes']);
+    }, skip: skip);
+
+    test('without the bridge: its tab open in a folded pane: the pane opened, the tab made active', () async {
+      final out = await open(tab([notes, files], {'open': ['notes', 'files']}));
+      opened(out, cell: 't-notes', content: 'notes');
+      expect(out['clicks'], ['expand', 'chip:notes']);
+    }, skip: skip);
+
+    test('without the bridge: two open tabs by its name, which is which can\'t be told', () async {
+      final out = await open(tab([notes, files], {'open': ['notes', 'notes'], 'expanded': true}));
+      fellBack(out);
+      expect(out['clicks'], isEmpty);
     }, skip: skip);
   });
 }

@@ -119,6 +119,22 @@ void main() {
     expect(budget.canOpen(_schedules), isTrue);
   });
 
+  _testIsland('a slot gone after ready falls back, but is only remembered briefly', (tester) async {
+    await tester.pumpWidget(_app(IslandView(spec: _models, fallback: _fallback)));
+    await _settle(tester);
+    await _page.finish();
+    await _settle(tester);
+    _page.post('{"t":"ready","slot":"settings.section","found":1}');
+    await _settle(tester);
+    _page.post('{"t":"empty","slot":"settings.section","code":"slot-missing","detail":"gone"}');
+    await _settle(tester);
+    expect(find.text('在网页版打开'), findsOneWidget);
+    expect(_host.snapshot(allowHost: (_) => true).canOpen(_models), isFalse);
+    // It was up: the recipe fits this DSH, so it is tried again soon.
+    await tester.pump(IslandBudgetRules.transientFailureMemory + const Duration(seconds: 1));
+    expect(_host.snapshot(allowHost: (_) => true).canOpen(_models), isTrue);
+  });
+
   _testIsland('no ready in time falls back; so does a failed load', (tester) async {
     await tester.pumpWidget(_app(IslandView(spec: _models, fallback: _fallback)));
     await _settle(tester);

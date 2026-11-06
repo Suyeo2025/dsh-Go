@@ -12,3 +12,4 @@ export 'seat_models.dart';
 export 'seat_planner.dart';
 export 'seat_state.dart';
 export 'slot_catalog.dart';
+export 'known_seats.dart' show KnownPluginSeats, KnownSeat, knownPluginSeats, knownSeat;

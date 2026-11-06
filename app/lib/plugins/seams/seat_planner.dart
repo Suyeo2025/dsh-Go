@@ -9,6 +9,7 @@ import 'adapters/cordis_adapter.dart';
 import 'adapters/dsh_ui_panel_adapter.dart';
 import 'adapters/pet_adapter.dart';
 import 'adapters/schema_config_adapter.dart';
+import 'known_seats.dart';
 import 'seat_inventory.dart';
 import 'seat_models.dart';
 import 'slot_catalog.dart';
@@ -176,7 +177,12 @@ class SlotAdapterRegistry {
         items.add(SeatItem.hidden(o));
         continue;
       }
-      final adapter = override == null || override == SeatOverride.native
+      // A known plugin page (its own settings section) is that page, even
+      // when the package also has a schema form: the form is its details'
+      // 设置 row, and whether the form's schema has arrived yet must not
+      // decide which of the two this seat shows.
+      final knownPage = inventory.unreported && knownSeat(o.package, o.slot, o.cell) != null;
+      final adapter = override == SeatOverride.native || (override == null && !knownPage)
           ? adapterFor(o, inventory.infoOf(o.package))
           : null;
       if (adapter != null) {

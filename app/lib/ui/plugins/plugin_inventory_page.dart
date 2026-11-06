@@ -301,8 +301,37 @@ String presetLabel(PresetPlugins preset) {
   return preset.isDefault ? appL10n.pluginsDefaultPresetName(name) : name;
 }
 
+/// What to call an entry whose name is where it was loaded from (a local
+/// plugin that failed before it could say its name: `file:///…/lib/index.js`):
+/// its package folder (the one above `lib`/`dist`/`src`, or holding the
+/// file), else the file's name. Any other name as it is.
+@visibleForTesting
+String inventoryDisplayTitle(String title) {
+  final raw = title.trim();
+  if (!(raw.startsWith('file://') || raw.startsWith('/'))) return title;
+  final path = Uri.tryParse(raw)?.path ?? raw;
+  final parts = [
+    for (final p in Uri.decodeFull(path).split('/'))
+      if (p.isNotEmpty) p,
+  ];
+  if (parts.isEmpty) return title;
+  final file = parts.last;
+  final looksLikeFile = file.contains('.');
+  var dirs = looksLikeFile ? parts.sublist(0, parts.length - 1) : parts;
+  while (dirs.length > 1 && const {'lib', 'dist', 'src', 'build', 'out', 'client'}.contains(dirs.last)) {
+    dirs = dirs.sublist(0, dirs.length - 1);
+  }
+  if (dirs.isNotEmpty) {
+    final at = dirs.length - 1;
+    // A scoped package: `@scope/name`.
+    return at > 0 && dirs[at - 1].startsWith('@') ? '${dirs[at - 1]}/${dirs[at]}' : dirs[at];
+  }
+  return file;
+}
+
 /// One entry: its Chinese name over its Chinese one-liner (when it has one),
-/// and a dot for its state.
+/// and a dot for its state. An entry named by its file path shows a short
+/// name over the path.
 class InventoryRow extends StatelessWidget {
   const InventoryRow({super.key, required this.item});
 
@@ -313,13 +342,13 @@ class InventoryRow extends StatelessWidget {
     final l10n = context.l10n;
     void open() => unawaited(showInventorySheet(context, item));
     return Semantics(
-      label: l10n.pluginsInventorySemantics(item.title, item.status.label),
+      label: l10n.pluginsInventorySemantics(inventoryDisplayTitle(item.title), item.status.label),
       button: true,
       onTap: open,
       excludeSemantics: true,
       child: ListPageRow(
-        title: item.title,
-        subtitle: item.description,
+        title: inventoryDisplayTitle(item.title),
+        subtitle: item.description ?? (inventoryDisplayTitle(item.title) == item.title ? null : item.title),
         trailing: AnimatedStatusDot(tone: inventoryTone(item.status), size: 8),
         onTap: open,
       ),
@@ -414,8 +443,13 @@ class InventorySheet extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(kSheetGutter, 4, kSheetGutter, 20),
               children: [
                 PluginHero(
-                  avatar: PluginAvatar(name: item.moduleName, title: item.title, icon: item.icon, size: 56),
-                  title: item.title,
+                  avatar: PluginAvatar(
+                    name: item.moduleName,
+                    title: inventoryDisplayTitle(item.title),
+                    icon: item.icon,
+                    size: 56,
+                  ),
+                  title: inventoryDisplayTitle(item.title),
                   subtitle: item.moduleName,
                   subtitleMaxLines: 2,
                   monoSubtitle: true,

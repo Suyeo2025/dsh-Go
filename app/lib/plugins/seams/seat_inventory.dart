@@ -7,7 +7,9 @@ import 'package:flutter/foundation.dart';
 
 import '../../ui/engine_settings/engine_settings_page.dart' show isPluginForm;
 import '../../ui/engine_settings/schema_form.dart' show schemaSections;
+import '../../l10n/l10n.dart' show AppLocale;
 import '../native/native_model.dart' show NativePanel;
+import 'known_seats.dart';
 import 'seat_models.dart';
 import 'slot_catalog.dart';
 
@@ -126,6 +128,10 @@ class SeatInventory {
     return nativePanels.where((p) => p.package == package && p.id == id).firstOrNull;
   }
 
+  /// No occupancy table to go by (missing or stale): the occupants are the
+  /// known ones and the guesses.
+  bool get unreported => occupancy == null || occupancyStale;
+
   /// The bridge is there but needs a probe island to refresh its table.
   bool get needsProbe => tier == ClientInventoryTier.bridge && occupancyStale;
 
@@ -134,14 +140,16 @@ class SeatInventory {
   bool isOfficial(String package) => packages[package]?.official ?? isOfficialPackageName(package);
 
   /// The occupants of [slot] (official ones included; the planner skips
-  /// them): the bridge's table, plus Tier A guesses while that table is
-  /// missing or stale. [package] and [cell] narrow the list.
+  /// them): the bridge's table, plus, while that table is missing or
+  /// stale, the entries [knownPluginSeats] lists for the installed plugins
+  /// and the Tier A guesses. [package] and [cell] narrow the list.
   List<SlotOccupant> occupantsFor(String slot, {String? package, String? cell}) {
     final reported = occupancy?[slot] ?? const <SlotOccupant>[];
-    final guessed = occupancy == null || occupancyStale ? _inferred(slot) : const <SlotOccupant>[];
+    final known = unreported ? _known(slot) : const <SlotOccupant>[];
+    final guessed = unreported ? _inferred(slot) : const <SlotOccupant>[];
     final seen = <(String, String)>{};
     return [
-      for (final o in [..._native(slot), ...reported, ...guessed])
+      for (final o in [..._native(slot), ...reported, ...known, ...guessed])
         if ((package == null || o.package == package) &&
             (cell == null || o.cell == cell) &&
             seen.add((o.package, o.cell)))
@@ -165,6 +173,26 @@ class SeatInventory {
     ];
   }
 
+  /// The known entries of the installed, switched-on plugins: read from
+  /// their sources, not guessed, so the planner treats them as reported
+  /// (the island's ready gate still confirms them on the host).
+  List<SlotOccupant> _known(String slot) {
+    final english = AppLocale.isEnglish;
+    return [
+      for (final p in packages.values)
+        if (p.hasClient && p.installed && p.enabled && !p.official)
+          for (final seat in knownPluginSeats[p.package]?.seats ?? const <KnownSeat>[])
+            if (seat.slot == slot)
+              SlotOccupant(
+                slot: slot,
+                package: p.package,
+                cell: seat.cell,
+                order: seat.order,
+                label: seat.label(english: english),
+              ),
+    ];
+  }
+
   List<SlotOccupant> _inferred(String slot) {
     final inference = seatPolicyOf(slot).inference;
     if (inference == SlotInference.none) return const [];
@@ -172,6 +200,10 @@ class SeatInventory {
       for (final p in packages.values)
         if (p.hasClient && p.installed && !p.official)
           ...switch (inference) {
+            // A plugin known to have no form there gets no guess: its seat
+            // would only wait for a slot DSH Web never draws.
+            SlotInference.bundleConfig when !(knownPluginSeats[p.package]?.bundleConfig ?? true) =>
+              const <SlotOccupant>[],
             SlotInference.bundleConfig => [
               SlotOccupant(slot: slot, package: p.package, cell: p.package, inferred: true),
             ],

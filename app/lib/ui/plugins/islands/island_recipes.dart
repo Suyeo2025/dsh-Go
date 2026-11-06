@@ -49,6 +49,7 @@ class IslandRecipe {
     this.session = false,
     this.ready,
     this.slots,
+    this.expand = false,
   });
 
   final Set<IslandForm> forms;
@@ -71,6 +72,12 @@ class IslandRecipe {
   /// The DSH slots an island of an app-side key shows together (the chat
   /// page's 「插件」 sheet); null: just the key itself.
   final List<String>? slots;
+
+  /// The slot's one entry is a collapsed card (a disclosure button with
+  /// `aria-expanded="false"` and nothing else on screen): island.js opens
+  /// it once it is shown, so the page is the card's content rather than a
+  /// single row to tap (dshmarket's Plugins-page card).
+  final bool expand;
 
   /// The slots whose official entries the bridge masks.
   List<String> slotsFor(String key) => slots ?? [key];
@@ -132,6 +139,7 @@ class IslandRecipeBook {
           session: value['session'] == true,
           ready: IslandTiming.named(value['ready']),
           slots: together == null || together.isEmpty ? null : List.unmodifiable(together),
+          expand: value['expand'] == true,
         );
       }
     }

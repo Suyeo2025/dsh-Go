@@ -21,6 +21,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui_;
 
 import 'package:dsh_app/app.dart';
 import 'package:dsh_app/diagnostics/app_error_log.dart';
@@ -29,7 +30,13 @@ import 'package:dsh_app/launch/launch_state.dart';
 import 'package:dsh_app/plugins/seams/seams.dart';
 import 'package:dsh_app/state/locale_state.dart';
 import 'package:dsh_app/state/sessions_state.dart' show sessionsProvider;
+import 'package:dsh_app/state/plugins_state.dart' show installedPluginsProvider;
+import 'package:dsh_app/ui/common/capsule_chip.dart' show CapsuleChoiceChip;
+import 'package:dsh_app/ui/common/segmented_pill.dart' show SegmentedPill;
 import 'package:dsh_app/ui/common/third_party_licenses.dart';
+import 'package:dsh_app/ui/plugins/plugin_detail_sheet.dart' show showBundleSheet;
+import 'package:dsh_app/ui/session/session_detail_page.dart' show SessionDetailPage;
+import 'package:dsh_app/ui/session/session_tab.dart';
 import 'package:dsh_app/ui/onboarding/welcome_page.dart';
 import 'package:dsh_app/ui/plugins/islands/islands.dart';
 import 'package:dsh_app/ui/plugins/seats/plugin_seat_page.dart';
@@ -40,6 +47,7 @@ import 'package:dsh_app/ui/settings/settings_screen.dart' show SettingsScreen;
 import 'package:dsh_app/ui/shell/home_shell.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show OffsetLayer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -200,6 +208,14 @@ class _Run {
     final file = '${_n.toString().padLeft(3, '0')}-${name.replaceAll(RegExp(r'[^A-Za-z0-9_.-]+'), '_')}.png';
     try {
       final target = File('$out/$file');
+      if (layerShots) {
+        final layer = tester.binding.renderViews.first.debugLayer! as OffsetLayer;
+        final image = await layer.toImage(Offset.zero & tester.view.physicalSize);
+        final data = await image.toByteData(format: ui_.ImageByteFormat.png);
+        image.dispose();
+        await target.writeAsBytes(data!.buffer.asUint8List());
+        return file;
+      }
       debugPrint('TOUR_CAPTURE $file');
       for (var i = 0; i < 40 && !(await target.exists() && await target.length() > 0); i++) {
         await Future<void>.delayed(const Duration(milliseconds: 150));
@@ -283,7 +299,165 @@ class _Run {
     await part('device', checkDevice);
     await part('link-warm', warmLink);
     await part('seats', checkSeats);
+    await part('ui-portrait', () => checkPluginUi('portrait'));
+    // A wide screen (iPad) also on its side: the simulator can't be turned from the command line
+    // and an iPad app that multitasks ignores orientation requests, so the Flutter view is
+    // resized and pictured from its own layers (a web view there is a blank area).
+    final size = tester.view.physicalSize / tester.view.devicePixelRatio;
+    if (size.shortestSide >= 600) {
+      final p = tester.view.physicalSize;
+      tester.view.physicalSize = Size(p.height, p.width);
+      layerShots = true;
+      await frames(2000);
+      await part('ui-landscape', () => checkPluginUi('landscape'));
+      tester.view.resetPhysicalSize();
+      layerShots = false;
+      await frames(1500);
+    }
     maxIslands = container.read(islandHostProvider).max;
+  }
+
+  bool layerShots = false;
+  final ui = <Map<String, Object?>>[];
+
+  /// Visible text that looks like a credential (native screens).
+  bool privateOnScreen() {
+    for (final e in find.byType(RichText).evaluate()) {
+      if (_secret.hasMatch((e.widget as RichText).text.toPlainText())) return true;
+    }
+    return false;
+  }
+
+  /// Any ready island page whose text looks like a credential.
+  Future<bool> privateIsland() async {
+    for (final h in container.read(islandHostProvider).live) {
+      if (h.phase != IslandPhase.ready) continue;
+      final probe = await _probe(h);
+      if (probe is Map && probe['secret'] == true) return true;
+    }
+    return false;
+  }
+
+  Future<String?> uiShot(String name) async => shot(name, private: privateOnScreen() || await privateIsland());
+
+  /// Islands alive now ([settleIsland] waits for one not among them).
+  Set<IslandHandle> liveIslands() => container.read(islandHostProvider).live.toSet();
+
+  /// Waits up to [seconds] for an island not in [before] to be ready (or a fallback link).
+  Future<String> settleIsland({Set<IslandHandle> before = const {}, int seconds = 20}) async {
+    for (var i = 0; i < seconds * 5; i++) {
+      final live = container.read(islandHostProvider).live;
+      if (live.any((h) => !before.contains(h) && h.phase == IslandPhase.ready)) return 'ready';
+      if (find.byType(SeatWebLink).evaluate().isNotEmpty) return 'webFallback';
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    return 'notReady';
+  }
+
+  /// plugin-ui item 5: the 「设置分区」 card on a plugin's detail sheet (and one of its rows
+  /// opened), and 对话详情 › 插件 with its tab capsules.
+  Future<void> checkPluginUi(String orientation) async {
+    final bundles = container.read(installedPluginsProvider).value ?? const [];
+    for (final package in ['@xmanrui/dsh-im', 'dsh-better-sidebar', 'dshmarket']) {
+      await part('detail-$package-$orientation', () async {
+        final bundle = bundles.where((b) => b.name == package).firstOrNull;
+        if (bundle == null) throw StateError('$package not installed');
+        await home();
+        unawaited(showBundleSheet(tester.element(find.byType(Navigator).first), bundle));
+        await frames(2000);
+        final rows = find.byWidgetPredicate(
+          (w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('plugin-section|'),
+        );
+        // The sheet's list builds lazily: rows below the fold (a phone, a
+        // plugin with more cards) only exist once scrolled to.
+        if (rows.evaluate().isEmpty) {
+          try {
+            await tester.scrollUntilVisible(rows, 200, scrollable: find.byType(Scrollable).last, maxScrolls: 12);
+          } catch (_) {
+            // Not there at all: reported below.
+          }
+        }
+        final entry = <String, Object?>{'part': 'detail', 'package': package, 'orientation': orientation};
+        entry['rows'] = [for (final e in rows.evaluate()) (e.widget.key! as ValueKey<String>).value];
+        if (rows.evaluate().isNotEmpty) {
+          await Scrollable.ensureVisible(tester.element(rows.first), alignment: 0.5);
+          await frames(800);
+        } else {
+          problem('detail-$package-$orientation', 'no 设置分区 rows on the detail sheet');
+        }
+        entry['shot'] = await uiShot('detail-$package-$orientation');
+        if (rows.hitTestable().evaluate().isNotEmpty) {
+          final before = liveIslands();
+          await tester.tap(rows.hitTestable().first);
+          await frames(1500);
+          entry['opened'] = await settleIsland(before: before);
+          await frames(1500);
+          entry['openedShot'] = await uiShot('detail-$package-$orientation-section');
+        }
+        ui.add(entry);
+        debugPrint('ISLANDS_UI ${jsonEncode(entry)}');
+        await home();
+      });
+    }
+    await part('session-plugins-$orientation', () async {
+      final sessionId = container.read(sessionsProvider).value?.firstOrNull?.sessionId;
+      if (sessionId == null) throw StateError('no conversation on the host');
+      await home();
+      unawaited(rootNav().push(SessionDetailPage.route(sessionId, initialTab: SessionTab.plugins)));
+      await frames(2500);
+      final entry = <String, Object?>{'part': 'session-plugins', 'orientation': orientation};
+      final switcher = find.byKey(const ValueKey('session-plugins-switcher'));
+      entry['switcher'] = switcher.evaluate().isNotEmpty;
+      // ≤ 4 tabs: a SegmentedPill; more: a row of capsule chips.
+      final labels = <String>[
+        for (final e in switcher.evaluate())
+          if (e.widget is SegmentedPill<int>)
+            for (final seg in (e.widget as SegmentedPill<int>).segments) seg.label,
+        for (final e in find.descendant(of: switcher, matching: find.byType(CapsuleChoiceChip)).evaluate())
+          (e.widget as CapsuleChoiceChip).label,
+      ];
+      Finder chipOf(String label) => find.descendant(of: switcher, matching: find.text(label)).first;
+      entry['tabs'] = labels;
+      entry['first'] = await settleIsland();
+      entry['shot'] = await uiShot('session-plugins-$orientation');
+      final picks = <Map<String, Object?>>[];
+      for (var i = 1; i < labels.length; i++) {
+        // A tab whose island failed turns into a web link: the page shows the list instead.
+        if (switcher.evaluate().isEmpty) {
+          picks.add({'tab': labels[i], 'outcome': 'switcherGone'});
+          break;
+        }
+        final chip = chipOf(labels[i]);
+        if (chip.hitTestable().evaluate().isEmpty) await Scrollable.ensureVisible(tester.element(chip), alignment: 0.5);
+        final had = liveIslands();
+        await tester.tap(chip);
+        await frames(300);
+        final transition = await uiShot('session-plugins-$orientation-${i + 1}-switching');
+        final before = DateTime.now();
+        final outcome = await settleIsland(before: had);
+        await frames(1200);
+        picks.add({
+          'tab': labels[i],
+          'outcome': outcome,
+          'ms': DateTime.now().difference(before).inMilliseconds,
+          'transitionShot': transition,
+          'shot': await uiShot('session-plugins-$orientation-${i + 1}'),
+        });
+      }
+      // Back to the first one: the open tab should be made active again, not opened anew.
+      if (labels.length > 1 && switcher.evaluate().isNotEmpty) {
+        await tester.tap(chipOf(labels.first));
+        await frames(300);
+        picks.add({'tab': '${labels.first} (again)', 'outcome': await settleIsland()});
+      }
+      entry['picks'] = picks;
+      entry['endsAsList'] = switcher.evaluate().isEmpty;
+      if (switcher.evaluate().isEmpty) entry['endShot'] = await uiShot('session-plugins-$orientation-end');
+      ui.add(entry);
+      debugPrint('ISLANDS_UI ${jsonEncode(entry)}');
+      if (!entry['switcher']!.toString().contains('true')) problem('session-plugins-$orientation', 'no tab capsules');
+      await home();
+    });
   }
 
   Future<bool> connect() async {
@@ -377,7 +551,12 @@ class _Run {
         await tester.pump(const Duration(milliseconds: 200));
       }
       if (inventory == null) throw StateError('no seat inventory from the host');
+      // The conversation list comes after the inventory: the right-pane tabs need one.
+      for (var i = 0; i < 75 && (container.read(sessionsProvider).value?.isEmpty ?? true); i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
       final sessionId = container.read(sessionsProvider).value?.firstOrNull?.sessionId;
+      debugPrint('ISLANDS_SESSION ${sessionId == null ? 'none' : 'found'}');
       final thirdParty = [
         for (final p in inventory.packages.values)
           if (p.hasClient && p.installed && !p.official) p.package,
@@ -516,6 +695,7 @@ class _Run {
       'maxIslands': maxIslands,
       'seats': seats,
       'webPlaces': places,
+      'ui': ui,
       'problems': problems,
     };
     if (out.isNotEmpty) {

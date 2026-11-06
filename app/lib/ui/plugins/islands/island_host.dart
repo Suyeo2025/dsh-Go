@@ -147,8 +147,15 @@ class IslandHost extends ChangeNotifier {
     if (handle.phase == IslandPhase.failed) {
       final failure = handle.failure;
       // Failures of the island itself count against the spec (a timeout only
-      // briefly); memory and the renderer don't.
-      final memory = failure == null ? null : IslandBudgetRules.memoryFor(failure);
+      // briefly); memory and the renderer don't. One that was ready first
+      // fits this DSH: only briefly too.
+      final memory = failure == null
+          ? null
+          : handle.failedAfterReady
+          ? IslandBudgetRules.memoryFor(failure) == null
+                ? null
+                : IslandBudgetRules.transientFailureMemory
+          : IslandBudgetRules.memoryFor(failure);
       if (memory != null) {
         final key = handle.spec.key;
         _failed.remove(key)?.cancel();

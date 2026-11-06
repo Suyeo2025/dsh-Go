@@ -80,17 +80,26 @@ enum WebPlace {
 /// The places of [package]'s web part the app can't show, in order. Empty
 /// without a browser half, on a host without DSH Web, or when every place it
 /// uses has a seat. Without the bridge's occupancy table (remote hosts) the
-/// app can't tell where it is: one [WebPlace.unknown].
+/// app can only tell for a plugin it has a record of ([knownPluginSeats]);
+/// any other is one [WebPlace.unknown].
 List<WebPlace> pluginWebPlaces(SeatInventory inventory, String package) {
   if (!inventory.webReachable) return const [];
   final info = inventory.infoOf(package);
   if (!info.hasClient || info.official || !info.enabled) return const [];
   final occupancy = inventory.occupancy;
-  if (occupancy == null || inventory.occupancyStale) return const [WebPlace.unknown];
-  final places = <WebPlace>{
-    for (final MapEntry(key: slot, value: occupants) in occupancy.entries)
-      if (!Slots.seated.contains(slot) && occupants.any((o) => o.package == package && !o.official)) WebPlace.of(slot),
-  };
+  final Set<WebPlace> places;
+  if (occupancy == null || inventory.occupancyStale) {
+    // The record names exactly what the app has no seat for here.
+    final known = knownPluginSeats[package];
+    if (known == null) return const [WebPlace.unknown];
+    places = {for (final slot in known.elsewhere) WebPlace.of(slot)};
+  } else {
+    places = {
+      for (final MapEntry(key: slot, value: occupants) in occupancy.entries)
+        if (!Slots.seated.contains(slot) && occupants.any((o) => o.package == package && !o.official))
+          WebPlace.of(slot),
+    };
+  }
   return [
     for (final place in WebPlace.values)
       if (places.contains(place)) place,

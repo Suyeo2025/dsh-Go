@@ -147,9 +147,12 @@ void main() {
       expect(book.targetFor(spec(session: null), labels: ['记忆']), isNull);
     });
 
-    test('the other islands keep the measured 15 s', () {
-      expect(book.recipeFor(Slots.rightPaneTab)!.ready, isNull);
+    test('the other islands keep the measured 15 s; a right-pane tab gets 30 s', () {
+      expect(book.recipeFor(Slots.settingsSection)!.ready, isNull);
       expect(IslandTiming.ready, const Duration(seconds: 15));
+      // Conversation restore + pane + the plugin's page mounting (iOS sim).
+      expect(book.recipeFor(Slots.rightPaneTab)!.ready, IslandTiming.tabReady);
+      expect(IslandTiming.tabReady, const Duration(seconds: 30));
     });
   });
 
