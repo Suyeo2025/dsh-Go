@@ -128,7 +128,11 @@ xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Release \
 plutil -p "$A/Products/Applications/Runner.app/Info.plist" | grep -E 'CFBundle(Identifier|ShortVersionString|Version)"'
 codesign -dvv "$A/Products/Applications/Runner.app" 2>&1 | grep -E '^(Authority|TeamIdentifier)=' | head -2
 echo "plugins: $(ls $A/Products/Applications/Runner.app/PlugIns 2>/dev/null | tr '\n' ' ')"
-codesign -d --entitlements - --xml "$A/Products/Applications/Runner.app" 2>/dev/null | plutil -p - | grep -E 'aps-environment|application-groups' -A1
+codesign -d --entitlements - --xml "$A/Products/Applications/Runner.app" 2>/dev/null | plutil -p - | grep -E 'aps-environment|application-groups|time-sensitive' -A1
+for x in $A/Products/Applications/Runner.app/PlugIns/*.appex(N); do
+  echo "${x:t}: $(plutil -extract CFBundleIdentifier raw -o - $x/Info.plist) $(codesign -dvv $x 2>&1 | grep -m1 '^Authority=')"
+  codesign -d --entitlements - --xml "$x" 2>/dev/null | plutil -p - | grep -E 'application-groups' -A1
+done
 
 step "export -> $E"
 xcodebuild -exportArchive -archivePath "$A" -exportOptionsPlist $EXPORT_OPTIONS -exportPath "$E" || die "export"

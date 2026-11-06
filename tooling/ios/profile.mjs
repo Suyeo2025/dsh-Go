@@ -14,7 +14,8 @@
 // recreated here. The API can enable the App Groups capability but cannot register an App Group nor
 // assign one to an App ID (developer portal only): each profile's application-groups are printed as
 // `APP_GROUPS <profile> <groups|none>` so tf-release.sh can tell whether the share extension can ship.
-// Time Sensitive Notifications has no App ID capability in the API either.
+// Time Sensitive Notifications (USERNOTIFICATIONS_TIMESENSITIVE) is ticked in the portal too; each
+// profile's time-sensitive entitlement is printed with it.
 import { writeFileSync, mkdirSync, existsSync, rmSync } from 'node:fs';
 import { api, need, raw } from './asc.mjs';
 
@@ -94,7 +95,8 @@ for (const bundle of BUNDLES) {
     const aps = /aps-environment<\/key>\s*<string>([^<]*)/.exec(s)?.[1] ?? '(none)';
     const groupsBlock = /application-groups<\/key>\s*<array>([\s\S]*?)<\/array>/.exec(s)?.[1];
     const groups = groupsBlock ? [...groupsBlock.matchAll(/<string>([^<]*)<\/string>/g)].map((m) => m[1]) : [];
-    console.log(`profile "${a.name}" ${a.uuid} ${a.profileState} expires ${a.expirationDate} aps-environment=${aps}${want.devices ? ` devices=${devices.length}` : ''} -> installed`);
+    const ts = /usernotifications\.time-sensitive<\/key>\s*<(true|false)/.exec(s)?.[1] ?? '(none)';
+    console.log(`profile "${a.name}" ${a.uuid} ${a.profileState} expires ${a.expirationDate} aps-environment=${aps} time-sensitive=${ts}${want.devices ? ` devices=${devices.length}` : ''} -> installed`);
     console.log(`APP_GROUPS ${a.name} ${groups.length ? groups.join(',') : 'none'}`);
   }
 }

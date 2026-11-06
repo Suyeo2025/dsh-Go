@@ -52,27 +52,22 @@ ssh macstudio 'cd ~/Workspace/dsh-go/src/tooling/ios && node testflight.mjs --st
 
 Build number = `yyyyMMddHHmm` (Mac local time); version name = `pubspec.yaml` (`--build-name` to override).
 
-## Share extension signing (App Group: developer portal only)
+## Share extension signing (done)
 
 `app/ios/ShareExtension` (bundle id `com.colex.dshgo.share`, 「分享 › DSH Go」) hands shares to the app
-through the App Group `group.com.colex.dshgo` (both targets' entitlements). Compile checks and the
-simulator need nothing more. `profile.mjs` does what the API can: registers `com.colex.dshgo.share`,
-turns the App Groups capability on for both App IDs and keeps all four profiles
-(`dg [dev ]com.colex.dshgo[.share]`), printing `APP_GROUPS <profile> <groups|none>`. The API can
-neither register an App Group nor assign one to an App ID (`PATCH /v1/bundleIdCapabilities` has no
-group setting), so until that is done in the portal the profiles carry no group, and `tf-release.sh`
-(default `--share` auto) archives **without** the extension: the extension is left out of that one
-archive (the project file is edited for it and restored), the app is signed without the App Group
-entitlement, the target and its code stay. `--share` forces it in (and stops when the profiles lack the
-group), `--no-share` leaves it out.
+through the App Group `group.com.colex.dshgo` (both targets' entitlements). Set up 2026-11-05:
 
-Portal steps (developer.apple.com › Certificates, Identifiers & Profiles):
+- Portal (no API for it): App Group `group.com.colex.dshgo` ("DSH Go Group") registered and assigned to
+  both App IDs, `com.colex.dshgo` and `com.colex.dshgo.share`.
+- `profile.mjs` keeps the rest: both bundle IDs, their capabilities, all four profiles
+  (`dg [dev ]com.colex.dshgo[.share]`), and prints `APP_GROUPS <profile> <groups|none>` for each.
 
-1. Identifiers › `+` › App Groups: register `group.com.colex.dshgo`.
-2. Identifiers › `com.colex.dshgo` › App Groups › Configure: tick `group.com.colex.dshgo`, Save.
-3. Identifiers › `com.colex.dshgo.share` › App Groups › Configure: tick the same group, Save.
-4. On the Mac: `node tooling/ios/profile.mjs --renew` (the assignment invalidates the profiles), then
-   `tf-release.sh`: the `APP_GROUPS` lines show the group and the extension ships.
+`tf-release.sh` (default `--share` auto) embeds the extension when both App Store profiles carry the
+group, as they do now. Should a profile ever lose it (a group unassigned in the portal), the archive
+goes out **without** the extension: it is left out of that one archive (the project file is edited
+for it and restored) and the app is signed without the App Group entitlement. `--share` insists on it
+(stops instead), `--no-share` leaves it out. Any App ID capability change invalidates the profiles:
+`node tooling/ios/profile.mjs --renew`.
 
 ## Notes / pitfalls
 
@@ -94,7 +89,8 @@ Portal steps (developer.apple.com › Certificates, Identifiers & Profiles):
   `NSAllowsLocalNetworking` would make iOS ignore `NSAllowsArbitraryLoads`.
 - Export compliance: `ITSAppUsesNonExemptEncryption=false` in Info.plist (standard TLS/Noise/AES only);
   `testflight.mjs` sets `usesNonExemptEncryption=false` via API if a build still lacks an answer.
-- Push: `aps-environment` development (Debug) / production (Release). Time Sensitive Notifications
-  can't be enabled through the API: tick it on the App ID in the developer portal before adding
-  `com.apple.developer.usernotifications.time-sensitive` back to the entitlements.
+- Push: `aps-environment` development (Debug) / production (Release), plus
+  `com.apple.developer.usernotifications.time-sensitive` in both entitlements. Time Sensitive
+  Notifications (USERNOTIFICATIONS_TIMESENSITIVE) was ticked on `com.colex.dshgo` in the portal
+  (done 2026-11-05); `profile.mjs` prints `time-sensitive=` per profile.
 - Internal TestFlight only: no external groups, no beta review.
