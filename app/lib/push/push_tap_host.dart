@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../platform/platform_caps.dart';
+import '../state/chat_focus.dart';
 import '../state/hosts_state.dart';
 import '../state/notify_state.dart' show appForegroundProvider;
 import '../state/sessions_state.dart';
@@ -87,6 +88,11 @@ class _PushTapHostState extends ConsumerState<PushTapHost> {
     // restore of the last host from switching away on a cold start.
     ref.read(activeHostProvider.notifier).select(host);
     ref.read(currentSessionProvider.notifier).select(sessionId);
+    // A request's push: show its card (the same as the Live Activity's tap).
+    final eventId = route.eventId;
+    if (eventId != null && (route.kind == PushKind.approval || route.kind == PushKind.question)) {
+      ref.read(chatFocusProvider.notifier).focus(sessionId, eventId);
+    }
   }
 
   @override

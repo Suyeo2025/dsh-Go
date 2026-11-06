@@ -1,0 +1,15 @@
+{
+  "islandThinking": "Thinking",
+  "islandWriting": "Replying",
+  "islandToolBash": "Run Bash",
+  "islandToolRead": "Read file",
+  "islandToolEdit": "Edit file",
+  "islandToolSearch": "Search",
+  "islandToolWeb": "Browse web",
+  "islandSummaryDone": "{steps, plural, =1{1 step} other{{steps} steps}} · {time}",
+  "islandDoneLine": "Done · {summary}",
+  "islandFailed": "Failed",
+  "islandFailedLine": "Failed · {reason}",
+  "islandNeedsApproval": "Needs approval · {text}",
+  "islandNeedsAnswer": "Needs an answer · {text}"
+}

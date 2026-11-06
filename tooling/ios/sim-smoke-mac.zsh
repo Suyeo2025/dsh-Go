@@ -27,7 +27,7 @@
 # Ends with SMOKE_RC=<flutter test exit code>.
 set -uo pipefail
 source ${0:A:h}/env.sh
-KEEP=0; IPAD=0; TOUR=0; DARK=0; PERF=0; ISLANDS=0; LINKS=0
+KEEP=0; IPAD=0; TOUR=0; DARK=0; PERF=0; ISLANDS=0; LINKS=0; ONLY=""
 for a in "$@"; do
   case $a in
     --keep) KEEP=1 ;;
@@ -37,6 +37,7 @@ for a in "$@"; do
     --perf) PERF=1 ;;
     --islands) ISLANDS=1 ;;
     --links) LINKS=1 ;;
+    --only=*) ONLY=${a#--only=} ;;
     *) echo "unknown arg $a"; exit 2 ;;
   esac
 done
@@ -62,6 +63,8 @@ if (( TOUR )); then
   OUT=$DG_LOGS/ux-tour/$VARIANT
   EXTRA=(--dart-define=TOUR_VARIANT=$VARIANT)
   (( IPAD )) && EXTRA+=(--dart-define=TOUR_LANDSCAPE=true)
+  # --only=drawer,settings: those parts of the tour alone (onboarding always runs).
+  [[ -n $ONLY ]] && EXTRA+=(--dart-define=TOUR_ONLY=$ONLY)
 fi
 if (( PERF )); then
   TEST=integration_test/ios_perf_probe_test.dart

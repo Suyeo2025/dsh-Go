@@ -9,6 +9,11 @@
 //   com.colex.dshgo.share  the share extension (app/ios/ShareExtension)   App Groups
 //     "dg com.colex.dshgo.share"      IOS_APP_STORE
 //     "dg dev com.colex.dshgo.share"  IOS_APP_DEVELOPMENT
+//   com.colex.dshgo.activity  the 「鲸游」Live Activity (app/ios/WhaleWakeActivity)   no capability
+//     "dg com.colex.dshgo.activity"     IOS_APP_STORE
+//     "dg dev com.colex.dshgo.activity" IOS_APP_DEVELOPMENT
+//   (optional: a failure there is printed as PROFILE_FAILED and the others still go through;
+//   tf-release.sh then archives without that extension)
 // (certificate ids from tooling/ios/local.env)
 // Missing capabilities are added; a capability change invalidates existing profiles, which are then
 // recreated here. The API can enable the App Groups capability but cannot register an App Group nor
@@ -23,6 +28,7 @@ const MAIN = process.env.DG_BUNDLE_ID || 'com.colex.dshgo';
 const BUNDLES = [
   { id: MAIN, name: 'DSH Go', caps: ['PUSH_NOTIFICATIONS', 'APP_GROUPS'] },
   { id: `${MAIN}.share`, name: 'DSH Go Share', caps: ['APP_GROUPS'] },
+  { id: `${MAIN}.activity`, name: 'DSH Go Activity', caps: [], optional: true },
 ];
 const renew = process.argv.includes('--renew');
 const storeOnly = process.argv.includes('--store');
@@ -32,7 +38,7 @@ dirs.forEach((d) => mkdirSync(d, { recursive: true }));
 
 const devices = (await api('GET', '/v1/devices?limit=200&filter[platform]=IOS&filter[status]=ENABLED&fields[devices]=name')).data;
 
-for (const bundle of BUNDLES) {
+async function ensure(bundle) {
   const profiles = [
     { name: bundle.id === MAIN && process.env.DG_PROFILE_NAME ? process.env.DG_PROFILE_NAME : `dg ${bundle.id}`, type: 'IOS_APP_STORE', certs: [need('DG_CERT_ID')], devices: false },
     ...(storeOnly ? [] : [{ name: `dg dev ${bundle.id}`, type: 'IOS_APP_DEVELOPMENT', certs: [need('DG_DEV_CERT_ID')], devices: true }]),
@@ -98,5 +104,14 @@ for (const bundle of BUNDLES) {
     const ts = /usernotifications\.time-sensitive<\/key>\s*<(true|false)/.exec(s)?.[1] ?? '(none)';
     console.log(`profile "${a.name}" ${a.uuid} ${a.profileState} expires ${a.expirationDate} aps-environment=${aps} time-sensitive=${ts}${want.devices ? ` devices=${devices.length}` : ''} -> installed`);
     console.log(`APP_GROUPS ${a.name} ${groups.length ? groups.join(',') : 'none'}`);
+  }
+}
+
+for (const bundle of BUNDLES) {
+  try {
+    await ensure(bundle);
+  } catch (e) {
+    if (!bundle.optional) throw e;
+    console.log(`PROFILE_FAILED ${bundle.id} ${String(e.message ?? e).replace(/\s+/g, ' ').slice(0, 300)}`);
   }
 }

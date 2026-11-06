@@ -17,6 +17,7 @@ import '../../pets/pet_signals.dart' show PetContentBehindController, petContent
 import '../../state/agents_state.dart' show hostSessionsProvider, selectConversation;
 import '../../state/artifacts.dart';
 import '../../state/attachments.dart' show DraftAttachment;
+import '../../state/chat_focus.dart';
 import '../../state/chat_reveal.dart';
 import '../../state/chat_state.dart';
 import '../../state/connection_state.dart';
@@ -31,6 +32,7 @@ import '../pets/pet_perch.dart';
 import '../theme/app_icons.dart';
 import '../theme/theme.dart';
 import '../update/update_sheet.dart' show checkForUpdates;
+import 'chat_focus_target.dart';
 import 'chat_rows.dart';
 import 'chat_rows_cache.dart';
 import 'media/media_paths.dart';
@@ -716,6 +718,11 @@ class _ChatListState extends ConsumerState<ChatList> with SingleTickerProviderSt
     ref.listen(chatRevealProvider, (_, reveal) {
       if (reveal?.sessionId == widget.sessionId) jumpToBottom();
     });
+    // Opened for one request (push tap, Live Activity): its card is near the
+    // newest line and brings itself fully into view (ChatFocusTarget).
+    ref.listen(chatFocusProvider, (_, focus) {
+      if (focus?.sessionId == widget.sessionId) jumpToBottom();
+    });
     return MarkdownImageScope(
       sessionId: widget.sessionId,
       child: LayoutBuilder(
@@ -1218,8 +1225,14 @@ class _ChatListState extends ConsumerState<ChatList> with SingleTickerProviderSt
       ChangeCardRow(:final files) => ChangeCard(files: files),
       ArtifactCardRow(:final group) => ArtifactCard(sessionId: widget.sessionId, group: group),
       CommandNoticeRow(:final notice) => CommandRow(notice: notice),
-      ApprovalRow(:final request) => ApprovalCard(request: request, onRespond: _respond, onAllowAll: _allowAll),
-      QuestionRow(:final request) => QuestionCard(request: request, onAnswer: _answer, onReject: _rejectQuestion),
+      ApprovalRow(:final request) => ChatFocusTarget(
+        eventId: request.eventId,
+        child: ApprovalCard(request: request, onRespond: _respond, onAllowAll: _allowAll),
+      ),
+      QuestionRow(:final request) => ChatFocusTarget(
+        eventId: request.eventId,
+        child: QuestionCard(request: request, onAnswer: _answer, onReject: _rejectQuestion),
+      ),
     };
   }
 }

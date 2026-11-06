@@ -979,6 +979,14 @@ abstract final class Spots {
     keywords: (l) => l.searchKwNotifySystem,
   );
 
+  // 推送通知 (remote-only builds): the「鲸游」Live Activity's three settings.
+  static final islandMode = SettingSpot(
+    'island-mode',
+    page: SettingsPageId.pushNotifications,
+    title: (l) => l.laSettingsIslandMode,
+    keywords: (l) => l.searchKwIsland,
+  );
+
   // 隐私与分享.
   static final shareConfig = SettingSpot(
     'share-config',
@@ -1167,6 +1175,7 @@ final _rows = <SettingSpot>[
   Spots.notifyQuestion,
   Spots.notifyLive,
   Spots.notifySystem,
+  Spots.islandMode,
   Spots.shareConfig,
   Spots.usageStats,
   Spots.chatLogUpload,

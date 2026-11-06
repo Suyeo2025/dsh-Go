@@ -14216,6 +14216,186 @@ abstract class L10n {
   /// **'快捷键速查'**
   String get ipadShortcutHelp;
 
+  /// No description provided for @islandThinking.
+  ///
+  /// In zh, this message translates to:
+  /// **'思考中'**
+  String get islandThinking;
+
+  /// No description provided for @islandWriting.
+  ///
+  /// In zh, this message translates to:
+  /// **'回复中'**
+  String get islandWriting;
+
+  /// No description provided for @islandToolBash.
+  ///
+  /// In zh, this message translates to:
+  /// **'运行 Bash'**
+  String get islandToolBash;
+
+  /// No description provided for @islandToolRead.
+  ///
+  /// In zh, this message translates to:
+  /// **'读取文件'**
+  String get islandToolRead;
+
+  /// No description provided for @islandToolEdit.
+  ///
+  /// In zh, this message translates to:
+  /// **'编辑文件'**
+  String get islandToolEdit;
+
+  /// No description provided for @islandToolSearch.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索'**
+  String get islandToolSearch;
+
+  /// No description provided for @islandToolWeb.
+  ///
+  /// In zh, this message translates to:
+  /// **'上网'**
+  String get islandToolWeb;
+
+  /// No description provided for @islandSummaryDone.
+  ///
+  /// In zh, this message translates to:
+  /// **'{steps} 步 · {time}'**
+  String islandSummaryDone(int steps, String time);
+
+  /// No description provided for @islandDoneLine.
+  ///
+  /// In zh, this message translates to:
+  /// **'做完了 · {summary}'**
+  String islandDoneLine(String summary);
+
+  /// No description provided for @islandFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'出错了'**
+  String get islandFailed;
+
+  /// No description provided for @islandFailedLine.
+  ///
+  /// In zh, this message translates to:
+  /// **'出错了 · {reason}'**
+  String islandFailedLine(String reason);
+
+  /// No description provided for @islandNeedsApproval.
+  ///
+  /// In zh, this message translates to:
+  /// **'等你确认 · {text}'**
+  String islandNeedsApproval(String text);
+
+  /// No description provided for @islandNeedsAnswer.
+  ///
+  /// In zh, this message translates to:
+  /// **'等你回答 · {text}'**
+  String islandNeedsAnswer(String text);
+
+  /// No description provided for @laSettingsSection.
+  ///
+  /// In zh, this message translates to:
+  /// **'灵动岛与锁屏实时活动'**
+  String get laSettingsSection;
+
+  /// No description provided for @laSettingsIslandMode.
+  ///
+  /// In zh, this message translates to:
+  /// **'灵动岛'**
+  String get laSettingsIslandMode;
+
+  /// No description provided for @laSettingsModeOff.
+  ///
+  /// In zh, this message translates to:
+  /// **'关'**
+  String get laSettingsModeOff;
+
+  /// No description provided for @laSettingsModeForeground.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅前台'**
+  String get laSettingsModeForeground;
+
+  /// No description provided for @laSettingsModeAlways.
+  ///
+  /// In zh, this message translates to:
+  /// **'前后台都显示'**
+  String get laSettingsModeAlways;
+
+  /// No description provided for @laSettingsFooter.
+  ///
+  /// In zh, this message translates to:
+  /// **'关：只用普通通知。仅前台：在 App 里发出消息时显示，之后由推送维持。前后台都显示：别的端的审批和提问也能从锁屏直接处理（需要配对推送）。'**
+  String get laSettingsFooter;
+
+  /// No description provided for @laSettingsNeedsPairing.
+  ///
+  /// In zh, this message translates to:
+  /// **'前后台都显示需要先配对推送：在本页上方填推送服务地址并开启。'**
+  String get laSettingsNeedsPairing;
+
+  /// No description provided for @laSettingsSystemOffTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'实时活动已在系统里关闭'**
+  String get laSettingsSystemOffTitle;
+
+  /// No description provided for @laSettingsSystemOffText.
+  ///
+  /// In zh, this message translates to:
+  /// **'在系统设置里为 DSH Go 打开实时活动，灵动岛和锁屏才会显示。'**
+  String get laSettingsSystemOffText;
+
+  /// No description provided for @laSettingsOpenSystem.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开系统设置'**
+  String get laSettingsOpenSystem;
+
+  /// No description provided for @laSettingsUnsupported.
+  ///
+  /// In zh, this message translates to:
+  /// **'这台设备不支持实时活动（需要 iOS 16.2 以上的 iPhone）。'**
+  String get laSettingsUnsupported;
+
+  /// No description provided for @laSettingsStatusShowing.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在显示'**
+  String get laSettingsStatusShowing;
+
+  /// No description provided for @laSettingsStatusIdle.
+  ///
+  /// In zh, this message translates to:
+  /// **'未在显示'**
+  String get laSettingsStatusIdle;
+
+  /// No description provided for @laSettingsStatusOff.
+  ///
+  /// In zh, this message translates to:
+  /// **'已关闭'**
+  String get laSettingsStatusOff;
+
+  /// No description provided for @laSettingsStatusSystemOff.
+  ///
+  /// In zh, this message translates to:
+  /// **'系统已关闭'**
+  String get laSettingsStatusSystemOff;
+
+  /// No description provided for @laSettingsStatusUnsupported.
+  ///
+  /// In zh, this message translates to:
+  /// **'不支持'**
+  String get laSettingsStatusUnsupported;
+
+  /// No description provided for @searchKwIsland.
+  ///
+  /// In zh, this message translates to:
+  /// **'灵动岛,实时活动,锁屏,鲸游,Live Activity,Dynamic Island'**
+  String get searchKwIsland;
+
   /// No description provided for @launchScreenTitle.
   ///
   /// In zh, this message translates to:
@@ -28183,6 +28363,234 @@ abstract class L10n {
   /// In zh, this message translates to:
   /// **'在「{path}」里调整'**
   String shellQuickPanelHint(String path);
+
+  /// No description provided for @smIpadOutline.
+  ///
+  /// In zh, this message translates to:
+  /// **'侧栏大纲'**
+  String get smIpadOutline;
+
+  /// No description provided for @smIpadHappeningCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在发生，{n} 个'**
+  String smIpadHappeningCount(int n);
+
+  /// No description provided for @smIpadWorkspaceKey.
+  ///
+  /// In zh, this message translates to:
+  /// **'工作区 {name}'**
+  String smIpadWorkspaceKey(String name);
+
+  /// No description provided for @smIpadFolderKey.
+  ///
+  /// In zh, this message translates to:
+  /// **'文件夹 {name}'**
+  String smIpadFolderKey(String name);
+
+  /// No description provided for @smStateRunning.
+  ///
+  /// In zh, this message translates to:
+  /// **'运行中'**
+  String get smStateRunning;
+
+  /// No description provided for @smStateThinking.
+  ///
+  /// In zh, this message translates to:
+  /// **'思考中'**
+  String get smStateThinking;
+
+  /// No description provided for @smStateWaitingReply.
+  ///
+  /// In zh, this message translates to:
+  /// **'等待回复'**
+  String get smStateWaitingReply;
+
+  /// No description provided for @smStateTodoProgress.
+  ///
+  /// In zh, this message translates to:
+  /// **'待办 {done}/{total}'**
+  String smStateTodoProgress(int done, int total);
+
+  /// No description provided for @smStateReorderFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'排序没有保存'**
+  String get smStateReorderFailed;
+
+  /// No description provided for @smStateStep.
+  ///
+  /// In zh, this message translates to:
+  /// **'第 {n} 步'**
+  String smStateStep(int n);
+
+  /// No description provided for @smStateStepDoing.
+  ///
+  /// In zh, this message translates to:
+  /// **'第 {n} 步 · {doing}'**
+  String smStateStepDoing(int n, String doing);
+
+  /// No description provided for @smStateNeedsApproval.
+  ///
+  /// In zh, this message translates to:
+  /// **'等你确认'**
+  String get smStateNeedsApproval;
+
+  /// No description provided for @smStateNeedsApprovalOf.
+  ///
+  /// In zh, this message translates to:
+  /// **'等你确认 · {text}'**
+  String smStateNeedsApprovalOf(String text);
+
+  /// No description provided for @smStateNeedsAnswer.
+  ///
+  /// In zh, this message translates to:
+  /// **'等你回答'**
+  String get smStateNeedsAnswer;
+
+  /// No description provided for @smStateNeedsAnswerOf.
+  ///
+  /// In zh, this message translates to:
+  /// **'等你回答 · {text}'**
+  String smStateNeedsAnswerOf(String text);
+
+  /// No description provided for @smStateNeedsPlanReview.
+  ///
+  /// In zh, this message translates to:
+  /// **'等你确认计划'**
+  String get smStateNeedsPlanReview;
+
+  /// No description provided for @smStateDone.
+  ///
+  /// In zh, this message translates to:
+  /// **'做完了'**
+  String get smStateDone;
+
+  /// No description provided for @smStateDoneSummary.
+  ///
+  /// In zh, this message translates to:
+  /// **'做完了 · {steps} 步 · {elapsed}'**
+  String smStateDoneSummary(int steps, String elapsed);
+
+  /// No description provided for @smStateFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'出错了'**
+  String get smStateFailed;
+
+  /// No description provided for @smUiHappening.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在发生'**
+  String get smUiHappening;
+
+  /// No description provided for @smUiHappeningMore.
+  ///
+  /// In zh, this message translates to:
+  /// **'还有 {n} 个'**
+  String smUiHappeningMore(int n);
+
+  /// No description provided for @smUiHappeningLess.
+  ///
+  /// In zh, this message translates to:
+  /// **'收起'**
+  String get smUiHappeningLess;
+
+  /// No description provided for @smUiElapsed.
+  ///
+  /// In zh, this message translates to:
+  /// **'已用 {minutes} 分 {seconds} 秒'**
+  String smUiElapsed(int minutes, int seconds);
+
+  /// No description provided for @smUiLayoutTime.
+  ///
+  /// In zh, this message translates to:
+  /// **'按时间'**
+  String get smUiLayoutTime;
+
+  /// No description provided for @smUiLayoutTree.
+  ///
+  /// In zh, this message translates to:
+  /// **'工作区树'**
+  String get smUiLayoutTree;
+
+  /// No description provided for @smUiLayoutFilterHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'清除筛选后可切换'**
+  String get smUiLayoutFilterHint;
+
+  /// No description provided for @smUiLayoutTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'视图'**
+  String get smUiLayoutTitle;
+
+  /// No description provided for @smUiOtherChats.
+  ///
+  /// In zh, this message translates to:
+  /// **'其它对话'**
+  String get smUiOtherChats;
+
+  /// No description provided for @smUiWorkspaceRunning.
+  ///
+  /// In zh, this message translates to:
+  /// **'{n} 在跑'**
+  String smUiWorkspaceRunning(int n);
+
+  /// No description provided for @smUiWorkspaceSemantics.
+  ///
+  /// In zh, this message translates to:
+  /// **'工作区 {name}，{count} 个对话'**
+  String smUiWorkspaceSemantics(String name, int count);
+
+  /// No description provided for @smUiWorkspaceEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'这个工作区还没有对话'**
+  String get smUiWorkspaceEmpty;
+
+  /// No description provided for @smUiMoveUp.
+  ///
+  /// In zh, this message translates to:
+  /// **'上移一位'**
+  String get smUiMoveUp;
+
+  /// No description provided for @smUiMoveDown.
+  ///
+  /// In zh, this message translates to:
+  /// **'下移一位'**
+  String get smUiMoveDown;
+
+  /// No description provided for @smUiMoveFirst.
+  ///
+  /// In zh, this message translates to:
+  /// **'移到最前'**
+  String get smUiMoveFirst;
+
+  /// No description provided for @smUiMoveLast.
+  ///
+  /// In zh, this message translates to:
+  /// **'移到最后'**
+  String get smUiMoveLast;
+
+  /// No description provided for @smUiFolder.
+  ///
+  /// In zh, this message translates to:
+  /// **'文件夹'**
+  String get smUiFolder;
+
+  /// No description provided for @smUiMoreActions.
+  ///
+  /// In zh, this message translates to:
+  /// **'更多操作'**
+  String get smUiMoreActions;
+
+  /// No description provided for @smUiDragToReorder.
+  ///
+  /// In zh, this message translates to:
+  /// **'拖动排序'**
+  String get smUiDragToReorder;
 
   /// The star prompt's first line. hours is the whole hours of use so far, rounded down; 0 is half an hour (the first ask comes after 30 minutes). The word joiner keeps the ~ on the line of the word before it.
   ///

@@ -1,5 +1,6 @@
 // 设置 → 推送通知 (remote-only builds): pair this phone with the push bridge
-// on the server, see where the pushes stand, unpair.
+// on the server, see where the pushes stand, unpair; and the 灵动岛 (Live
+// Activity) setting, since a remote-only build has no 通知 page.
 
 import 'dart:async';
 
@@ -9,6 +10,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../l10n/l10n.dart';
+import '../live/island_prefs_state.dart';
+import '../live/live_activity_channel.dart';
+import '../live/live_activity_state.dart';
 import '../state/hosts_state.dart';
 import '../ui/common/app_dialog.dart';
 import '../ui/common/status_chip.dart';
@@ -195,7 +199,10 @@ class _PushSettingsPageState extends ConsumerState<PushSettingsPage> {
     return AppPage.list(
       title: l10n.pushTitle,
       subtitle: Text(l10n.pushDescription),
-      children: state.pairing == null ? _unpaired(l10n, state, hosts) : _paired(l10n, state, hosts),
+      children: [
+        ...state.pairing == null ? _unpaired(l10n, state, hosts) : _paired(l10n, state, hosts),
+        const IslandSettingsSection(),
+      ],
     );
   }
 
@@ -309,6 +316,7 @@ class _PushSettingsPageState extends ConsumerState<PushSettingsPage> {
           ),
           InfoRow(label: l10n.pushBridgeRow, value: bridge, mono: true),
           InfoRow(label: l10n.pushHostRow, value: hostName),
+          InfoRow(label: l10n.laSettingsIslandMode, value: islandStatusLabel(l10n, ref)),
         ],
       ),
       Padding(
@@ -333,5 +341,91 @@ class _PushSettingsPageState extends ConsumerState<PushSettingsPage> {
         ),
       ),
     ];
+  }
+}
+
+/// One word for the 灵动岛 as it stands (the 推送通知 status rows).
+String islandStatusLabel(L10n l10n, WidgetRef ref) {
+  final support = ref.watch(liveActivityStatusProvider).value;
+  if (support != null && !support.supported) return l10n.laSettingsStatusUnsupported;
+  if (support != null && !support.enabled) return l10n.laSettingsStatusSystemOff;
+  if (ref.watch(islandPrefsProvider).mode == IslandMode.off) return l10n.laSettingsStatusOff;
+  final island = ref.watch(islandControllerProvider);
+  return island.activeSessionId != null && !island.ended ? l10n.laSettingsStatusShowing : l10n.laSettingsStatusIdle;
+}
+
+/// 灵动岛与锁屏实时活动: off / in app / always, greyed out with the way to
+/// the system switch when Live Activities are off in Settings.
+class IslandSettingsSection extends ConsumerWidget {
+  const IslandSettingsSection({super.key});
+
+  Future<void> _openSystem() async {
+    try {
+      await launchUrl(Uri.parse('app-settings:'));
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final prefs = ref.watch(islandPrefsProvider);
+    // Unknown until the phone answers: nothing greyed out meanwhile.
+    final support = ref.watch(liveActivityStatusProvider).value;
+    final paired = ref.watch(pushProvider.select((s) => s.pairing != null));
+    final unsupported = support != null && !support.supported;
+    final systemOff = support != null && support.supported && !support.enabled;
+    final mode = unsupported ? IslandMode.off : prefs.mode;
+    final editable = prefs.loaded && !unsupported && !systemOff;
+    final colors = DshColors.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (systemOff)
+          PhoneNote(
+            key: const ValueKey('island-system-off'),
+            tone: NoteTone.warn,
+            icon: AppIcons.notificationsOff,
+            title: l10n.laSettingsSystemOffTitle,
+            text: l10n.laSettingsSystemOffText,
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+            action: TextButton.icon(
+              key: const ValueKey('island-open-system'),
+              style: TextButton.styleFrom(
+                foregroundColor: colors.onWarningContainer,
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+              ),
+              iconAlignment: IconAlignment.end,
+              icon: const Icon(AppIcons.forward, size: 16),
+              onPressed: () => unawaited(_openSystem()),
+              label: Text(l10n.laSettingsOpenSystem),
+            ),
+          ),
+        SettingsSection(
+          title: l10n.laSettingsSection,
+          footer: Text(unsupported ? l10n.laSettingsUnsupported : l10n.laSettingsFooter),
+          children: [
+            SettingsSegmentTile<IslandMode>(
+              key: const ValueKey('island-mode'),
+              spot: Spots.islandMode,
+              segments: [
+                PillSegment(IslandMode.off, l10n.laSettingsModeOff),
+                PillSegment(IslandMode.foreground, l10n.laSettingsModeForeground),
+                PillSegment(IslandMode.always, l10n.laSettingsModeAlways),
+              ],
+              selected: mode,
+              onChanged: editable ? (m) => unawaited(ref.read(islandPrefsProvider.notifier).setMode(m)) : null,
+            ),
+          ],
+        ),
+        if (editable && mode == IslandMode.always && !paired)
+          PhoneNote(
+            key: const ValueKey('island-needs-pairing'),
+            icon: AppIcons.info,
+            text: l10n.laSettingsNeedsPairing,
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          ),
+      ],
+    );
   }
 }

@@ -25,6 +25,22 @@
 		E6B1C0062F0B000100A1B2C3 /* IslandsChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6B1C0052F0B000100A1B2C3 /* IslandsChannel.swift */; };
 		E6B1C0082F0B000100A1B2C3 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6B1C0072F0B000100A1B2C3 /* ShareViewController.swift */; };
 		E6B1C00C2F0B000100A1B2C3 /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = E6B1C00B2F0B000100A1B2C3 /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		F7D2A0022F0C000100A1B2C3 /* WhaleWakeAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D2A0012F0C000100A1B2C3 /* WhaleWakeAttributes.swift */; };
+		F7D2A0312F0C000100A1B2C3 /* WhaleWakeAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D2A0012F0C000100A1B2C3 /* WhaleWakeAttributes.swift */; };
+		F7D2A0042F0C000100A1B2C3 /* WhaleWakeStrings.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D2A0032F0C000100A1B2C3 /* WhaleWakeStrings.swift */; };
+		F7D2A0322F0C000100A1B2C3 /* WhaleWakeStrings.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D2A0032F0C000100A1B2C3 /* WhaleWakeStrings.swift */; };
+		F7D2A0062F0C000100A1B2C3 /* WhaleWakeViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D2A0052F0C000100A1B2C3 /* WhaleWakeViews.swift */; };
+		F7D2A0332F0C000100A1B2C3 /* WhaleWakeViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D2A0052F0C000100A1B2C3 /* WhaleWakeViews.swift */; };
+		F7D2A0082F0C000100A1B2C3 /* WhaleWakeIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D2A0072F0C000100A1B2C3 /* WhaleWakeIntents.swift */; };
+		F7D2A0342F0C000100A1B2C3 /* WhaleWakeIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D2A0072F0C000100A1B2C3 /* WhaleWakeIntents.swift */; };
+		F7D2A00A2F0C000100A1B2C3 /* WhaleWakeSamples.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D2A0092F0C000100A1B2C3 /* WhaleWakeSamples.swift */; };
+		F7D2A0352F0C000100A1B2C3 /* WhaleWakeSamples.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D2A0092F0C000100A1B2C3 /* WhaleWakeSamples.swift */; };
+		F7D2A00C2F0C000100A1B2C3 /* LiveActivityChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D2A00B2F0C000100A1B2C3 /* LiveActivityChannel.swift */; };
+		F7D2A00E2F0C000100A1B2C3 /* LiveActivityDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D2A00D2F0C000100A1B2C3 /* LiveActivityDecision.swift */; };
+		F7D2A0102F0C000100A1B2C3 /* WhaleWakeActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D2A00F2F0C000100A1B2C3 /* WhaleWakeActivity.swift */; };
+		F7D2A0142F0C000100A1B2C3 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F7D2A0132F0C000100A1B2C3 /* Assets.xcassets */; };
+		F7D2A0162F0C000100A1B2C3 /* WhaleWakeActivity.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = F7D2A0152F0C000100A1B2C3 /* WhaleWakeActivity.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		F7D2A0182F0C000100A1B2C3 /* WhaleWakeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D2A0172F0C000100A1B2C3 /* WhaleWakeTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -41,6 +57,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = E6B1C00E2F0B000100A1B2C3;
 			remoteInfo = ShareExtension;
+		};
+		F7D2A02A2F0C000100A1B2C3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 97C146E61CF9000F007C117D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F7D2A0222F0C000100A1B2C3;
+			remoteInfo = WhaleWakeActivity;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -62,6 +85,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				E6B1C00C2F0B000100A1B2C3 /* ShareExtension.appex in Embed Foundation Extensions */,
+				F7D2A0162F0C000100A1B2C3 /* WhaleWakeActivity.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -100,6 +124,18 @@
 		E6B1C0092F0B000100A1B2C3 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		E6B1C00A2F0B000100A1B2C3 /* ShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
 		E6B1C00B2F0B000100A1B2C3 /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		F7D2A0012F0C000100A1B2C3 /* WhaleWakeAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhaleWakeAttributes.swift; sourceTree = "<group>"; };
+		F7D2A0032F0C000100A1B2C3 /* WhaleWakeStrings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhaleWakeStrings.swift; sourceTree = "<group>"; };
+		F7D2A0052F0C000100A1B2C3 /* WhaleWakeViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhaleWakeViews.swift; sourceTree = "<group>"; };
+		F7D2A0072F0C000100A1B2C3 /* WhaleWakeIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhaleWakeIntents.swift; sourceTree = "<group>"; };
+		F7D2A0092F0C000100A1B2C3 /* WhaleWakeSamples.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhaleWakeSamples.swift; sourceTree = "<group>"; };
+		F7D2A00B2F0C000100A1B2C3 /* LiveActivityChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityChannel.swift; sourceTree = "<group>"; };
+		F7D2A00D2F0C000100A1B2C3 /* LiveActivityDecision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityDecision.swift; sourceTree = "<group>"; };
+		F7D2A00F2F0C000100A1B2C3 /* WhaleWakeActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhaleWakeActivity.swift; sourceTree = "<group>"; };
+		F7D2A0112F0C000100A1B2C3 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		F7D2A0132F0C000100A1B2C3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		F7D2A0152F0C000100A1B2C3 /* WhaleWakeActivity.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WhaleWakeActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		F7D2A0172F0C000100A1B2C3 /* WhaleWakeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhaleWakeTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -118,6 +154,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F7D2A0242F0C000100A1B2C3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -125,6 +168,7 @@
 			isa = PBXGroup;
 			children = (
 				331C807B294A618700263BE5 /* RunnerTests.swift */,
+				F7D2A0172F0C000100A1B2C3 /* WhaleWakeTests.swift */,
 			);
 			path = RunnerTests;
 			sourceTree = "<group>";
@@ -147,6 +191,7 @@
 				9740EEB11CF90186004384FC /* Flutter */,
 				97C146F01CF9000F007C117D /* Runner */,
 				E6B1C00D2F0B000100A1B2C3 /* ShareExtension */,
+				F7D2A0212F0C000100A1B2C3 /* WhaleWakeActivity */,
 				97C146EF1CF9000F007C117D /* Products */,
 				331C8082294A63A400263BE5 /* RunnerTests */,
 			);
@@ -158,6 +203,7 @@
 				97C146EE1CF9000F007C117D /* Runner.app */,
 				331C8081294A63A400263BE5 /* RunnerTests.xctest */,
 				E6B1C00B2F0B000100A1B2C3 /* ShareExtension.appex */,
+				F7D2A0152F0C000100A1B2C3 /* WhaleWakeActivity.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -178,6 +224,9 @@
 				E6B1C0012F0B000100A1B2C3 /* LinksChannel.swift */,
 				E6B1C0032F0B000100A1B2C3 /* ShareChannel.swift */,
 				E6B1C0052F0B000100A1B2C3 /* IslandsChannel.swift */,
+				F7D2A00B2F0C000100A1B2C3 /* LiveActivityChannel.swift */,
+				F7D2A00D2F0C000100A1B2C3 /* LiveActivityDecision.swift */,
+				F7D2A0202F0C000100A1B2C3 /* WhaleWakeShared */,
 				D5A0B00B2F0A000100A1B2C3 /* Runner.entitlements */,
 				D5A0B00C2F0A000100A1B2C3 /* Runner-Release.entitlements */,
 				D5A0B0052F0A000100A1B2C3 /* PrivacyInfo.xcprivacy */,
@@ -195,6 +244,28 @@
 				E6B1C00A2F0B000100A1B2C3 /* ShareExtension.entitlements */,
 			);
 			path = ShareExtension;
+			sourceTree = "<group>";
+		};
+		F7D2A0202F0C000100A1B2C3 /* WhaleWakeShared */ = {
+			isa = PBXGroup;
+			children = (
+				F7D2A0012F0C000100A1B2C3 /* WhaleWakeAttributes.swift */,
+				F7D2A0032F0C000100A1B2C3 /* WhaleWakeStrings.swift */,
+				F7D2A0052F0C000100A1B2C3 /* WhaleWakeViews.swift */,
+				F7D2A0072F0C000100A1B2C3 /* WhaleWakeIntents.swift */,
+				F7D2A0092F0C000100A1B2C3 /* WhaleWakeSamples.swift */,
+			);
+			path = WhaleWakeShared;
+			sourceTree = "<group>";
+		};
+		F7D2A0212F0C000100A1B2C3 /* WhaleWakeActivity */ = {
+			isa = PBXGroup;
+			children = (
+				F7D2A00F2F0C000100A1B2C3 /* WhaleWakeActivity.swift */,
+				F7D2A0132F0C000100A1B2C3 /* Assets.xcassets */,
+				F7D2A0112F0C000100A1B2C3 /* Info.plist */,
+			);
+			path = WhaleWakeActivity;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -233,6 +304,7 @@
 			);
 			dependencies = (
 				E6B1C0142F0B000100A1B2C3 /* PBXTargetDependency */,
+				F7D2A02B2F0C000100A1B2C3 /* PBXTargetDependency */,
 			);
 			name = Runner;
 			packageProductDependencies = (
@@ -259,6 +331,23 @@
 			productReference = E6B1C00B2F0B000100A1B2C3 /* ShareExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		F7D2A0222F0C000100A1B2C3 /* WhaleWakeActivity */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F7D2A0262F0C000100A1B2C3 /* Build configuration list for PBXNativeTarget "WhaleWakeActivity" */;
+			buildPhases = (
+				F7D2A0232F0C000100A1B2C3 /* Sources */,
+				F7D2A0242F0C000100A1B2C3 /* Frameworks */,
+				F7D2A0252F0C000100A1B2C3 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = WhaleWakeActivity;
+			productName = WhaleWakeActivity;
+			productReference = F7D2A0152F0C000100A1B2C3 /* WhaleWakeActivity.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -278,6 +367,9 @@
 						LastSwiftMigration = 1100;
 					};
 					E6B1C00E2F0B000100A1B2C3 = {
+						CreatedOnToolsVersion = 27.0;
+					};
+					F7D2A0222F0C000100A1B2C3 = {
 						CreatedOnToolsVersion = 27.0;
 					};
 				};
@@ -302,6 +394,7 @@
 				97C146ED1CF9000F007C117D /* Runner */,
 				331C8080294A63A400263BE5 /* RunnerTests */,
 				E6B1C00E2F0B000100A1B2C3 /* ShareExtension */,
+				F7D2A0222F0C000100A1B2C3 /* WhaleWakeActivity */,
 			);
 		};
 /* End PBXProject section */
@@ -331,6 +424,14 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F7D2A0252F0C000100A1B2C3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F7D2A0142F0C000100A1B2C3 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -376,6 +477,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */,
+				F7D2A0182F0C000100A1B2C3 /* WhaleWakeTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -391,6 +493,13 @@
 				E6B1C0022F0B000100A1B2C3 /* LinksChannel.swift in Sources */,
 				E6B1C0042F0B000100A1B2C3 /* ShareChannel.swift in Sources */,
 				E6B1C0062F0B000100A1B2C3 /* IslandsChannel.swift in Sources */,
+				F7D2A0022F0C000100A1B2C3 /* WhaleWakeAttributes.swift in Sources */,
+				F7D2A0042F0C000100A1B2C3 /* WhaleWakeStrings.swift in Sources */,
+				F7D2A0062F0C000100A1B2C3 /* WhaleWakeViews.swift in Sources */,
+				F7D2A0082F0C000100A1B2C3 /* WhaleWakeIntents.swift in Sources */,
+				F7D2A00A2F0C000100A1B2C3 /* WhaleWakeSamples.swift in Sources */,
+				F7D2A00C2F0C000100A1B2C3 /* LiveActivityChannel.swift in Sources */,
+				F7D2A00E2F0C000100A1B2C3 /* LiveActivityDecision.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -399,6 +508,19 @@
 			buildActionMask = 2147483647;
 			files = (
 				E6B1C0082F0B000100A1B2C3 /* ShareViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F7D2A0232F0C000100A1B2C3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F7D2A0102F0C000100A1B2C3 /* WhaleWakeActivity.swift in Sources */,
+				F7D2A0312F0C000100A1B2C3 /* WhaleWakeAttributes.swift in Sources */,
+				F7D2A0322F0C000100A1B2C3 /* WhaleWakeStrings.swift in Sources */,
+				F7D2A0332F0C000100A1B2C3 /* WhaleWakeViews.swift in Sources */,
+				F7D2A0342F0C000100A1B2C3 /* WhaleWakeIntents.swift in Sources */,
+				F7D2A0352F0C000100A1B2C3 /* WhaleWakeSamples.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -414,6 +536,11 @@
 			isa = PBXTargetDependency;
 			target = E6B1C00E2F0B000100A1B2C3 /* ShareExtension */;
 			targetProxy = E6B1C0132F0B000100A1B2C3 /* PBXContainerItemProxy */;
+		};
+		F7D2A02B2F0C000100A1B2C3 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F7D2A0222F0C000100A1B2C3 /* WhaleWakeActivity */;
+			targetProxy = F7D2A02A2F0C000100A1B2C3 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -833,6 +960,104 @@
 			};
 			name = Profile;
 		};
+		F7D2A0272F0C000100A1B2C3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 9740EEB21CF90195004384FC /* Debug.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = 4JV8BHB2KW;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = WhaleWakeActivity/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.colex.dshgo.activity;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		F7D2A0282F0C000100A1B2C3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 7AFA3C8E1D35360C0083082E /* Release.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = 4JV8BHB2KW;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = WhaleWakeActivity/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.colex.dshgo.activity;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		F7D2A0292F0C000100A1B2C3 /* Profile */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 7AFA3C8E1D35360C0083082E /* Release.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = 4JV8BHB2KW;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = WhaleWakeActivity/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.colex.dshgo.activity;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Profile;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -872,6 +1097,16 @@
 				E6B1C0162F0B000100A1B2C3 /* Debug */,
 				E6B1C0172F0B000100A1B2C3 /* Release */,
 				E6B1C0182F0B000100A1B2C3 /* Profile */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F7D2A0262F0C000100A1B2C3 /* Build configuration list for PBXNativeTarget "WhaleWakeActivity" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F7D2A0272F0C000100A1B2C3 /* Debug */,
+				F7D2A0282F0C000100A1B2C3 /* Release */,
+				F7D2A0292F0C000100A1B2C3 /* Profile */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

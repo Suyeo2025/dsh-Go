@@ -8191,6 +8191,111 @@ class L10nEn extends L10n {
   String get ipadShortcutHelp => 'Keyboard shortcuts';
 
   @override
+  String get islandThinking => 'Thinking';
+
+  @override
+  String get islandWriting => 'Replying';
+
+  @override
+  String get islandToolBash => 'Run Bash';
+
+  @override
+  String get islandToolRead => 'Read file';
+
+  @override
+  String get islandToolEdit => 'Edit file';
+
+  @override
+  String get islandToolSearch => 'Search';
+
+  @override
+  String get islandToolWeb => 'Browse web';
+
+  @override
+  String islandSummaryDone(int steps, String time) {
+    String _temp0 = intl.Intl.pluralLogic(steps, locale: localeName, other: '$steps steps', one: '1 step');
+    return '$_temp0 · $time';
+  }
+
+  @override
+  String islandDoneLine(String summary) {
+    return 'Done · $summary';
+  }
+
+  @override
+  String get islandFailed => 'Failed';
+
+  @override
+  String islandFailedLine(String reason) {
+    return 'Failed · $reason';
+  }
+
+  @override
+  String islandNeedsApproval(String text) {
+    return 'Needs approval · $text';
+  }
+
+  @override
+  String islandNeedsAnswer(String text) {
+    return 'Needs an answer · $text';
+  }
+
+  @override
+  String get laSettingsSection => 'Dynamic Island and Live Activities';
+
+  @override
+  String get laSettingsIslandMode => 'Dynamic Island';
+
+  @override
+  String get laSettingsModeOff => 'Off';
+
+  @override
+  String get laSettingsModeForeground => 'In app';
+
+  @override
+  String get laSettingsModeAlways => 'Always';
+
+  @override
+  String get laSettingsFooter =>
+      'Off: plain notifications only. In app: shown when you send a message in the app, then kept up to date by push. Always: approvals and questions from elsewhere can also be handled from the lock screen (needs push pairing).';
+
+  @override
+  String get laSettingsNeedsPairing =>
+      'Always needs push pairing first: enter the push bridge address above and turn it on.';
+
+  @override
+  String get laSettingsSystemOffTitle => 'Live Activities are off in Settings';
+
+  @override
+  String get laSettingsSystemOffText =>
+      'Turn on Live Activities for DSH Go in Settings to see them on the Dynamic Island and the lock screen.';
+
+  @override
+  String get laSettingsOpenSystem => 'Open Settings';
+
+  @override
+  String get laSettingsUnsupported =>
+      'This device doesn’t support Live Activities (needs an iPhone on iOS 16.2 or later).';
+
+  @override
+  String get laSettingsStatusShowing => 'Showing';
+
+  @override
+  String get laSettingsStatusIdle => 'Not showing';
+
+  @override
+  String get laSettingsStatusOff => 'Off';
+
+  @override
+  String get laSettingsStatusSystemOff => 'Off in Settings';
+
+  @override
+  String get laSettingsStatusUnsupported => 'Not supported';
+
+  @override
+  String get searchKwIsland => 'dynamic island,live activity,live activities,lock screen,whale';
+
+  @override
   String get launchScreenTitle => 'Launch screen';
 
   @override
@@ -16233,6 +16338,146 @@ class L10nEn extends L10n {
   String shellQuickPanelHint(String path) {
     return 'Change these in $path';
   }
+
+  @override
+  String get smIpadOutline => 'Sidebar outline';
+
+  @override
+  String smIpadHappeningCount(int n) {
+    return 'Happening now, $n';
+  }
+
+  @override
+  String smIpadWorkspaceKey(String name) {
+    return 'Workspace $name';
+  }
+
+  @override
+  String smIpadFolderKey(String name) {
+    return 'Folder $name';
+  }
+
+  @override
+  String get smStateRunning => 'Running';
+
+  @override
+  String get smStateThinking => 'Thinking';
+
+  @override
+  String get smStateWaitingReply => 'Waiting for reply';
+
+  @override
+  String smStateTodoProgress(int done, int total) {
+    return 'To-dos $done/$total';
+  }
+
+  @override
+  String get smStateReorderFailed => 'Order not saved';
+
+  @override
+  String smStateStep(int n) {
+    return 'Step $n';
+  }
+
+  @override
+  String smStateStepDoing(int n, String doing) {
+    return 'Step $n · $doing';
+  }
+
+  @override
+  String get smStateNeedsApproval => 'Needs approval';
+
+  @override
+  String smStateNeedsApprovalOf(String text) {
+    return 'Needs approval · $text';
+  }
+
+  @override
+  String get smStateNeedsAnswer => 'Needs your answer';
+
+  @override
+  String smStateNeedsAnswerOf(String text) {
+    return 'Needs your answer · $text';
+  }
+
+  @override
+  String get smStateNeedsPlanReview => 'Plan needs review';
+
+  @override
+  String get smStateDone => 'Done';
+
+  @override
+  String smStateDoneSummary(int steps, String elapsed) {
+    return 'Done · $steps steps · $elapsed';
+  }
+
+  @override
+  String get smStateFailed => 'Failed';
+
+  @override
+  String get smUiHappening => 'Happening now';
+
+  @override
+  String smUiHappeningMore(int n) {
+    return '$n more';
+  }
+
+  @override
+  String get smUiHappeningLess => 'Show less';
+
+  @override
+  String smUiElapsed(int minutes, int seconds) {
+    return '$minutes min $seconds s so far';
+  }
+
+  @override
+  String get smUiLayoutTime => 'By time';
+
+  @override
+  String get smUiLayoutTree => 'Workspace tree';
+
+  @override
+  String get smUiLayoutFilterHint => 'Clear the filter to switch';
+
+  @override
+  String get smUiLayoutTitle => 'View';
+
+  @override
+  String get smUiOtherChats => 'Other chats';
+
+  @override
+  String smUiWorkspaceRunning(int n) {
+    return '$n running';
+  }
+
+  @override
+  String smUiWorkspaceSemantics(String name, int count) {
+    return 'Workspace $name, $count chats';
+  }
+
+  @override
+  String get smUiWorkspaceEmpty => 'No chats in this workspace yet';
+
+  @override
+  String get smUiMoveUp => 'Move up';
+
+  @override
+  String get smUiMoveDown => 'Move down';
+
+  @override
+  String get smUiMoveFirst => 'Move to top';
+
+  @override
+  String get smUiMoveLast => 'Move to bottom';
+
+  @override
+  String get smUiFolder => 'Folder';
+
+  @override
+  String get smUiMoreActions => 'More actions';
+
+  @override
+  String get smUiDragToReorder => 'Drag to reorder';
 
   @override
   String starPromptTitle(int hours) {

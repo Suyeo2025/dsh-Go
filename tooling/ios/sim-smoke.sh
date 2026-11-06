@@ -27,7 +27,7 @@ LIVE=1; SYNC=1; MAC_ARGS=()
 for a in "$@"; do
   case "$a" in
     --offline) LIVE=0 ;;
-    --keep|--ipad|--tour|--dark|--perf|--islands) MAC_ARGS+=("$a") ;;
+    --keep|--ipad|--tour|--dark|--perf|--islands|--only=*) MAC_ARGS+=("$a") ;;
     --links) MAC_ARGS+=("$a"); LIVE=0 ;;
     --no-sync) SYNC=0 ;;
     -h|--help) sed -n '2,18p' "$0"; exit 0 ;;

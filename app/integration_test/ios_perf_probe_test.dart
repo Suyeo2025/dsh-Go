@@ -39,6 +39,7 @@ import 'package:dsh_app/ui/session/session_tab.dart';
 import 'package:dsh_app/ui/settings/font_licenses.dart';
 import 'package:dsh_app/ui/settings/index/settings_pages.dart';
 import 'package:dsh_app/ui/shell/home_shell.dart';
+import 'package:dsh_app/state/drawer_view_state.dart' show DrawerLayout, drawerViewProvider;
 import 'package:dsh_app/ui/shell/sessions_drawer.dart';
 import 'package:dsh_app/ui/web/local_web_screen.dart' show LocalWebScreen;
 import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator;
@@ -80,6 +81,10 @@ final class _LoggingOverrides extends HttpOverrides {
 
 /// Widgets that animate for as long as they are on screen (checked by type name).
 const _animators = {
+  'HappeningSection',
+  'HappeningRow',
+  'HappeningClock',
+  'OutlinePane',
   'WhaleTail',
   'PetSprite',
   'PetLayer',
@@ -535,6 +540,24 @@ class _Probe {
       await home();
       await openDrawer();
     });
+    // The wave-2 drawer: 正在发生 on top (rows for running / waiting conversations), the time list
+    // or the workspace tree below. Pet off: the drawer's own frames alone.
+    final drawerView = container.read(drawerViewProvider.notifier);
+    final layoutWas = container.read(drawerViewProvider).layout;
+    await pets.setPack(noPetId);
+    await scene('drawer-open-pet-off', '抽屉打开（按时间），宠物关', () async {
+      await drawerView.setLayout(DrawerLayout.time);
+      await home();
+      await openDrawer();
+    });
+    await scene('drawer-tree-pet-off', '抽屉打开（工作区树），宠物关', () async {
+      await drawerView.setLayout(DrawerLayout.tree);
+      await home();
+      await openDrawer();
+    });
+    await drawerView.setLayout(layoutWas);
+    await pets.setPack(defaultPetId);
+    await frames(1000);
 
     final all = (await sessions()).where((s) => !_riskyTitle.hasMatch(s.title)).toList();
     final running = all.where((s) => s.running).map((s) => s.key).firstOrNull;

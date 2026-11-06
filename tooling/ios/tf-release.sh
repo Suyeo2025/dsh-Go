@@ -13,6 +13,9 @@
 #          portal; see README "Share extension signing"). Without it, this archive alone leaves the
 #          extension out (the project is edited for the archive and restored) and signs the app
 #          without the App Group entitlement; the target and its code stay as they are.
+#          --activity / --no-activity: with or without the 「鲸游」Live Activity extension
+#          (WhaleWakeActivity, com.colex.dshgo.activity; default: with it when profile.mjs reports
+#          its App Store profile ACTIVE). Left out the same way: this archive only.
 # Steps: keychain -> profile.mjs -> flutter --config-only -> xcodebuild archive (manual signing via
 # Signing.xcconfig + --keychain) -> export -> altool upload -> testflight.mjs (wait for processing,
 # compliance, internal group, read back).
@@ -20,7 +23,7 @@ set -uo pipefail
 HERE=${0:A:h}
 source $HERE/env.sh
 
-UPLOAD=1; VALIDATE=0; SHARE=auto; BN=$(date +%Y%m%d%H%M); BNAME=""
+UPLOAD=1; VALIDATE=0; SHARE=auto; ACTIVITY=auto; BN=$(date +%Y%m%d%H%M); BNAME=""
 while (( $# )); do
   case $1 in
     --no-upload) UPLOAD=0 ;;
@@ -29,6 +32,8 @@ while (( $# )); do
     --build-name) BNAME=$2; shift ;;
     --share) SHARE=on ;;
     --no-share) SHARE=off ;;
+    --activity) ACTIVITY=on ;;
+    --no-activity) ACTIVITY=off ;;
     *) echo "unknown arg $1" >&2; exit 2 ;;
   esac
   shift
@@ -42,7 +47,7 @@ step() { echo "--- $* $(date '+%F %T')"; }
 die() { echo "FAILED: $*"; echo "TF_RC=1"; exit 1; }
 
 {
-step "start build=$BN upload=$UPLOAD validate=$VALIDATE share=$SHARE"
+step "start build=$BN upload=$UPLOAD validate=$VALIDATE share=$SHARE activity=$ACTIVITY"
 
 step preflight
 # App Store validation (ITMS-90035) treats any bundled file starting with "#!" as unsigned script
@@ -72,27 +77,50 @@ if [[ $SHARE == auto ]]; then SHARE=$( (( HAVE_GROUP )) && echo on || echo off )
 [[ $SHARE == on ]] && (( ! HAVE_GROUP )) && die "--share: the App Store profiles don't carry $GROUP (README: Share extension signing)"
 echo "share extension: $SHARE (profiles carry $GROUP: $HAVE_GROUP)"
 
+# The Live Activity extension needs only its own App Store profile (no capability).
+ACTIVITY_PROFILE="dg $DG_BUNDLE_ID.activity"
+if print -r -- "$PROFILE_OUT" | grep -q "^profile \"$ACTIVITY_PROFILE\" .* ACTIVE "; then HAVE_ACTIVITY=1; else HAVE_ACTIVITY=0; fi
+if [[ $ACTIVITY == auto ]]; then ACTIVITY=$( (( HAVE_ACTIVITY )) && echo on || echo off ); fi
+[[ $ACTIVITY == on ]] && (( ! HAVE_ACTIVITY )) && die "--activity: no ACTIVE '$ACTIVITY_PROFILE' profile"
+echo "activity extension: $ACTIVITY (profile: $HAVE_ACTIVITY)"
+
 XCCONFIG=$HERE/Signing.xcconfig
 EXPORT_OPTIONS=$HERE/ExportOptions.plist
-if [[ $SHARE == off ]]; then
-  # This archive only: no extension embedded or built, the app without the App Group entitlement.
+LEAVE_OUT=()
+[[ $SHARE == off ]] && LEAVE_OUT+=(ShareExtension)
+[[ $ACTIVITY == off ]] && LEAVE_OUT+=(WhaleWakeActivity)
+if (( ${#LEAVE_OUT} )); then
+  # This archive only: those extensions neither built nor embedded (the project file is edited and
+  # restored on exit; targets and code stay).
   PBX=$DG_APP/ios/Runner.xcodeproj/project.pbxproj
-  cp $PBX $DG_BUILD/project.pbxproj.share-$BN
-  trap 'cp $DG_BUILD/project.pbxproj.share-$BN $PBX && rm -f $DG_BUILD/project.pbxproj.share-$BN' EXIT
-  python3 - $PBX <<'PY' || die "no-share project edit"
+  cp $PBX $DG_BUILD/project.pbxproj.ext-$BN
+  trap 'cp $DG_BUILD/project.pbxproj.ext-$BN $PBX && rm -f $DG_BUILD/project.pbxproj.ext-$BN' EXIT
+  python3 - $PBX $LEAVE_OUT <<'PY' || die "extension project edit"
 import re, sys
 p = sys.argv[1]
 s = open(p, encoding='utf-8').read()
-embed = re.search(r'\t+(\w+) /\* ShareExtension\.appex in Embed Foundation Extensions \*/,\n', s)
-target = re.search(r'(\w+) /\* ShareExtension \*/ = \{\n\t+isa = PBXNativeTarget;', s)
-assert embed and target, 'share extension not found in the project'
-s = s.replace(embed.group(0), '', 1)
-# The Runner dependency whose proxy points at the extension target.
-for dep in re.finditer(r'(\w+) /\* PBXTargetDependency \*/ = \{[^}]*?target = ' + target.group(1), s):
-    s = re.sub(r'\t+' + dep.group(1) + r' /\* PBXTargetDependency \*/,\n', '', s, count=1)
+for name in sys.argv[2:]:
+    embed = re.search(r'\t+(\w+) /\* ' + name + r'\.appex in Embed Foundation Extensions \*/,\n', s)
+    target = re.search(r'(\w+) /\* ' + name + r' \*/ = \{\n\t+isa = PBXNativeTarget;', s)
+    assert embed and target, name + ' not found in the project'
+    s = s.replace(embed.group(0), '', 1)
+    # The Runner dependency whose proxy points at the extension target.
+    for dep in re.finditer(r'(\w+) /\* PBXTargetDependency \*/ = \{[^}]*?target = ' + target.group(1), s):
+        s = re.sub(r'\t+' + dep.group(1) + r' /\* PBXTargetDependency \*/,\n', '', s, count=1)
 open(p, 'w', encoding='utf-8').write(s)
 PY
-  grep -q 'ShareExtension.appex in Embed Foundation Extensions \*/,' $PBX && die "extension still embedded"
+  for x in $LEAVE_OUT; do
+    grep -q "$x.appex in Embed Foundation Extensions \*/," $PBX && die "$x still embedded"
+  done
+  EXPORT_OPTIONS=$DG_BUILD/ExportOptions-ext.plist
+  cp $HERE/ExportOptions.plist $EXPORT_OPTIONS
+  drop_export() {
+    python3 -c "import plistlib,sys; p=sys.argv[1]; d=plistlib.load(open(p,'rb')); d['provisioningProfiles'].pop(sys.argv[2],None); plistlib.dump(d,open(p,'wb'))" $EXPORT_OPTIONS $1
+  }
+  [[ $ACTIVITY == off ]] && drop_export $DG_BUNDLE_ID.activity
+fi
+if [[ $SHARE == off ]]; then
+  # The app without the App Group entitlement (nothing to share it with).
   NOSHARE_ENT=$DG_BUILD/Runner-noshare.entitlements
   cp $DG_APP/ios/Runner/Runner-Release.entitlements $NOSHARE_ENT
   # (plutil -remove would read the dots of the key as a key path.)
@@ -104,9 +132,7 @@ PY
     echo "DG_ENT_Runner = $NOSHARE_ENT"
     echo 'CODE_SIGN_ENTITLEMENTS = $(DG_ENT_$(TARGET_NAME))'
   } > $XCCONFIG
-  EXPORT_OPTIONS=$DG_BUILD/ExportOptions-noshare.plist
-  cp $HERE/ExportOptions.plist $EXPORT_OPTIONS
-  python3 -c "import plistlib,sys; p=sys.argv[1]; d=plistlib.load(open(p,'rb')); d['provisioningProfiles'].pop(sys.argv[2],None); plistlib.dump(d,open(p,'wb'))" $EXPORT_OPTIONS $DG_BUNDLE_ID.share
+  drop_export $DG_BUNDLE_ID.share
 fi
 
 step "flutter config-only"

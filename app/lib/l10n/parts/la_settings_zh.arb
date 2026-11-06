@@ -1,0 +1,19 @@
+{
+  "laSettingsSection": "灵动岛与锁屏实时活动",
+  "laSettingsIslandMode": "灵动岛",
+  "laSettingsModeOff": "关",
+  "laSettingsModeForeground": "仅前台",
+  "laSettingsModeAlways": "前后台都显示",
+  "laSettingsFooter": "关：只用普通通知。仅前台：在 App 里发出消息时显示，之后由推送维持。前后台都显示：别的端的审批和提问也能从锁屏直接处理（需要配对推送）。",
+  "laSettingsNeedsPairing": "前后台都显示需要先配对推送：在本页上方填推送服务地址并开启。",
+  "laSettingsSystemOffTitle": "实时活动已在系统里关闭",
+  "laSettingsSystemOffText": "在系统设置里为 DSH Go 打开实时活动，灵动岛和锁屏才会显示。",
+  "laSettingsOpenSystem": "打开系统设置",
+  "laSettingsUnsupported": "这台设备不支持实时活动（需要 iOS 16.2 以上的 iPhone）。",
+  "laSettingsStatusShowing": "正在显示",
+  "laSettingsStatusIdle": "未在显示",
+  "laSettingsStatusOff": "已关闭",
+  "laSettingsStatusSystemOff": "系统已关闭",
+  "laSettingsStatusUnsupported": "不支持",
+  "searchKwIsland": "灵动岛,实时活动,锁屏,鲸游,Live Activity,Dynamic Island"
+}

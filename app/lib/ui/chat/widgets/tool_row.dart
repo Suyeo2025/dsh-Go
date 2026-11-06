@@ -18,6 +18,7 @@ import '../render/ansi_text.dart';
 import '../render/code_block.dart';
 import '../render/diff_view.dart';
 import '../media/media_card.dart';
+import '../chat_focus_target.dart';
 import '../tool_view.dart';
 import '../turn_summary.dart';
 import 'approval_card.dart';
@@ -165,11 +166,14 @@ class _ToolRowState extends State<ToolRow> {
             padding: const EdgeInsets.only(top: 4, bottom: 4),
             child: StreamFadeIn(
               key: ValueKey(pending.eventId),
-              child: ApprovalCard(
-                request: pending,
-                view: v,
-                onRespond: widget.onRespond,
-                onAllowAll: widget.onAllowAll,
+              child: ChatFocusTarget(
+                eventId: pending.eventId,
+                child: ApprovalCard(
+                  request: pending,
+                  view: v,
+                  onRespond: widget.onRespond,
+                  onAllowAll: widget.onAllowAll,
+                ),
               ),
             ),
           ),

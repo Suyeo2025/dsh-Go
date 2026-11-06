@@ -5,6 +5,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'l10n/l10n.dart';
+import 'live/live_activity_state.dart';
 import 'performance/performance_state.dart';
 import 'performance/refresh_rate.dart';
 import 'state/app_info.dart';
@@ -65,6 +66,9 @@ class _DshAppState extends ConsumerState<DshApp> with WidgetsBindingObserver {
     ref.read(usageStatsProvider);
     // 公测版: the star prompt counts time in front from launch, in either 界面.
     if (ref.read(starPromptGateProvider)) ref.read(starPromptProvider);
+    // 灵动岛 (iOS): the「鲸游」Live Activity follows the conversation a message was sent in.
+    // Listened, not just read: an unlistened provider's own subscriptions are paused.
+    ref.listenManual(islandControllerProvider, (_, _) {});
     // 刷新率: some systems cap third-party apps at 60 Hz and then show their per-app
     // switch as an in-app setting; the app answers frames to run at the fastest rate
     // while it is actually drawing (see RefreshRateService).

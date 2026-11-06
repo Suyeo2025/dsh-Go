@@ -52,6 +52,7 @@ import 'package:dsh_app/ui/shell/drawer/drawer_filter_bar.dart' show DrawerViewB
 import 'package:dsh_app/ui/shell/home_shell.dart';
 import 'package:dsh_app/ui/shell/quick_panel.dart';
 import 'package:dsh_app/ui/shell/session_search_page.dart' show SessionSearchBar;
+import 'package:dsh_app/state/drawer_view_state.dart' show DrawerLayout, drawerViewProvider;
 import 'package:dsh_app/ui/shell/sessions_drawer.dart';
 import 'package:dsh_app/ui/terminal/terminal_page.dart' show TerminalPage;
 import 'package:dsh_app/ui/theme/app_icons.dart';
@@ -72,6 +73,10 @@ const _url = String.fromEnvironment('SMOKE_DIRECT_URL');
 const _token = String.fromEnvironment('SMOKE_DIRECT_TOKEN');
 const _variant = String.fromEnvironment('TOUR_VARIANT', defaultValue: 'iphone-light');
 const _landscape = bool.fromEnvironment('TOUR_LANDSCAPE');
+
+/// `TOUR_ONLY=drawer,settings` (sim-smoke.sh --tour --only=…): those parts alone.
+const _only = String.fromEnvironment('TOUR_ONLY');
+bool _runs(String part) => _only.isEmpty || _only.split(',').contains(part);
 
 String _scrub(String s) => _token.isEmpty ? s : s.replaceAll(_token, '<token>');
 
@@ -438,14 +443,14 @@ class _Tour {
       problem('onboarding', 'never reached the home screen; tour stops');
       return;
     }
-    await part('home', () => shot('home-new-chat', '主界面：新对话（空会话）'));
-    await composer(null);
-    await drawer();
-    await chats();
-    await quickPanel();
-    await settings();
-    await web();
-    if (!_landscape) await landscape();
+    if (_runs('home')) await part('home', () => shot('home-new-chat', '主界面：新对话（空会话）'));
+    if (_runs('composer')) await composer(null);
+    if (_runs('drawer')) await drawer();
+    if (_runs('chats')) await chats();
+    if (_runs('quick-panel')) await quickPanel();
+    if (_runs('settings')) await settings();
+    if (_runs('web')) await web();
+    if (!_landscape && _runs('landscape')) await landscape();
   }
 
   Future<void> onboarding() async {
@@ -533,11 +538,61 @@ class _Tour {
     }
   }
 
+  /// The wave-2 drawer: 正在发生, the time / tree switch, the workspace tree, the iPad outline.
+  Future<void> drawerWave2() async {
+    final container = ProviderScope.containerOf(tester.element(find.byType(HomeShell)));
+    final happening = find.byKey(const ValueKey('happening'));
+    final rows = find.byWidgetPredicate(
+      (w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('happening-session'),
+    );
+    debugPrint('TOUR_HAPPENING section=${happening.evaluate().isNotEmpty} rows=${rows.evaluate().length}');
+    if (happening.evaluate().isNotEmpty) {
+      await Scrollable.ensureVisible(tester.element(happening), alignment: 0);
+      await frames(800);
+      await shot('drawer-happening', '抽屉：正在发生（运行中 / 待确认）');
+    } else {
+      skipped.add({'name': 'drawer-happening', 'why': 'nothing running or waiting on the host now'});
+    }
+    final views = container.read(drawerViewProvider.notifier);
+    final was = container.read(drawerViewProvider).layout;
+    await views.setLayout(DrawerLayout.tree);
+    await frames(3000);
+    await shot('drawer-tree', '抽屉：工作区树');
+    final groups = find.byType(Scrollable);
+    if (groups.evaluate().isNotEmpty) {
+      await tester.drag(find.byType(SessionsDrawer), const Offset(0, -500));
+      await frames(1200);
+      await shot('drawer-tree-scrolled', '抽屉：工作区树（往下）');
+      await tester.drag(find.byType(SessionsDrawer), const Offset(0, 1500));
+      await frames(800);
+    }
+    await views.setLayout(was);
+    await frames(1200);
+    final outline = find.byKey(const ValueKey('outline-happening'));
+    if (outline.evaluate().isNotEmpty) {
+      await shot('outline', 'iPad：侧栏大纲列');
+      for (final key in ['outline-happening', 'outline-archived', 'outline-all']) {
+        final f = find.byKey(ValueKey(key));
+        if (f.hitTestable().evaluate().isEmpty) continue;
+        await tester.tap(f.hitTestable().first);
+        await frames(1500);
+        if (key != 'outline-all') await shot('outline-${key.substring(8)}', 'iPad 大纲列：${key.substring(8)}');
+        // 已归档 is a page of its own over the chat.
+        if (key == 'outline-archived') await back(1500);
+      }
+    }
+  }
+
   Future<void> drawer() async {
     await part('drawer', () async {
       await openDrawer();
-      await frames(1500);
+      // The list (and 正在发生 over it) comes in after the drawer opens: shoot it loaded.
+      if (!await waitFor(find.byElementPredicate(_isSessionTile), seconds: 40)) {
+        problem('drawer', 'the conversation list did not load in 40 s');
+      }
+      await frames(2500);
       await shot('drawer', '抽屉：会话列表');
+      await drawerWave2();
       final filters = find.descendant(of: find.byType(SessionsDrawer), matching: find.byType(CapsuleChoiceChip));
       final count = filters.evaluate().length;
       for (var i = 1; i < count; i++) {

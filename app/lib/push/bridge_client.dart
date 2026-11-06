@@ -280,6 +280,57 @@ class BridgeClient {
     );
   }
 
+  /// Registers the push token of the「鲸游」Live Activity of [sessionId]:
+  /// the bridge sends its `liveactivity` updates while the app is away.
+  /// [clockOffsetMs] is this phone's clock minus the Host's; [snapshot] the
+  /// ContentState shown now (live/live_activity_content.dart) plus `title`.
+  Future<void> putLiveActivity(
+    String token, {
+    required String sessionId,
+    required String activityToken,
+    required String lang,
+    required int clockOffsetMs,
+    required Map<String, Object?> snapshot,
+    required int startedAtMs,
+  }) async {
+    await _request(
+      'PUT',
+      '/v1/device/live-activity',
+      token: token,
+      body: {
+        'sessionId': sessionId,
+        'token': activityToken,
+        'lang': lang,
+        'clockOffsetMs': clockOffsetMs,
+        'snapshot': snapshot,
+        'startedAtMs': startedAtMs,
+      },
+    );
+  }
+
+  /// The Activity of [sessionId] is over: no more updates for it. Idempotent.
+  Future<void> deleteLiveActivity(String token, String sessionId) async {
+    // Session ids are `[A-Za-z0-9._:-]`, all path-safe as they are.
+    if (!RegExp(r'^[A-Za-z0-9._:-]{1,128}$').hasMatch(sessionId)) throw const BridgeException('bad-request');
+    await _request('DELETE', '/v1/device/live-activity/$sessionId', token: token);
+  }
+
+  /// The push-to-start token (iOS 17.2+): the bridge may start an Activity
+  /// for an approval or a question while the app is away, in [lang]
+  /// (`zh` / `en`), dated with [clockOffsetMs] (this phone minus the Host).
+  Future<void> putPushToStart(String token, String startToken, {String? lang, int? clockOffsetMs}) async {
+    await _request(
+      'PUT',
+      '/v1/device/live-activity/start-token',
+      token: token,
+      body: {'token': startToken, 'lang': ?lang, 'clockOffsetMs': ?clockOffsetMs},
+    );
+  }
+
+  Future<void> deletePushToStart(String token) async {
+    await _request('DELETE', '/v1/device/live-activity/start-token', token: token);
+  }
+
   Future<BridgeDevice> device(String token) async {
     final d = BridgeDevice.fromJson(await _request('GET', '/v1/device', token: token));
     if (d == null) throw const BridgeException('bad-response');

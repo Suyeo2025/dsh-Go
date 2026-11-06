@@ -6,6 +6,11 @@
 	     (plan/ios-perf.md). Set back to true (120 Hz) once the heat is confirmed down on a device. -->
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<false/>
+	<!-- 「鲸游」Live Activity (WhaleWakeActivity): pushed updates at the normal budget only. -->
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
+	<false/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

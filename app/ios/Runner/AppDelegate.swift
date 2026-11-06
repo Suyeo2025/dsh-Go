@@ -11,6 +11,8 @@ import UserNotifications
     // Before anything else, so the tap that cold-started the app reaches PushChannel.
     UNUserNotificationCenter.current().delegate = self
     excludeFontsFromBackup()
+    // Before the engine: an Allow tap on the Live Activity may be what launched the App.
+    LiveActivityChannel.shared.prepare()
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
@@ -47,6 +49,9 @@ import UserNotifications
     }
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "DshIslandsChannel") {
       IslandsChannel.attach(messenger: registrar.messenger())
+    }
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "DshLiveActivityChannel") {
+      LiveActivityChannel.shared.attach(messenger: registrar.messenger())
     }
   }
 

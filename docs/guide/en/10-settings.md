@@ -50,6 +50,21 @@ Shows your DeepSeek account or API key and balance; tap it to open your account.
   - **Send anonymous usage stats**: on by default, off anytime; see [FAQ](11-faq.md).
   - **Upload chat logs to DeepSeek**: shown when the current host has it.
 
+## Dynamic Island (iPhone)
+
+<!-- nav: commonSettings,pushTitle,laSettingsIslandMode -->
+`Settings › Push notifications › Dynamic Island`
+
+Needs an iPhone on iOS 16.2 or later; iPad and Android don't have it.
+
+- **Off**: no Live Activity, plain notifications only.
+- **In app** (default): when you send a message in the app and the turn starts, a Live Activity appears on the Dynamic Island and the lock screen: the title, the tool at work, the step and a timer; with a to-do list it moves by how much is done. After you leave the app the push bridge keeps it up to date, so pair push on the same page first.
+- **Always**: as above, and approvals and questions started elsewhere also show up on the lock screen (iOS 17.2 or later).
+
+When something needs your approval, the expanded island or the lock-screen banner shows “Allow” and “Deny”. On a locked phone the buttons only ask you to unlock; risky commands (such as a force push or deleting a whole folder) also ask for Face ID. The buttons stay for 2 minutes, then turn into “Open”, which takes you to the app. There is no "allow all", and nothing is ever allowed on its own. Questions are always answered in the app.
+
+When a turn finishes, the Live Activity goes away after a few seconds; after an error it stays for 15 minutes. If Live Activities are off for DSH Go in Settings, this row is greyed out with a note; tap **Open Settings** to turn them on. With the Dynamic Island off, approvals, questions and finished turns still come as plain notifications; nothing is lost.
+
 ## Hosts
 
 - **Local engine** and **Remote host**: see [Engine and remote hosts](03-engine-hosts.md).

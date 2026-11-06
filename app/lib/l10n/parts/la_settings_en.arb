@@ -1,0 +1,19 @@
+{
+  "laSettingsSection": "Dynamic Island and Live Activities",
+  "laSettingsIslandMode": "Dynamic Island",
+  "laSettingsModeOff": "Off",
+  "laSettingsModeForeground": "In app",
+  "laSettingsModeAlways": "Always",
+  "laSettingsFooter": "Off: plain notifications only. In app: shown when you send a message in the app, then kept up to date by push. Always: approvals and questions from elsewhere can also be handled from the lock screen (needs push pairing).",
+  "laSettingsNeedsPairing": "Always needs push pairing first: enter the push bridge address above and turn it on.",
+  "laSettingsSystemOffTitle": "Live Activities are off in Settings",
+  "laSettingsSystemOffText": "Turn on Live Activities for DSH Go in Settings to see them on the Dynamic Island and the lock screen.",
+  "laSettingsOpenSystem": "Open Settings",
+  "laSettingsUnsupported": "This device doesn’t support Live Activities (needs an iPhone on iOS 16.2 or later).",
+  "laSettingsStatusShowing": "Showing",
+  "laSettingsStatusIdle": "Not showing",
+  "laSettingsStatusOff": "Off",
+  "laSettingsStatusSystemOff": "Off in Settings",
+  "laSettingsStatusUnsupported": "Not supported",
+  "searchKwIsland": "dynamic island,live activity,live activities,lock screen,whale"
+}

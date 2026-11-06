@@ -16,6 +16,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../live/live_activity_bridge_sync.dart';
 import '../platform/platform_caps.dart';
 import '../remote/secret_store.dart';
 import '../state/app_info.dart';
@@ -367,6 +368,8 @@ class PushController extends Notifier<PushState> {
     } finally {
       if (ref.mounted) state = state.copyWith(busy: false);
     }
+    // 灵动岛: the Live Activity tokens known so far go to the new bridge.
+    if (ref.mounted) unawaited(ref.read(liveActivityBridgeSyncProvider).resync());
     await enableNotifications();
   }
 
@@ -414,6 +417,8 @@ class PushController extends Notifier<PushState> {
           unawaited(_channel.register());
         }
       }
+      // 灵动岛: the bridge still knows this phone; re-send the Live Activity tokens.
+      unawaited(ref.read(liveActivityBridgeSyncProvider).resync());
     } on BridgeException catch (e) {
       if (!ref.mounted) return;
       if (e.unpaired) {
@@ -496,6 +501,8 @@ class PushController extends Notifier<PushState> {
       }
       await _secrets.delete(deviceTokenKey);
       await _save(null);
+      // The bridge drops the whole device: forget the Live Activity tokens here only.
+      if (ref.mounted) unawaited(ref.read(liveActivityBridgeSyncProvider).clear(remote: false));
     } finally {
       if (ref.mounted) state = state.copyWith(busy: false, pairing: () => null, health: PushHealth.off);
     }

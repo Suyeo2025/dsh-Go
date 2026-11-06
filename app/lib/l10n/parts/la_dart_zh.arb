@@ -1,0 +1,53 @@
+{
+  "islandThinking": "思考中",
+  "islandWriting": "回复中",
+  "islandToolBash": "运行 Bash",
+  "islandToolRead": "读取文件",
+  "islandToolEdit": "编辑文件",
+  "islandToolSearch": "搜索",
+  "islandToolWeb": "上网",
+  "islandSummaryDone": "{steps} 步 · {time}",
+  "@islandSummaryDone": {
+    "placeholders": {
+      "steps": {
+        "type": "int"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "islandDoneLine": "做完了 · {summary}",
+  "@islandDoneLine": {
+    "placeholders": {
+      "summary": {
+        "type": "String"
+      }
+    }
+  },
+  "islandFailed": "出错了",
+  "islandFailedLine": "出错了 · {reason}",
+  "@islandFailedLine": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "islandNeedsApproval": "等你确认 · {text}",
+  "@islandNeedsApproval": {
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "islandNeedsAnswer": "等你回答 · {text}",
+  "@islandNeedsAnswer": {
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  }
+}

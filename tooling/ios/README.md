@@ -69,6 +69,23 @@ for it and restored) and the app is signed without the App Group entitlement. `-
 (stops instead), `--no-share` leaves it out. Any App ID capability change invalidates the profiles:
 `node tooling/ios/profile.mjs --renew`.
 
+## Live Activity 「鲸游」(WhaleWakeActivity)
+
+- Target `WhaleWakeActivity` (widget extension, `com.colex.dshgo.activity`, iOS 16.2+), embedded next to
+  the share extension. Attributes, views, intents, copy and samples live in `app/ios/Runner/WhaleWakeShared/`
+  and are compiled into both Runner and the extension; pixel frames in `WhaleWakeActivity/Assets.xcassets`
+  (40 PNGs from `plan/design/live-activity-a/assets/`, drawn at their own size, nearest neighbour).
+- Runner side: `LiveActivityChannel.swift` (`dsh/live_activity`, contract in `plan/wave2-reports/la-dart.md`),
+  `LiveActivityDecision.swift` (Allow / Deny: unlock required, Face ID again for high risk, bridge
+  `POST /v1/approvals/<id>/decision`, otherwise the App opens; never allows on its own).
+- Signing: no capability. `profile.mjs` registers the bundle id and keeps `dg [dev ]com.colex.dshgo.activity`
+  (optional: a failure prints `PROFILE_FAILED` and the rest goes on). `tf-release.sh --activity / --no-activity`,
+  default: embedded when that App Store profile is ACTIVE, else left out of that archive only.
+- Check on the Mac: `zsh tooling/ios/la-sim-mac.zsh` → `logs/live-activity/`: `RunnerTests/WhaleWakeTests`,
+  rendered boards of every state (`boards/la-*.png`), and every sample Activity started on a throwaway
+  simulator (`-DSHGOLADemo <sample>`, simulator builds only). The Dynamic Island itself can't be shot here:
+  a simulator without Simulator.app suppresses it, and simctl can't long-press or lock.
+
 ## Notes / pitfalls
 
 - Never run `flutter create` in the real tree: it re-resolves `pubspec.lock` (downgrades) and rewrites

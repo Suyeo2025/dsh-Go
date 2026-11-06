@@ -7755,6 +7755,106 @@ class L10nZh extends L10n {
   String get ipadShortcutHelp => '快捷键速查';
 
   @override
+  String get islandThinking => '思考中';
+
+  @override
+  String get islandWriting => '回复中';
+
+  @override
+  String get islandToolBash => '运行 Bash';
+
+  @override
+  String get islandToolRead => '读取文件';
+
+  @override
+  String get islandToolEdit => '编辑文件';
+
+  @override
+  String get islandToolSearch => '搜索';
+
+  @override
+  String get islandToolWeb => '上网';
+
+  @override
+  String islandSummaryDone(int steps, String time) {
+    return '$steps 步 · $time';
+  }
+
+  @override
+  String islandDoneLine(String summary) {
+    return '做完了 · $summary';
+  }
+
+  @override
+  String get islandFailed => '出错了';
+
+  @override
+  String islandFailedLine(String reason) {
+    return '出错了 · $reason';
+  }
+
+  @override
+  String islandNeedsApproval(String text) {
+    return '等你确认 · $text';
+  }
+
+  @override
+  String islandNeedsAnswer(String text) {
+    return '等你回答 · $text';
+  }
+
+  @override
+  String get laSettingsSection => '灵动岛与锁屏实时活动';
+
+  @override
+  String get laSettingsIslandMode => '灵动岛';
+
+  @override
+  String get laSettingsModeOff => '关';
+
+  @override
+  String get laSettingsModeForeground => '仅前台';
+
+  @override
+  String get laSettingsModeAlways => '前后台都显示';
+
+  @override
+  String get laSettingsFooter => '关：只用普通通知。仅前台：在 App 里发出消息时显示，之后由推送维持。前后台都显示：别的端的审批和提问也能从锁屏直接处理（需要配对推送）。';
+
+  @override
+  String get laSettingsNeedsPairing => '前后台都显示需要先配对推送：在本页上方填推送服务地址并开启。';
+
+  @override
+  String get laSettingsSystemOffTitle => '实时活动已在系统里关闭';
+
+  @override
+  String get laSettingsSystemOffText => '在系统设置里为 DSH Go 打开实时活动，灵动岛和锁屏才会显示。';
+
+  @override
+  String get laSettingsOpenSystem => '打开系统设置';
+
+  @override
+  String get laSettingsUnsupported => '这台设备不支持实时活动（需要 iOS 16.2 以上的 iPhone）。';
+
+  @override
+  String get laSettingsStatusShowing => '正在显示';
+
+  @override
+  String get laSettingsStatusIdle => '未在显示';
+
+  @override
+  String get laSettingsStatusOff => '已关闭';
+
+  @override
+  String get laSettingsStatusSystemOff => '系统已关闭';
+
+  @override
+  String get laSettingsStatusUnsupported => '不支持';
+
+  @override
+  String get searchKwIsland => '灵动岛,实时活动,锁屏,鲸游,Live Activity,Dynamic Island';
+
+  @override
   String get launchScreenTitle => '启动画面';
 
   @override
@@ -15389,6 +15489,146 @@ class L10nZh extends L10n {
   String shellQuickPanelHint(String path) {
     return '在「$path」里调整';
   }
+
+  @override
+  String get smIpadOutline => '侧栏大纲';
+
+  @override
+  String smIpadHappeningCount(int n) {
+    return '正在发生，$n 个';
+  }
+
+  @override
+  String smIpadWorkspaceKey(String name) {
+    return '工作区 $name';
+  }
+
+  @override
+  String smIpadFolderKey(String name) {
+    return '文件夹 $name';
+  }
+
+  @override
+  String get smStateRunning => '运行中';
+
+  @override
+  String get smStateThinking => '思考中';
+
+  @override
+  String get smStateWaitingReply => '等待回复';
+
+  @override
+  String smStateTodoProgress(int done, int total) {
+    return '待办 $done/$total';
+  }
+
+  @override
+  String get smStateReorderFailed => '排序没有保存';
+
+  @override
+  String smStateStep(int n) {
+    return '第 $n 步';
+  }
+
+  @override
+  String smStateStepDoing(int n, String doing) {
+    return '第 $n 步 · $doing';
+  }
+
+  @override
+  String get smStateNeedsApproval => '等你确认';
+
+  @override
+  String smStateNeedsApprovalOf(String text) {
+    return '等你确认 · $text';
+  }
+
+  @override
+  String get smStateNeedsAnswer => '等你回答';
+
+  @override
+  String smStateNeedsAnswerOf(String text) {
+    return '等你回答 · $text';
+  }
+
+  @override
+  String get smStateNeedsPlanReview => '等你确认计划';
+
+  @override
+  String get smStateDone => '做完了';
+
+  @override
+  String smStateDoneSummary(int steps, String elapsed) {
+    return '做完了 · $steps 步 · $elapsed';
+  }
+
+  @override
+  String get smStateFailed => '出错了';
+
+  @override
+  String get smUiHappening => '正在发生';
+
+  @override
+  String smUiHappeningMore(int n) {
+    return '还有 $n 个';
+  }
+
+  @override
+  String get smUiHappeningLess => '收起';
+
+  @override
+  String smUiElapsed(int minutes, int seconds) {
+    return '已用 $minutes 分 $seconds 秒';
+  }
+
+  @override
+  String get smUiLayoutTime => '按时间';
+
+  @override
+  String get smUiLayoutTree => '工作区树';
+
+  @override
+  String get smUiLayoutFilterHint => '清除筛选后可切换';
+
+  @override
+  String get smUiLayoutTitle => '视图';
+
+  @override
+  String get smUiOtherChats => '其它对话';
+
+  @override
+  String smUiWorkspaceRunning(int n) {
+    return '$n 在跑';
+  }
+
+  @override
+  String smUiWorkspaceSemantics(String name, int count) {
+    return '工作区 $name，$count 个对话';
+  }
+
+  @override
+  String get smUiWorkspaceEmpty => '这个工作区还没有对话';
+
+  @override
+  String get smUiMoveUp => '上移一位';
+
+  @override
+  String get smUiMoveDown => '下移一位';
+
+  @override
+  String get smUiMoveFirst => '移到最前';
+
+  @override
+  String get smUiMoveLast => '移到最后';
+
+  @override
+  String get smUiFolder => '文件夹';
+
+  @override
+  String get smUiMoreActions => '更多操作';
+
+  @override
+  String get smUiDragToReorder => '拖动排序';
 
   @override
   String starPromptTitle(int hours) {
