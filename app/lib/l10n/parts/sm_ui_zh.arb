@@ -1,0 +1,43 @@
+{
+  "smUiHappening": "正在发生",
+  "smUiHappeningMore": "还有 {n} 个",
+  "@smUiHappeningMore": {
+    "placeholders": {
+      "n": {"type": "int"}
+    }
+  },
+  "smUiHappeningLess": "收起",
+  "smUiElapsed": "已用 {minutes} 分 {seconds} 秒",
+  "@smUiElapsed": {
+    "placeholders": {
+      "minutes": {"type": "int"},
+      "seconds": {"type": "int"}
+    }
+  },
+  "smUiLayoutTime": "按时间",
+  "smUiLayoutTree": "工作区树",
+  "smUiLayoutFilterHint": "清除筛选后可切换",
+  "smUiLayoutTitle": "视图",
+  "smUiOtherChats": "其它对话",
+  "smUiWorkspaceRunning": "{n} 在跑",
+  "@smUiWorkspaceRunning": {
+    "placeholders": {
+      "n": {"type": "int"}
+    }
+  },
+  "smUiWorkspaceSemantics": "工作区 {name}，{count} 个对话",
+  "@smUiWorkspaceSemantics": {
+    "placeholders": {
+      "name": {"type": "String"},
+      "count": {"type": "int"}
+    }
+  },
+  "smUiWorkspaceEmpty": "这个工作区还没有对话",
+  "smUiMoveUp": "上移一位",
+  "smUiMoveDown": "下移一位",
+  "smUiMoveFirst": "移到最前",
+  "smUiMoveLast": "移到最后",
+  "smUiFolder": "文件夹",
+  "smUiMoreActions": "更多操作",
+  "smUiDragToReorder": "拖动排序"
+}

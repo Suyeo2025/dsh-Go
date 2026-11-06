@@ -193,7 +193,7 @@ class _AdaptiveScaffoldState extends State<AdaptiveScaffold> with TickerProvider
     final shown = _panel.value;
 
     final railExtent = AdaptiveMetrics.railWidth + inset.left;
-    final sidebarExtent = AdaptiveMetrics.sidebarWidth + inset.left;
+    final sidebarExtent = layout.sidebarWidth + inset.left;
     final leftExtent = expanded ? lerpDouble(railExtent, sidebarExtent, side)! : 0.0;
     final panelFull = _panelWidth + inset.right;
     final panelExtent = expanded && _panelChild != null ? panelFull * shown : 0.0;

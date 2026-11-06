@@ -52,6 +52,8 @@ import 'drawer/drawer_destination.dart';
 import 'drawer/archive_notice.dart';
 import 'drawer/drawer_filter_bar.dart';
 import 'drawer/drawer_list.dart';
+import 'drawer/happening_section.dart';
+import 'drawer/row_actions.dart' show rowMoveFirst, rowMoveLast;
 import 'drawer/selection_bars.dart';
 import 'drawer/session_deletion.dart';
 import 'session_search_page.dart';
@@ -195,6 +197,18 @@ class SessionsDrawer extends ConsumerWidget {
         curve: AppMotion.std,
         alignment: Alignment.topCenter,
         child: const DrawerFilterBar(),
+      ),
+      // 正在发生: fixed above the list (it scrolls with the top only on a
+      // phone on its side). Takes no room when nothing runs or waits.
+      HappeningSection(
+        onOpen: (id) {
+          if (ref.read(drawerScopeProvider)?.sessions.any((s) => s.sessionId == id) != true) return;
+          ref.read(currentSessionProvider.notifier).select(id);
+          onClose();
+        },
+        onLongPress: (s) {
+          if (ref.read(drawerScopeProvider)?.readOnly == false) _SessionList._showActions(context, ref, s);
+        },
       ),
     ];
     final list = _EdgeFade(
@@ -507,27 +521,54 @@ class _SessionList extends ConsumerWidget {
           _showActions(context, ref, s);
         }
       },
+      onMore: (s, workspaceId) {
+        final current = ref.read(drawerScopeProvider);
+        if (ref.read(readListIdentityProvider) == identity &&
+            current?.readOnly == false &&
+            current!.sessions.any((row) => identical(row, s))) {
+          _showActions(context, ref, s, treeWorkspaceId: workspaceId);
+        }
+      },
+      onManageWorkspaces: () {
+        Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const WorkspacesPage()));
+        Future<void>.delayed(AppMotion.slow, onClose);
+      },
     );
   }
 
-  Future<void> _showActions(BuildContext context, WidgetRef ref, SessionSummary s) async {
+  /// The row's actions. [treeWorkspaceId]: the workspace group it is in
+  /// in the tree layout; 上移 / 下移 / 移到最前 / 移到最后 are offered there.
+  static Future<void> _showActions(
+    BuildContext context,
+    WidgetRef ref,
+    SessionSummary s, {
+    String? treeWorkspaceId,
+  }) async {
     // Consent belongs to the host/generation present before the action sheet.
     final owner = captureSessionDeletionOwner(ref);
     try {
-      await _showOwnedActions(context, ref, s, owner);
+      await _showOwnedActions(context, ref, s, owner, treeWorkspaceId: treeWorkspaceId);
     } finally {
       owner?.close();
     }
   }
 
-  Future<void> _showOwnedActions(
+  static Future<void> _showOwnedActions(
     BuildContext context,
     WidgetRef ref,
     SessionSummary s,
-    SessionDeletionOwner? deletionOwner,
-  ) async {
+    SessionDeletionOwner? deletionOwner, {
+    String? treeWorkspaceId,
+  }) async {
     final title = sessionTitle(s);
     final workspaces = ref.read(workspacesProvider);
+    // The tree's moves: only for a writable list and a member the Host
+    // accounts to that workspace.
+    final movable =
+        treeWorkspaceId != null &&
+        workspaces.ready &&
+        ref.read(drawerScopeProvider)?.readOnly == false &&
+        (workspaces.byId(treeWorkspaceId)?.sessionIds.contains(s.sessionId) ?? false);
     final pinned = workspaces.pinnedSessionIds.contains(s.sessionId);
     final inFolder = ref.read(drawerViewProvider).folderOf.containsKey(s.sessionId);
     final action = await showAppSheet<String>(
@@ -551,6 +592,28 @@ class _SessionList extends ConsumerWidget {
                         title: Text(pinned ? context.l10n.shellUnpin : context.l10n.commonPin),
                         onTap: () => Navigator.pop(sheet, pinned ? 'unpin' : 'pin'),
                       ),
+                    if (movable) ...[
+                      ListTile(
+                        leading: const Icon(AppIcons.moveUp),
+                        title: Text(context.l10n.smUiMoveUp),
+                        onTap: () => Navigator.pop(sheet, 'move-up'),
+                      ),
+                      ListTile(
+                        leading: const Icon(AppIcons.moveDown),
+                        title: Text(context.l10n.smUiMoveDown),
+                        onTap: () => Navigator.pop(sheet, 'move-down'),
+                      ),
+                      ListTile(
+                        leading: const Icon(AppIcons.moveFirst),
+                        title: Text(context.l10n.smUiMoveFirst),
+                        onTap: () => Navigator.pop(sheet, 'move-first'),
+                      ),
+                      ListTile(
+                        leading: const Icon(AppIcons.moveLast),
+                        title: Text(context.l10n.smUiMoveLast),
+                        onTap: () => Navigator.pop(sheet, 'move-last'),
+                      ),
+                    ],
                     ListTile(
                       leading: const Icon(AppIcons.rename),
                       title: Text(context.l10n.commonRename),
@@ -601,6 +664,19 @@ class _SessionList extends ConsumerWidget {
     if (!context.mounted || action == null) return;
     final messenger = ScaffoldMessenger.maybeOf(context);
     switch (action) {
+      case 'move-up' || 'move-down' || 'move-first' || 'move-last':
+        await moveRowByFlow(
+          context,
+          ref,
+          treeWorkspaceId!,
+          s.sessionId,
+          delta: switch (action) {
+            'move-up' => -1,
+            'move-down' => 1,
+            'move-first' => rowMoveFirst,
+            _ => rowMoveLast,
+          },
+        );
       case 'pin' || 'unpin':
         try {
           final notifier = ref.read(workspacesProvider.notifier);
@@ -641,7 +717,7 @@ class _SessionList extends ConsumerWidget {
     }
   }
 
-  Future<String?> _askTitle(BuildContext context, String initial) {
+  static Future<String?> _askTitle(BuildContext context, String initial) {
     final controller = TextEditingController(text: initial);
     return showAppDialog<String>(
       context: context,

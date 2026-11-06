@@ -95,6 +95,10 @@ abstract final class WorkspaceErrors {
   static const nameConflict = 'workspace/name-conflict';
   static const notFound = 'workspace/not-found';
 
+  /// `workspace/insertSessionBefore` refused: the Session or the anchor is
+  /// not accounted to that Workspace (nothing was written).
+  static const moveInvalid = 'workspace/move-invalid';
+
   /// The Host composes the native OS chooser, not the in-app browser.
   static const pickerUnavailable = 'directory-picker/unavailable';
 
@@ -156,6 +160,29 @@ extension WorkspacesApi on DshClient {
       }),
     );
     return asStringList(value['workspaceIds']);
+  }
+
+  /// `workspace/insertSessionBefore`: moves [sessionId] before [beforeId]
+  /// within [workspaceId]'s manual order (to the end without one; DOM
+  /// `insertBefore` semantics, only the moved id changes place). Activity
+  /// never reorders it. Returns the workspace as the Host now has it.
+  ///
+  /// Errors: [WorkspaceErrors.notFound] (no such Workspace),
+  /// [WorkspaceErrors.moveInvalid] (the Session or the anchor is not
+  /// accounted to it). A move to the current place writes nothing and
+  /// returns the unchanged Workspace.
+  Future<Workspace> insertSessionBefore(String workspaceId, String sessionId, {String? beforeId}) async {
+    final value = asMapOrEmpty(
+      await rpc.call('workspace/insertSessionBefore', {
+        'request': {'workspaceId': workspaceId, 'sessionId': sessionId, 'beforeSessionId': ?beforeId},
+      }),
+    );
+    // rc.5 wraps it as `{workspace}`; accept the bare WorkspaceValue too.
+    final workspace = Workspace.fromJson(asMap(value['workspace']) ?? value);
+    if (workspace.workspaceId.isEmpty) {
+      throw DshProtocolException('workspace/insertSessionBefore returned no workspace');
+    }
+    return workspace;
   }
 
   /// `workspace/pinSession`; returns the pin set, most recently pinned first.

@@ -1,6 +1,7 @@
 // The drawer's conversation row and section label.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 
 import '../../../l10n/l10n.dart';
 import '../../../state/session_attention_state.dart';
@@ -28,6 +29,8 @@ class SessionTile extends StatelessWidget {
     this.indent = 0,
     this.selecting = false,
     this.selected = false,
+    this.trailing,
+    this.onMore,
   });
 
   final String title;
@@ -47,6 +50,13 @@ class SessionTile extends StatelessWidget {
   final double indent;
   final bool selecting;
   final bool selected;
+
+  /// After the marker: the workspace tree's folder mark, the ≡ handle.
+  final Widget? trailing;
+
+  /// A ⋯ key at the end (the workspace tree, where a long press drags): the
+  /// row's actions.
+  final VoidCallback? onMore;
 
   static const height = 44.0;
 
@@ -92,6 +102,9 @@ class SessionTile extends StatelessWidget {
       button: true,
       onTap: onTap,
       onLongPress: onLongPress,
+      customSemanticsActions: onMore == null || selecting
+          ? null
+          : {CustomSemanticsAction(label: l10n.smUiMoreActions): onMore!},
       excludeSemantics: true,
       child: Material(
         type: MaterialType.transparency,
@@ -113,7 +126,7 @@ class SessionTile extends StatelessWidget {
                   shape: shape,
                 ),
                 height: height,
-                padding: EdgeInsets.only(left: 10 + indent, right: 10),
+                padding: EdgeInsets.only(left: 10 + indent, right: onMore != null && !selecting ? 4 : 10),
                 child: child,
               );
             },
@@ -145,6 +158,19 @@ class SessionTile extends StatelessWidget {
                       ? const SizedBox.shrink(key: ValueKey('none'))
                       : Padding(key: marker.key, padding: const EdgeInsets.only(left: 10), child: marker),
                 ),
+                if (trailing case final trailing?) ...[const SizedBox(width: 8), trailing],
+                if (onMore != null && !selecting)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: IconButton(
+                      key: const ValueKey('session-more'),
+                      tooltip: l10n.smUiMoreActions,
+                      onPressed: onMore,
+                      icon: Icon(AppIcons.more, size: 18, color: colors.textTertiary),
+                      style: IconButton.styleFrom(minimumSize: const Size.square(28), padding: EdgeInsets.zero),
+                      constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+                    ),
+                  ),
               ],
             ),
           ),

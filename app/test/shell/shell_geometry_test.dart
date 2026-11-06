@@ -59,7 +59,10 @@ void main() {
         find.descendant(of: find.byType(SessionSearchBar), matching: find.byType(GlassSurface)),
       );
       final tile = tester.getRect(find.byType(SessionTile).first);
-      final title = tester.getRect(find.text('修复登录按钮重复提交'));
+      // The list's row (a running one also shows in 正在发生 above).
+      final title = tester.getRect(
+        find.descendant(of: find.byType(SessionTile), matching: find.text('修复登录按钮重复提交')),
+      );
 
       expect(lockup.left - drawer.left, _near(20));
       expect(title.left - drawer.left, _near(20));

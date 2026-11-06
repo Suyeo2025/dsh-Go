@@ -24,7 +24,7 @@ enum DrawerViewAction { newFolder, manageFolders, select, archived }
 
 /// Sort (applies at once), then 新建文件夹 / 管理文件夹 / 多选.
 Future<DrawerViewAction?> showDrawerViewSheet(BuildContext context) =>
-    showAppSheet<DrawerViewAction>(context, builder: (_) => const DrawerViewSheet());
+    showAppSheet<DrawerViewAction>(context, isScrollControlled: true, builder: (_) => const DrawerViewSheet());
 
 class DrawerViewSheet extends ConsumerWidget {
   const DrawerViewSheet({super.key});
@@ -33,59 +33,82 @@ class DrawerViewSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final sort = ref.watch(drawerViewProvider.select((v) => v.sort));
+    final layout = ref.watch(drawerViewProvider.select((v) => v.layout));
     final hasFolders = ref.watch(drawerViewProvider.select((v) => v.folders.isNotEmpty));
     return SafeArea(
       top: false,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SheetTitleBar(l10n.shellChatList),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(SheetTitleBar.inset + 8, 0, SheetTitleBar.inset, 8),
-            child: Semantics(header: true, child: Text(l10n.shellSort, style: groupTitleStyle(context))),
-          ),
-          Padding(
-            padding: _groupMargin.copyWith(bottom: 16),
-            child: SegmentedPill<DrawerSort>(
-              segments: [
-                PillSegment(DrawerSort.activity, l10n.shellRecentActivity),
-                PillSegment(DrawerSort.created, l10n.shellCreatedTime),
-              ],
-              selected: sort,
-              onChanged: (value) => ref.read(drawerViewProvider.notifier).setSort(value),
-            ),
-          ),
-          SheetGroup(
-            margin: _groupMargin,
+      // Scrolls on a short screen or with large text.
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.8),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              ListPageRow(
-                icon: AppIcons.newFolder,
-                title: l10n.shellNewFolder,
-                chevron: false,
-                onTap: () => Navigator.of(context).pop(DrawerViewAction.newFolder),
+              SheetTitleBar(l10n.shellChatList),
+              // 按时间 / 工作区树 (the same choice as the list's own switch).
+              Padding(
+                padding: const EdgeInsets.fromLTRB(SheetTitleBar.inset + 8, 0, SheetTitleBar.inset, 8),
+                child: Semantics(header: true, child: Text(l10n.smUiLayoutTitle, style: groupTitleStyle(context))),
               ),
-              if (hasFolders)
-                ListPageRow(
-                  icon: AppIcons.manageFolders,
-                  title: l10n.shellManageFolders,
-                  onTap: () => Navigator.of(context).pop(DrawerViewAction.manageFolders),
+              Padding(
+                padding: _groupMargin.copyWith(bottom: 16),
+                child: SegmentedPill<DrawerLayout>(
+                  segments: [
+                    PillSegment(DrawerLayout.time, l10n.smUiLayoutTime),
+                    PillSegment(DrawerLayout.tree, l10n.smUiLayoutTree),
+                  ],
+                  selected: layout,
+                  onChanged: (value) => ref.read(drawerViewProvider.notifier).setLayout(value),
                 ),
-              ListPageRow(
-                icon: AppIcons.archive,
-                title: l10n.shellArchived,
-                onTap: () => Navigator.of(context).pop(DrawerViewAction.archived),
               ),
-              ListPageRow(
-                icon: AppIcons.multiSelect,
-                title: l10n.shellMultiSelect,
-                chevron: false,
-                onTap: () => Navigator.of(context).pop(DrawerViewAction.select),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(SheetTitleBar.inset + 8, 0, SheetTitleBar.inset, 8),
+                child: Semantics(header: true, child: Text(l10n.shellSort, style: groupTitleStyle(context))),
               ),
+              Padding(
+                padding: _groupMargin.copyWith(bottom: 16),
+                child: SegmentedPill<DrawerSort>(
+                  segments: [
+                    PillSegment(DrawerSort.activity, l10n.shellRecentActivity),
+                    PillSegment(DrawerSort.created, l10n.shellCreatedTime),
+                  ],
+                  selected: sort,
+                  onChanged: (value) => ref.read(drawerViewProvider.notifier).setSort(value),
+                ),
+              ),
+              SheetGroup(
+                margin: _groupMargin,
+                children: [
+                  ListPageRow(
+                    icon: AppIcons.newFolder,
+                    title: l10n.shellNewFolder,
+                    chevron: false,
+                    onTap: () => Navigator.of(context).pop(DrawerViewAction.newFolder),
+                  ),
+                  if (hasFolders)
+                    ListPageRow(
+                      icon: AppIcons.manageFolders,
+                      title: l10n.shellManageFolders,
+                      onTap: () => Navigator.of(context).pop(DrawerViewAction.manageFolders),
+                    ),
+                  ListPageRow(
+                    icon: AppIcons.archive,
+                    title: l10n.shellArchived,
+                    onTap: () => Navigator.of(context).pop(DrawerViewAction.archived),
+                  ),
+                  ListPageRow(
+                    icon: AppIcons.multiSelect,
+                    title: l10n.shellMultiSelect,
+                    chevron: false,
+                    onTap: () => Navigator.of(context).pop(DrawerViewAction.select),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
             ],
           ),
-          const SizedBox(height: 4),
-        ],
+        ),
       ),
     );
   }

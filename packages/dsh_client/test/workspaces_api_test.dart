@@ -169,6 +169,62 @@ void main() {
       });
     });
 
+    group('insertSessionBefore', () {
+      Map<String, Object?> ordered(List<String> ids) => {..._workspace('w1', 'proj'), 'sessionIds': ids};
+
+      test('wraps its arguments in `request`; the anchor is omitted at the end', () async {
+        host.handlers['workspace/insertSessionBefore'] = (_) => ok({
+          'workspace': ordered(['s2', 's1', 's3']),
+        });
+        final client = await connect();
+
+        final moved = await client.insertSessionBefore('w1', 's2', beforeId: 's1');
+        expect(argsOf('workspace/insertSessionBefore'), {
+          'request': {'workspaceId': 'w1', 'sessionId': 's2', 'beforeSessionId': 's1'},
+        });
+        expect(moved.workspaceId, 'w1');
+        expect(moved.sessionIds, ['s2', 's1', 's3']);
+
+        await client.insertSessionBefore('w1', 's2');
+        final args = argsOf('workspace/insertSessionBefore');
+        expect(args, {
+          'request': {'workspaceId': 'w1', 'sessionId': 's2'},
+        });
+        expect((args['request']! as Map).containsKey('beforeSessionId'), isFalse);
+      });
+
+      test('a bare WorkspaceValue reply is accepted too', () async {
+        host.handlers['workspace/insertSessionBefore'] = (_) => ok(ordered(['s3', 's1']));
+        final client = await connect();
+        final moved = await client.insertSessionBefore('w1', 's3', beforeId: 's1');
+        expect(moved.sessionIds, ['s3', 's1']);
+      });
+
+      test('Host refusals keep their stable codes', () async {
+        host.handlers['workspace/insertSessionBefore'] = (args) {
+          final request = (args['request']! as Map).cast<String, Object?>();
+          return request['workspaceId'] == 'gone'
+              ? fail(WorkspaceErrors.notFound, {'workspaceId': 'gone'})
+              : fail(WorkspaceErrors.moveInvalid, request);
+        };
+        final client = await connect();
+        await expectLater(
+          client.insertSessionBefore('w1', 'stranger'),
+          throwsA(isA<DshRemoteException>().having((e) => e.code, 'code', WorkspaceErrors.moveInvalid)),
+        );
+        await expectLater(
+          client.insertSessionBefore('gone', 's1'),
+          throwsA(isA<DshRemoteException>().having((e) => e.code, 'code', WorkspaceErrors.notFound)),
+        );
+      });
+
+      test('a reply without a workspace is a protocol error', () async {
+        host.handlers['workspace/insertSessionBefore'] = (_) => ok({'deleted': true});
+        final client = await connect();
+        await expectLater(client.insertSessionBefore('w1', 's1'), throwsA(isA<DshProtocolException>()));
+      });
+    });
+
     test('a `replace` frame reads as a full state; other frames do not', () {
       final replace = WorkspaceUpdate.fromJson({
         'type': 'replace',

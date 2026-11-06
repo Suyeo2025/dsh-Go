@@ -63,6 +63,26 @@ class WorkspacesState {
     return null;
   }
 
+  /// The workspace whose manual order accounts [sessionId] (the first one,
+  /// should two ever claim it); null for a conversation in none. O(n) over
+  /// every workspace's members: callers that ask per row cache it.
+  Workspace? workspaceOf(String sessionId) {
+    for (final w in workspaces) {
+      if (w.sessionIds.contains(sessionId)) return w;
+    }
+    return null;
+  }
+
+  /// [w]'s members that are pinned, in pin order (most recently pinned
+  /// first): the pinned zone at the top of its group in the workspace tree.
+  List<String> pinnedInWorkspace(Workspace w) {
+    final members = w.sessionIds.toSet();
+    return [
+      for (final id in pinnedSessionIds)
+        if (members.contains(id)) id,
+    ];
+  }
+
   WorkspacesState copyWith({
     WorkspacesStatus? status,
     List<Workspace>? workspaces,
@@ -82,6 +102,9 @@ class WorkspacesState {
 /// replies, and a removed workspace never comes back from late data.
 class WorkspacesController extends Notifier<WorkspacesState> {
   final Map<String, Workspace> _rows = {};
+
+  /// The rows as the Host last gave them (a reorder rolls back to these).
+  final Map<String, Workspace> _confirmed = {};
   List<String> _order = const [];
   final Set<String> _removed = {};
   DshClient? _client;
@@ -91,6 +114,7 @@ class WorkspacesController extends Notifier<WorkspacesState> {
   WorkspacesState build() {
     final r = ref;
     _rows.clear();
+    _confirmed.clear();
     _order = const [];
     _removed.clear();
     final conn = r.watch(readListLiveConnectionProvider);
@@ -115,6 +139,9 @@ class WorkspacesController extends Notifier<WorkspacesState> {
       _rows
         ..clear()
         ..addEntries(full.workspaces.map((w) => MapEntry(w.workspaceId, w)));
+      _confirmed
+        ..clear()
+        ..addAll(_rows);
       _order = [for (final w in full.workspaces) w.workspaceId];
       _emit(status: WorkspacesStatus.ready, pinned: full.pinnedSessionIds, archived: full.archivedSessionIds);
       return;
@@ -141,6 +168,7 @@ class WorkspacesController extends Notifier<WorkspacesState> {
     final old = _rows[w.workspaceId];
     if (old != null && !fromStream && _isOlder(w, old)) return;
     _rows[w.workspaceId] = w;
+    _confirmed[w.workspaceId] = w;
     // New registrations go to the front, like the Host's own order frame.
     if (!_order.contains(w.workspaceId)) _order = [w.workspaceId, ..._order];
   }
@@ -151,6 +179,7 @@ class WorkspacesController extends Notifier<WorkspacesState> {
   void _drop(String id) {
     _removed.add(id);
     _rows.remove(id);
+    _confirmed.remove(id);
     _order = [
       for (final o in _order)
         if (o != id) o,
@@ -206,6 +235,74 @@ class WorkspacesController extends Notifier<WorkspacesState> {
     await ref.read(workspacePrefsProvider.notifier).forget(workspaceId);
   }
 
+  /// How long a manual reorder waits for the Host before the list goes back
+  /// to the Host's order.
+  static const moveTimeout = Duration(seconds: 2);
+
+  /// Moves [sessionId] before [beforeId] (null: to the end) in
+  /// [workspaceId]'s manual order: `workspace/insertSessionBefore`, the
+  /// order the official web sidebar shows too.
+  ///
+  /// The new order shows at once (optimistic, same `updatedAt`); the Host's
+  /// reply then replaces it, and `workspace/follow` frames keep applying
+  /// meanwhile. On a refusal, a lost connection or no reply within
+  /// [moveTimeout] the row goes back to what it was before this move (unless
+  /// a later move or the stream already replaced it) and this returns false.
+  /// Throws [StateError] (`not-accounted`) without writing anything when the
+  /// registry isn't ready or the Session / anchor isn't in that workspace's
+  /// order. A move to the current place sends nothing and returns true.
+  Future<bool> moveSession(String workspaceId, String sessionId, {String? beforeId}) async {
+    final r = ref;
+    final before = _rows[workspaceId];
+    if (!state.ready ||
+        before == null ||
+        !before.sessionIds.contains(sessionId) ||
+        (beforeId != null && !before.sessionIds.contains(beforeId))) {
+      throw StateError('not-accounted');
+    }
+    final client = _requireClient;
+    final order = sessionOrderAfterMove(before.sessionIds, sessionId, beforeId);
+    if (_sameOrder(order, before.sessionIds)) return true;
+    final optimistic = Workspace(
+      workspaceId: before.workspaceId,
+      path: before.path,
+      title: before.title,
+      sessionIds: List.unmodifiable(order),
+      createdAt: before.createdAt,
+      updatedAt: before.updatedAt,
+    );
+    _rows[workspaceId] = optimistic;
+    _emit();
+    try {
+      final moved = await client.insertSessionBefore(workspaceId, sessionId, beforeId: beforeId).timeout(moveTimeout);
+      if (!r.mounted || !identical(_client, client)) return false;
+      if (moved.workspaceId != workspaceId || !moved.sessionIds.contains(sessionId)) {
+        throw const DshProtocolException('the moved session is not in the returned order');
+      }
+      // Our guess gives way unconditionally; otherwise the newer row wins.
+      _upsert(moved, fromStream: identical(_rows[workspaceId], optimistic));
+      _emit();
+      return true;
+    } catch (_) {
+      if (!r.mounted || !identical(_client, client)) return false;
+      // Only undo our own guess (a later move or a stream frame owns the
+      // row otherwise), back to what the Host last said.
+      if (identical(_rows[workspaceId], optimistic)) {
+        _rows[workspaceId] = _confirmed[workspaceId] ?? before;
+        _emit();
+      }
+      return false;
+    }
+  }
+
+  static bool _sameOrder(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
   Future<void> pinSession(String sessionId) async {
     final r = ref;
     final pinned = await _requireClient.pinSession(sessionId);
@@ -220,6 +317,33 @@ class WorkspacesController extends Notifier<WorkspacesState> {
 }
 
 final workspacesProvider = NotifierProvider<WorkspacesController, WorkspacesState>(WorkspacesController.new);
+
+/// [order] after moving [sessionId] before [beforeId] (null: to the end),
+/// as the Host's `Workspace.insertSessionBefore` does it (DOM `insertBefore`:
+/// only the moved id changes place; moving before itself changes nothing).
+/// Unknown ids leave [order] as it is.
+List<String> sessionOrderAfterMove(List<String> order, String sessionId, String? beforeId) {
+  if (!order.contains(sessionId) || beforeId == sessionId) return order;
+  if (beforeId != null && !order.contains(beforeId)) return order;
+  final without = [
+    for (final id in order)
+      if (id != sessionId) id,
+  ];
+  final at = beforeId == null ? without.length : without.indexOf(beforeId);
+  return [...without.sublist(0, at), sessionId, ...without.sublist(at)];
+}
+
+/// The anchor `workspace/insertSessionBefore` needs to put [sessionId] at
+/// [targetIndex] of [order] (its index once moved, clamped): the id that will
+/// follow it, or null at the end.
+String? moveAnchorFor(List<String> order, String sessionId, int targetIndex) {
+  final without = [
+    for (final id in order)
+      if (id != sessionId) id,
+  ];
+  final at = targetIndex.clamp(0, without.length);
+  return at >= without.length ? null : without[at];
+}
 
 // ── This phone's view, per host ──────────────────────────────────────────────
 

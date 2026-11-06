@@ -159,10 +159,14 @@ void main() {
         final search = tester.getRect(find.text('搜索对话').first);
         expect(search.left, greaterThan(side + 10));
         // Scrolling the list takes the brand, search and filters with it.
-        final before = tester.getRect(find.text('给设置页加深色模式').last).top;
-        await tester.drag(find.text('给设置页加深色模式').last, const Offset(0, -200));
+        // (With 正在发生 and the 按时间 / 工作区树 row on top, the first
+        // conversations start below the fold: the top itself is dragged.)
+        final filters = find.text('全部').last;
+        final before = tester.getRect(filters).top;
+        await tester.drag(filters, const Offset(0, -200));
         await pumpFrames(tester, 8);
-        expect(tester.getRect(find.text('给设置页加深色模式').last).top, lessThan(before - 150));
+        expect(tester.getRect(find.text('搜索对话').first).top, lessThan(search.top - 150));
+        expect(tester.getRect(filters).top, lessThan(before - 150));
       });
 
       testWidgets('对话详情 opens as a page; hero and tabs on the reading column', (tester) async {

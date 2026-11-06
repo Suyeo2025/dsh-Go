@@ -1,0 +1,21 @@
+{
+  "smIpadOutline": "Sidebar outline",
+  "smIpadHappeningCount": "Happening now, {n}",
+  "@smIpadHappeningCount": {
+    "placeholders": {
+      "n": {"type": "int"}
+    }
+  },
+  "smIpadWorkspaceKey": "Workspace {name}",
+  "@smIpadWorkspaceKey": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "smIpadFolderKey": "Folder {name}",
+  "@smIpadFolderKey": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  }
+}

@@ -93,6 +93,13 @@ abstract final class AdaptiveMetrics {
   /// The phone drawer's own width, so the list reads the same.
   static const sidebarWidth = 320.0;
 
+  /// The sidebar's outline column (正在发生, workspaces, folders) at its left.
+  static const outlineWidth = 56.0;
+
+  /// The sidebar with its outline and the list still [sidebarWidth] wide:
+  /// taken whenever the chat keeps its comfortable width beside it.
+  static const sidebarWideWidth = sidebarWidth + outlineWidth;
+
   /// The right panel: about a phone's width, which its tabs were drawn for.
   static const panelMin = 320.0;
   static const panelIdealMin = 360.0;
@@ -135,6 +142,7 @@ class AdaptiveLayout {
     required this.panelAvailable,
     required this.panelShown,
     required this.sidebarFits,
+    this.sidebarWidth = AdaptiveMetrics.sidebarWidth,
   });
 
   /// Every column hidden: the phone layout.
@@ -146,7 +154,8 @@ class AdaptiveLayout {
        panelWidth = 0,
        panelAvailable = false,
        panelShown = false,
-       sidebarFits = false;
+       sidebarFits = false,
+       sidebarWidth = AdaptiveMetrics.sidebarWidth;
 
   /// [window] is the whole window, [padding] the system insets (status and
   /// navigation bars, cutouts). [hasSession]: no conversation, no panel.
@@ -182,6 +191,12 @@ class AdaptiveLayout {
     final contested = sidebarOpen && wantPanel && fitsAlone && !fitsBeside;
     final shown = contested ? prefer == LayoutSide.panel : wantPanel;
     final sidebar = sidebarOpen && (shown ? fitsBeside : fitsAlone);
+    // Whether it shows is decided at its narrow width (as it always was); the
+    // outline then widens it when the chat keeps the same comfort beside it.
+    // Folded or not, so it keeps its width while it slides in or out.
+    final wide =
+        inner - AdaptiveMetrics.sidebarWideWidth - (shown ? width : 0) >=
+        (shown ? AdaptiveMetrics.chatBesideBoth : AdaptiveMetrics.chatComfort);
     return AdaptiveLayout(
       windowClass: windowClass,
       window: window,
@@ -192,6 +207,7 @@ class AdaptiveLayout {
       panelShown: shown,
       // Unfolding it folds a panel the two don't fit beside.
       sidebarFits: fitsAlone,
+      sidebarWidth: wide ? AdaptiveMetrics.sidebarWideWidth : AdaptiveMetrics.sidebarWidth,
     );
   }
 
@@ -213,13 +229,22 @@ class AdaptiveLayout {
   /// for it when the two don't fit together: ≡ on the rail unfolds it.
   final bool sidebarFits;
 
+  /// The sidebar's width, its outline column included:
+  /// [AdaptiveMetrics.sidebarWideWidth] when there is room, else
+  /// [AdaptiveMetrics.sidebarWidth] (the list then gives the outline its 56).
+  final double sidebarWidth;
+
+  /// The sidebar, whenever it shows, has its outline column: wide windows
+  /// only (the pulled-over drawer of a phone or a medium window has none).
+  bool get hasOutline => isExpanded;
+
   bool get isExpanded => windowClass == WindowClass.expanded;
 
   /// The left column's content width.
   double get leftWidth => switch (left) {
     LeftPane.none => 0,
     LeftPane.rail => AdaptiveMetrics.railWidth,
-    LeftPane.sidebar => AdaptiveMetrics.sidebarWidth,
+    LeftPane.sidebar => sidebarWidth,
   };
 
   /// The left column on screen, the inset it covers included.
@@ -254,14 +279,24 @@ class AdaptiveLayout {
       other.panelWidth == panelWidth &&
       other.panelAvailable == panelAvailable &&
       other.panelShown == panelShown &&
-      other.sidebarFits == sidebarFits;
+      other.sidebarFits == sidebarFits &&
+      other.sidebarWidth == sidebarWidth;
 
   @override
-  int get hashCode =>
-      Object.hash(windowClass, window, padding, left, panelWidth, panelAvailable, panelShown, sidebarFits);
+  int get hashCode => Object.hash(
+    windowClass,
+    window,
+    padding,
+    left,
+    panelWidth,
+    panelAvailable,
+    panelShown,
+    sidebarFits,
+    sidebarWidth,
+  );
 
   @override
   String toString() =>
       'AdaptiveLayout(${windowClass.name}, ${window.width}×${window.height}, '
-      'left: ${left.name}, panel: ${panelShown ? panelWidth : '—'})';
+      'left: ${left.name}${left == LeftPane.sidebar ? ' $sidebarWidth' : ''}, panel: ${panelShown ? panelWidth : '—'})';
 }

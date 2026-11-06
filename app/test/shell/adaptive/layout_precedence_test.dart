@@ -45,7 +45,9 @@ void main() {
       // Folded, not gone: the header's key unfolds it.
       expect(layout.panelAvailable, isTrue);
       expect(layout.detail, DetailPresentation.panel);
-      expect(layout.chatRect.width, 1376 - AdaptiveMetrics.sidebarWidth);
+      // Room to spare: the sidebar takes its outline column beside the list.
+      expect(layout.sidebarWidth, AdaptiveMetrics.sidebarWideWidth);
+      expect(layout.chatRect.width, 1376 - AdaptiveMetrics.sidebarWideWidth);
       expect(layout.menuAction, MenuAction.collapse);
     });
 

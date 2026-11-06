@@ -1,0 +1,21 @@
+{
+  "smIpadOutline": "侧栏大纲",
+  "smIpadHappeningCount": "正在发生，{n} 个",
+  "@smIpadHappeningCount": {
+    "placeholders": {
+      "n": {"type": "int"}
+    }
+  },
+  "smIpadWorkspaceKey": "工作区 {name}",
+  "@smIpadWorkspaceKey": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "smIpadFolderKey": "文件夹 {name}",
+  "@smIpadFolderKey": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  }
+}

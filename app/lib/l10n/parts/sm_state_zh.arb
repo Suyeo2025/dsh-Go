@@ -1,0 +1,50 @@
+{
+  "smStateRunning": "运行中",
+  "smStateThinking": "思考中",
+  "smStateWaitingReply": "等待回复",
+  "smStateTodoProgress": "待办 {done}/{total}",
+  "@smStateTodoProgress": {
+    "placeholders": {
+      "done": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
+  "smStateReorderFailed": "排序没有保存",
+  "smStateStep": "第 {n} 步",
+  "@smStateStep": {
+    "placeholders": {
+      "n": {"type": "int"}
+    }
+  },
+  "smStateStepDoing": "第 {n} 步 · {doing}",
+  "@smStateStepDoing": {
+    "placeholders": {
+      "n": {"type": "int"},
+      "doing": {"type": "String"}
+    }
+  },
+  "smStateNeedsApproval": "等你确认",
+  "smStateNeedsApprovalOf": "等你确认 · {text}",
+  "@smStateNeedsApprovalOf": {
+    "placeholders": {
+      "text": {"type": "String"}
+    }
+  },
+  "smStateNeedsAnswer": "等你回答",
+  "smStateNeedsAnswerOf": "等你回答 · {text}",
+  "@smStateNeedsAnswerOf": {
+    "placeholders": {
+      "text": {"type": "String"}
+    }
+  },
+  "smStateNeedsPlanReview": "等你确认计划",
+  "smStateDone": "做完了",
+  "smStateDoneSummary": "做完了 · {steps} 步 · {elapsed}",
+  "@smStateDoneSummary": {
+    "placeholders": {
+      "steps": {"type": "int"},
+      "elapsed": {"type": "String"}
+    }
+  },
+  "smStateFailed": "出错了"
+}

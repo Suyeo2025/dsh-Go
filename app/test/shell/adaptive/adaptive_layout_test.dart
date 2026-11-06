@@ -105,8 +105,17 @@ void main() {
       expect(layout.panelShown, isFalse);
       expect(layout.panelAvailable, isTrue);
       expect(layout.left, LeftPane.sidebar);
-      expect(layout.chatRect, const Rect.fromLTRB(320, 0, 1280, 800));
+      // Room to spare: 56 more for the outline column, the list keeps 320.
+      expect(layout.chatRect, const Rect.fromLTRB(376, 0, 1280, 800));
       expect(layout.menuAction, MenuAction.collapse);
+    });
+
+    test('just room for the sidebar: it stays 320 (the outline takes from the list)', () {
+      final layout = _resolve(940, panelOpen: false);
+      expect(layout.left, LeftPane.sidebar);
+      expect(layout.hasOutline, isTrue);
+      expect(layout.sidebarWidth, 320);
+      expect(layout.chatRect.width, 620);
     });
 
     test('sidebar folded by hand: the rail, which unfolds it again', () {
@@ -165,8 +174,8 @@ void main() {
       const cutout = EdgeInsets.only(left: 32);
       final layout = _resolve(1280, padding: cutout, panelOpen: false);
       expect(layout.left, LeftPane.sidebar);
-      expect(layout.leftExtent, 320 + 32);
-      expect(layout.chatRect.left, 352);
+      expect(layout.leftExtent, 376 + 32);
+      expect(layout.chatRect.left, 408);
     });
   });
 

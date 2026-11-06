@@ -1,0 +1,50 @@
+{
+  "smStateRunning": "Running",
+  "smStateThinking": "Thinking",
+  "smStateWaitingReply": "Waiting for reply",
+  "smStateTodoProgress": "To-dos {done}/{total}",
+  "@smStateTodoProgress": {
+    "placeholders": {
+      "done": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
+  "smStateReorderFailed": "Order not saved",
+  "smStateStep": "Step {n}",
+  "@smStateStep": {
+    "placeholders": {
+      "n": {"type": "int"}
+    }
+  },
+  "smStateStepDoing": "Step {n} · {doing}",
+  "@smStateStepDoing": {
+    "placeholders": {
+      "n": {"type": "int"},
+      "doing": {"type": "String"}
+    }
+  },
+  "smStateNeedsApproval": "Needs approval",
+  "smStateNeedsApprovalOf": "Needs approval · {text}",
+  "@smStateNeedsApprovalOf": {
+    "placeholders": {
+      "text": {"type": "String"}
+    }
+  },
+  "smStateNeedsAnswer": "Needs your answer",
+  "smStateNeedsAnswerOf": "Needs your answer · {text}",
+  "@smStateNeedsAnswerOf": {
+    "placeholders": {
+      "text": {"type": "String"}
+    }
+  },
+  "smStateNeedsPlanReview": "Plan needs review",
+  "smStateDone": "Done",
+  "smStateDoneSummary": "Done · {steps} steps · {elapsed}",
+  "@smStateDoneSummary": {
+    "placeholders": {
+      "steps": {"type": "int"},
+      "elapsed": {"type": "String"}
+    }
+  },
+  "smStateFailed": "Failed"
+}

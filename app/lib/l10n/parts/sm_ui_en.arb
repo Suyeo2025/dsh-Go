@@ -1,0 +1,43 @@
+{
+  "smUiHappening": "Happening now",
+  "smUiHappeningMore": "{n} more",
+  "@smUiHappeningMore": {
+    "placeholders": {
+      "n": {"type": "int"}
+    }
+  },
+  "smUiHappeningLess": "Show less",
+  "smUiElapsed": "{minutes} min {seconds} s so far",
+  "@smUiElapsed": {
+    "placeholders": {
+      "minutes": {"type": "int"},
+      "seconds": {"type": "int"}
+    }
+  },
+  "smUiLayoutTime": "By time",
+  "smUiLayoutTree": "Workspace tree",
+  "smUiLayoutFilterHint": "Clear the filter to switch",
+  "smUiLayoutTitle": "View",
+  "smUiOtherChats": "Other chats",
+  "smUiWorkspaceRunning": "{n} running",
+  "@smUiWorkspaceRunning": {
+    "placeholders": {
+      "n": {"type": "int"}
+    }
+  },
+  "smUiWorkspaceSemantics": "Workspace {name}, {count} chats",
+  "@smUiWorkspaceSemantics": {
+    "placeholders": {
+      "name": {"type": "String"},
+      "count": {"type": "int"}
+    }
+  },
+  "smUiWorkspaceEmpty": "No chats in this workspace yet",
+  "smUiMoveUp": "Move up",
+  "smUiMoveDown": "Move down",
+  "smUiMoveFirst": "Move to top",
+  "smUiMoveLast": "Move to bottom",
+  "smUiFolder": "Folder",
+  "smUiMoreActions": "More actions",
+  "smUiDragToReorder": "Drag to reorder"
+}

@@ -126,7 +126,8 @@ void main() {
       // The sidebar fits again; the header's ≡ folds it.
       expect(find.byType(SessionsDrawer), findsOneWidget);
       expect(tester.getRect(find.byType(SessionsDrawer)).width, _near(320));
-      expect(_key(tester, 'chat-menu').left, _near(320 + 12));
+      // The list keeps 320; the outline column (56) stands at its left.
+      expect(_key(tester, 'chat-menu').left, _near(376 + 12));
 
       await tester.tap(find.byKey(const ValueKey('chat-panel-key')));
       await pumpFrames(tester, 8);
@@ -168,7 +169,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('rail-menu')));
       await pumpFrames(tester, 8);
       expect(find.byKey(const ValueKey('persistent-sidebar')), findsOneWidget);
-      expect(tester.getRect(find.byKey(const ValueKey('persistent-sidebar'))).left, _near(0));
+      expect(tester.getRect(find.byKey(const ValueKey('persistent-sidebar'))).left, _near(56));
       expect(find.byKey(const ValueKey('panel-collapse')), findsNothing);
       // The header's key unfolds the panel again, folding the sidebar.
       await tester.tap(find.byKey(const ValueKey('chat-panel-key')));

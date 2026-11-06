@@ -182,8 +182,9 @@ void main() {
   testWidgets('1280 × 800, panel folded: sidebar · chat', (tester) async {
     _window(tester, const Size(1280, 800));
     await _pump(tester, () => _layoutFor(tester, panelOpen: false));
-    expect(_rect(tester, 'sidebar'), const Rect.fromLTWH(0, 0, 320, 800));
-    expect(_rect(tester, 'chat'), const Rect.fromLTWH(320, 0, 960, 800));
+    // Room to spare: the sidebar takes 56 more for its outline column.
+    expect(_rect(tester, 'sidebar'), const Rect.fromLTWH(0, 0, 376, 800));
+    expect(_rect(tester, 'chat'), const Rect.fromLTWH(376, 0, 904, 800));
     expect(find.byKey(const ValueKey('probe-panel')), findsNothing);
     expect(find.byKey(const ValueKey('probe-rail')), findsNothing);
     expect(find.byKey(const ValueKey('adaptive-panel-hairline')), findsNothing);
@@ -291,8 +292,8 @@ void main() {
 
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('probe-panel')), findsNothing);
-    // With the panel gone the sidebar fits again.
-    expect(_rect(tester, 'chat').left, 320);
+    // With the panel gone the sidebar fits again (with its outline column).
+    expect(_rect(tester, 'chat').left, 376);
     expect(_rect(tester, 'chat').right, 1280);
   });
 

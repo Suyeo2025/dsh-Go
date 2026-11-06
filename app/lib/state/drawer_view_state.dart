@@ -103,13 +103,31 @@ enum DrawerSort {
   created,
 }
 
-/// The drawer's view of one host: folders in display order and the sort.
+/// How the list below 正在发生 is laid out.
+enum DrawerLayout {
+  /// 按时间: 置顶, folders, then days (the list as it has always been).
+  time,
+
+  /// 工作区树: one collapsible group per workspace in the Host's manual
+  /// order, then 其它对话.
+  tree,
+}
+
+/// The drawer's view of one host: folders in display order, the sort, the
+/// layout and the workspace groups folded in the tree.
 class DrawerView {
-  const DrawerView({this.loaded = false, this.folders = const [], this.sort = DrawerSort.activity});
+  const DrawerView({
+    this.loaded = false,
+    this.folders = const [],
+    this.sort = DrawerSort.activity,
+    this.layout = DrawerLayout.time,
+    this.collapsedWorkspaces = const {},
+  });
 
   factory DrawerView.fromJson(Object? json) {
     final map = json is Map ? json : const {};
     final folders = map['folders'];
+    final collapsed = map['collapsedWorkspaces'];
     final seen = <String>{};
     return DrawerView(
       loaded: true,
@@ -119,16 +137,31 @@ class DrawerView {
             if (DrawerFolder.fromJson(raw) case final f? when seen.add(f.id)) f,
       ],
       sort: map['sort'] == 'created' ? DrawerSort.created : DrawerSort.activity,
+      // Missing or unknown (older builds): the time layout, as before.
+      layout: map['layout'] == 'tree' ? DrawerLayout.tree : DrawerLayout.time,
+      collapsedWorkspaces: {
+        if (collapsed is List)
+          for (final id in collapsed)
+            if (id is String && id.isNotEmpty) id,
+      },
     );
   }
 
   final bool loaded;
   final List<DrawerFolder> folders;
   final DrawerSort sort;
+  final DrawerLayout layout;
+
+  /// Workspace ids whose group is folded in the tree.
+  final Set<String> collapsedWorkspaces;
 
   Map<String, Object?> toJson() => {
     'folders': [for (final f in folders) f.toJson()],
     'sort': sort.name,
+    // Written only when set, so a view stored by this build reads the same
+    // in an older one.
+    if (layout != DrawerLayout.time) 'layout': layout.name,
+    if (collapsedWorkspaces.isNotEmpty) 'collapsedWorkspaces': collapsedWorkspaces.toList(),
   };
 
   DrawerFolder? byId(String? id) {
@@ -145,8 +178,18 @@ class DrawerView {
       for (final id in f.sessionIds) id: f.id,
   };
 
-  DrawerView copyWith({List<DrawerFolder>? folders, DrawerSort? sort}) =>
-      DrawerView(loaded: loaded, folders: folders ?? this.folders, sort: sort ?? this.sort);
+  DrawerView copyWith({
+    List<DrawerFolder>? folders,
+    DrawerSort? sort,
+    DrawerLayout? layout,
+    Set<String>? collapsedWorkspaces,
+  }) => DrawerView(
+    loaded: loaded,
+    folders: folders ?? this.folders,
+    sort: sort ?? this.sort,
+    layout: layout ?? this.layout,
+    collapsedWorkspaces: collapsedWorkspaces ?? this.collapsedWorkspaces,
+  );
 }
 
 /// [DrawerView] of the active host, in shared preferences.
@@ -353,6 +396,27 @@ class DrawerViewController extends Notifier<DrawerView> {
   });
 
   Future<void> setSort(DrawerSort sort) => _update((view) => view.copyWith(sort: sort));
+
+  /// 按时间 / 工作区树, remembered per host.
+  Future<void> setLayout(DrawerLayout layout) => _update((view) => view.copyWith(layout: layout));
+
+  /// Folds or unfolds [workspaceId]'s group in the tree.
+  Future<void> setWorkspaceCollapsed(String workspaceId, bool collapsed) => _update((view) {
+    if (view.collapsedWorkspaces.contains(workspaceId) == collapsed) return view;
+    return view.copyWith(
+      collapsedWorkspaces: collapsed
+          ? {...view.collapsedWorkspaces, workspaceId}
+          : ({...view.collapsedWorkspaces}..remove(workspaceId)),
+    );
+  });
+
+  Future<void> toggleWorkspaceCollapsed(String workspaceId) => _update(
+    (view) => view.copyWith(
+      collapsedWorkspaces: view.collapsedWorkspaces.contains(workspaceId)
+          ? ({...view.collapsedWorkspaces}..remove(workspaceId))
+          : {...view.collapsedWorkspaces, workspaceId},
+    ),
+  );
 
   /// Drops only confirmed deleted members, including the last session in a
   /// folder; unlike a guessed empty inventory this is authoritative.
@@ -627,7 +691,11 @@ final drawerScopeProvider = Provider<DrawerScope?>((ref) {
 });
 
 /// One block of the drawer list.
-sealed class DrawerBlock {
+///
+/// Not `sealed` while the tree blocks ([WorkspaceBlock], [LooseBlock]) are
+/// new: a list that switches over the time layout's blocks keeps compiling
+/// and simply has nothing to draw for them (only the tree layout makes them).
+abstract class DrawerBlock {
   const DrawerBlock(this.items);
 
   final List<SessionSummary> items;
@@ -657,6 +725,51 @@ final class FilteredBlock extends DrawerBlock {
   const FilteredBlock(this.filter, super.items);
 
   final DrawerFilter filter;
+}
+
+/// One workspace's group in the tree layout. [items]: its pinned members
+/// first ([pinnedCount] of them), then the rest, each part in the Host's
+/// manual order (`Workspace.sessionIds`). Members outside the drawer's scope
+/// (archived, DS Bot, elsewhere) are left out; the group shows even when
+/// none are left.
+final class WorkspaceBlock extends DrawerBlock {
+  const WorkspaceBlock(
+    this.workspace,
+    super.items, {
+    required this.pinnedCount,
+    required this.collapsed,
+    required this.runningCount,
+    required this.canReorder,
+    this.sectionTitle,
+  });
+
+  final Workspace workspace;
+  final int pinnedCount;
+
+  /// Folded (its rows are not drawn; never when the workspace is selected).
+  final bool collapsed;
+
+  /// Members running now (the header's 「N 在跑」).
+  final int runningCount;
+
+  /// Rows may be dragged and moved (`moveSession`): a live, writable list
+  /// and a ready registry.
+  final bool canReorder;
+
+  /// Set on the first group of a titled block of the workspace list (置顶 or
+  /// a group name from the phone's workspace preferences): a heading above
+  /// this group.
+  final String? sectionTitle;
+
+  /// The pinned zone and the rest.
+  List<SessionSummary> get pinned => items.sublist(0, pinnedCount);
+  List<SessionSummary> get unpinned => items.sublist(pinnedCount);
+}
+
+/// 其它对话: conversations in scope that no workspace accounts, by the sort
+/// key (newest first). Not reorderable.
+final class LooseBlock extends DrawerBlock {
+  const LooseBlock(super.items);
 }
 
 /// Whether [s] is listed under [filter]: the one rule both the list
@@ -750,11 +863,105 @@ List<DrawerBlock> drawerBlocks({
   return blocks;
 }
 
+/// The drawer list in the tree layout: one [WorkspaceBlock] per workspace in
+/// [workspaces]' order (the display order, the phone's pinned workspaces and
+/// groups already applied; [sectionStarts] maps the first workspace of each
+/// titled block to its heading), then a [LooseBlock] for conversations no
+/// workspace accounts (left out when empty).
+///
+/// * A status [filter] gives the same single [FilteredBlock] as [drawerBlocks].
+/// * With [selectedWorkspaceId] (and that workspace in [workspaces]) only its
+///   group is returned, never collapsed, and no [LooseBlock].
+/// * In a group, pinned members come first, then the rest; both parts keep
+///   the Host's manual order (`Workspace.sessionIds`), so a drag inside
+///   either part is a `workspace/insertSessionBefore`. Ids the Host lists
+///   that are not in [sessions] (archived, DS Bot, elsewhere) are skipped.
+/// * Every conversation shows once: the first workspace accounting it wins.
+/// * Folders are not blocks here (the row marks its folder instead).
+List<DrawerBlock> drawerTreeBlocks({
+  required List<SessionSummary> sessions,
+  required List<Workspace> workspaces,
+  required List<String> pinnedIds,
+  required DrawerView view,
+  required DrawerFilter filter,
+  required Map<String, PendingKind> pending,
+  required Set<String> unread,
+  required Map<String, DateTime> createdAt,
+  required DateTime now,
+  String? selectedWorkspaceId,
+  bool readOnly = false,
+  Map<String, String> sectionStarts = const {},
+}) {
+  if (filter != DrawerFilter.all) {
+    return drawerBlocks(
+      sessions: sessions,
+      pinnedIds: pinnedIds,
+      view: view,
+      filter: filter,
+      pending: pending,
+      unread: unread,
+      createdAt: createdAt,
+      now: now,
+    );
+  }
+  final byId = {for (final s in sessions) s.sessionId: s};
+  final pinnedSet = pinnedIds.toSet();
+  final placed = <String>{};
+  WorkspaceBlock group(Workspace w, {required bool collapsed, String? sectionTitle}) {
+    final pinned = <SessionSummary>[];
+    final rest = <SessionSummary>[];
+    for (final id in w.sessionIds) {
+      final s = byId[id];
+      if (s == null || !placed.add(id)) continue;
+      (pinnedSet.contains(id) ? pinned : rest).add(s);
+    }
+    final items = [...pinned, ...rest];
+    return WorkspaceBlock(
+      w,
+      items,
+      pinnedCount: pinned.length,
+      collapsed: collapsed,
+      runningCount: items.where((s) => s.running).length,
+      canReorder: !readOnly,
+      sectionTitle: sectionTitle,
+    );
+  }
+
+  if (selectedWorkspaceId != null) {
+    for (final w in workspaces) {
+      if (w.workspaceId == selectedWorkspaceId) return [group(w, collapsed: false)];
+    }
+  }
+  final blocks = <DrawerBlock>[
+    for (final w in workspaces)
+      group(
+        w,
+        collapsed: view.collapsedWorkspaces.contains(w.workspaceId),
+        sectionTitle: sectionStarts[w.workspaceId],
+      ),
+  ];
+  DateTime keyOf(SessionSummary s) =>
+      view.sort == DrawerSort.created ? (createdAt[s.sessionId] ?? s.updatedAt) : s.updatedAt;
+  final loose = [
+    for (final s in sessions)
+      if (!placed.contains(s.sessionId)) s,
+  ]..sort((a, b) {
+      final byKey = keyOf(b).compareTo(keyOf(a));
+      return byKey != 0 ? byKey : a.sessionId.compareTo(b.sessionId);
+    });
+  if (loose.isNotEmpty) blocks.add(LooseBlock(loose));
+  return blocks;
+}
+
 /// What 全选 picks: every conversation on screen (members of a collapsed
-/// folder are not).
+/// folder or workspace group are not).
 List<String> drawerSelectableIds(List<DrawerBlock> blocks) => [
   for (final block in blocks)
-    if (block is! FolderBlock || !block.folder.collapsed)
+    if (switch (block) {
+      FolderBlock(:final folder) => !folder.collapsed,
+      WorkspaceBlock(:final collapsed) => !collapsed,
+      _ => true,
+    })
       for (final s in block.items) s.sessionId,
 ];
 
@@ -768,12 +975,34 @@ final drawerClockProvider = Provider<DateTime Function()>((ref) => DateTime.now)
   unread: scope.readOnly ? const {} : ref.watch(unreadSessionIdsProvider),
 );
 
-/// [drawerBlocks] over the live providers; null while the list loads.
+/// [drawerBlocks] (按时间) or [drawerTreeBlocks] (工作区树, by
+/// [DrawerView.layout]) over the live providers; null while the list loads.
 List<DrawerBlock>? watchDrawerBlocks(WidgetRef ref, {DateTime? now}) {
   final scope = ref.watch(drawerScopeProvider);
   if (scope == null) return null;
   final view = ref.watch(drawerViewProvider);
   final marks = _watchDrawerMarks(ref, scope);
+  if (view.layout == DrawerLayout.tree) {
+    final sections = ref.watch(workspaceSectionsProvider);
+    final ready = ref.watch(workspacesProvider.select((s) => s.ready));
+    return drawerTreeBlocks(
+      sessions: scope.sessions,
+      workspaces: [for (final section in sections) ...section.items],
+      sectionStarts: {
+        for (final section in sections)
+          if (section.title != null && section.items.isNotEmpty) section.items.first.workspaceId: section.title!,
+      },
+      pinnedIds: ref.watch(workspacesProvider.select((s) => s.pinnedSessionIds)),
+      view: view,
+      filter: ref.watch(drawerFilterProvider),
+      pending: marks.pending,
+      unread: marks.unread,
+      createdAt: view.sort == DrawerSort.created ? ref.watch(sessionCreatedProvider) : const {},
+      now: now ?? ref.watch(drawerClockProvider)(),
+      selectedWorkspaceId: ref.watch(selectedWorkspaceIdProvider),
+      readOnly: scope.readOnly || !ready,
+    );
+  }
   return drawerBlocks(
     sessions: scope.sessions,
     pinnedIds: ref.watch(workspacesProvider.select((s) => s.pinnedSessionIds)),

@@ -15,7 +15,9 @@ import '../../pets/pet_overlay_bridge.dart';
 import '../../platform/platform_caps.dart';
 import '../../push/push_tap_host.dart';
 import '../../state/adaptive_layout_state.dart';
-import '../../state/drawer_view_state.dart' show drawerSelectionProvider;
+import '../../state/outline_state.dart';
+import '../../state/drawer_view_state.dart'
+    show drawerScopeProvider, drawerSelectableIds, drawerSelectionProvider, watchDrawerBlocks;
 import '../../state/quick_panel_state.dart';
 import '../../state/sessions_state.dart' show currentSessionProvider;
 import '../bots/bot_alerts.dart';
@@ -45,6 +47,8 @@ import '../web/dsh_web_launcher.dart';
 import 'adaptive/adaptive_layout.dart';
 import 'adaptive/adaptive_rail.dart';
 import 'adaptive/adaptive_scaffold.dart';
+import 'drawer/drawer_actions.dart' show archiveSelectionFlow;
+import 'drawer/outline_pane.dart';
 import 'drawer_drag.dart';
 import 'quick_panel.dart';
 import 'session_search_page.dart' show showSessionSearch;
@@ -100,6 +104,9 @@ class _HomeShellState extends ConsumerState<HomeShell> with TickerProviderStateM
   /// The pulled-over drawer's identity bar height: its notices stand above it.
   final _identityBar = ValueNotifier<double>(0);
 
+  /// The sidebar's list, for the outline's 正在发生 (back to the top).
+  final _sidebarScroll = ScrollController(debugLabel: 'sidebar');
+
   /// 「宠物设置」 from the floating pet's menu (every tap, not deduplicated).
   StreamSubscription<void>? _petSettings;
 
@@ -125,6 +132,7 @@ class _HomeShellState extends ConsumerState<HomeShell> with TickerProviderStateM
     _drawer.dispose();
     _quickPanel.dispose();
     _identityBar.dispose();
+    _sidebarScroll.dispose();
     super.dispose();
   }
 
@@ -171,6 +179,21 @@ class _HomeShellState extends ConsumerState<HomeShell> with TickerProviderStateM
 
   /// ≡ (the header's, or the rail's): pull the drawer over, or fold / unfold
   /// the sidebar of a wide window.
+  /// The sidebar's list back to its top (each list it holds: one, or the
+  /// filter's new one while the old fades).
+  void _sidebarToTop() {
+    if (!_sidebarScroll.hasClients) return;
+    final reduced = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    for (final position in [..._sidebarScroll.positions]) {
+      if (position.pixels == position.minScrollExtent) continue;
+      if (reduced) {
+        position.jumpTo(position.minScrollExtent);
+      } else {
+        unawaited(position.animateTo(position.minScrollExtent, duration: AppMotion.standard, curve: AppMotion.std));
+      }
+    }
+  }
+
   void _onMenu() {
     final prefs = ref.read(layoutPrefsProvider.notifier);
     switch (_layout.menuAction) {
@@ -308,6 +331,8 @@ class _HomeShellState extends ConsumerState<HomeShell> with TickerProviderStateM
     final chat = widget.chatBuilder?.call(_onMenu) ?? ChatScreen(onOpenDrawer: _onMenu, backdrop: false);
     // The floating pet outside the app hears every pet state.
     ref.listen<void>(petOverlayBridgeProvider, (_, _) {});
+    // The outline asks for the sidebar's list from the top.
+    ref.listen(outlineScrollTopProvider, (_, _) => _sidebarToTop());
     return SafeModeNoticeListener(
       child: PhoneStopWatcher(
         child: PopScope(
@@ -332,114 +357,146 @@ class _HomeShellState extends ConsumerState<HomeShell> with TickerProviderStateM
                 identityBar: _identityBar,
                 width: width,
                 // Hardware keyboard: ⌘N, ⌘K, ⌘⇧[ / ], ⌘., ⌘,, ⌘\, ⌘⇧D, ⌘/.
-                child: HomeShortcuts(
-                  onSearch: _search,
-                  onMenu: _onMenu,
-                  onOpen: _openDestination,
-                  layout: () => _layout,
-                  child: Scaffold(
-                    backgroundColor: Colors.transparent,
-                    // The chat screen handles the keyboard itself.
-                    resizeToAvoidBottomInset: false,
-                    body: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        // Notifications: routes taps, raises the in-app banner (draws nothing here).
-                        ChatAlertHost(onReveal: _revealChat),
-                        // iOS: push notification taps open their conversation (draws nothing).
-                        if (isRemoteOnlyPlatform) PushTapHost(onReveal: _revealChat),
-                        // Background running cut off by the phone: one line under the header (draws nothing here).
-                        const BackgroundNetHost(),
-                        // Daily update check + install resume (draws nothing).
-                        const UpdateLaunchCheck(),
-                        // The voice model chosen during setup: download, resume, ready / failed notices (draws nothing).
-                        const VoiceModelHost(),
-                        // 公测版: once in a while, an invitation to star the project (draws nothing).
-                        StarPromptHost(drawer: _drawer, quickPanel: _quickPanel),
-                        // App links / shared files: routes them to their feature (draws nothing).
-                        const LinkHost(),
-                        // Share codes (分享码): registers its links and files with the router.
-                        const ShareCodeHost(),
-                        // Share sheet, launcher shortcuts, the tile: into the chat (draws nothing).
-                        SystemEntryHost(onReveal: _revealChat),
-                        // Forum links (sign-in return, topics): registers them with the router.
-                        const ForumLinkHost(),
-                        // DS Bot: keeps its feed and notifications alive with the shell.
-                        const BotAlertsHost(),
-                        ExcludeSemantics(
-                          excluding: _open || _quickPanelOpen,
-                          child: _SideParallax(
-                            drawer: _drawer,
-                            drawerWidth: width,
-                            quickPanel: _quickPanel,
-                            quickPanelWidth: _quickPanelWidth(context),
-                            child: AdaptiveScaffold(
-                              layout: layout,
-                              // Stored choices arriving at launch snap into place.
-                              animate: prefs.loaded,
-                              body: RawGestureDetector(
-                                // translucent: join the hit chain without swallowing taps
-                                // meant for the chat; wraps the whole chat column so empty
-                                // areas still drag. Not 对话详情 beside it: its tabs swipe.
-                                // No drawer to pull while the sidebar shows.
-                                behavior: HitTestBehavior.translucent,
-                                gestures: {if (!sidebar) ..._drawerGestures, if (quickPanelOn) ..._quickPanelGestures},
-                                child: chat,
+                // Multi-select: ⌘A, Esc, Delete / ⌫, ⇧-click ranges.
+                child: _SelectionKeys(
+                  child: HomeShortcuts(
+                    onSearch: _search,
+                    onMenu: _onMenu,
+                    onOpen: _openDestination,
+                    layout: () => _layout,
+                    child: Scaffold(
+                      backgroundColor: Colors.transparent,
+                      // The chat screen handles the keyboard itself.
+                      resizeToAvoidBottomInset: false,
+                      body: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          // Notifications: routes taps, raises the in-app banner (draws nothing here).
+                          ChatAlertHost(onReveal: _revealChat),
+                          // iOS: push notification taps open their conversation (draws nothing).
+                          if (isRemoteOnlyPlatform) PushTapHost(onReveal: _revealChat),
+                          // Background running cut off by the phone: one line under the header (draws nothing here).
+                          const BackgroundNetHost(),
+                          // Daily update check + install resume (draws nothing).
+                          const UpdateLaunchCheck(),
+                          // The voice model chosen during setup: download, resume, ready / failed notices (draws nothing).
+                          const VoiceModelHost(),
+                          // 公测版: once in a while, an invitation to star the project (draws nothing).
+                          StarPromptHost(drawer: _drawer, quickPanel: _quickPanel),
+                          // App links / shared files: routes them to their feature (draws nothing).
+                          const LinkHost(),
+                          // Share codes (分享码): registers its links and files with the router.
+                          const ShareCodeHost(),
+                          // Share sheet, launcher shortcuts, the tile: into the chat (draws nothing).
+                          SystemEntryHost(onReveal: _revealChat),
+                          // Forum links (sign-in return, topics): registers them with the router.
+                          const ForumLinkHost(),
+                          // DS Bot: keeps its feed and notifications alive with the shell.
+                          const BotAlertsHost(),
+                          ExcludeSemantics(
+                            excluding: _open || _quickPanelOpen,
+                            child: _SideParallax(
+                              drawer: _drawer,
+                              drawerWidth: width,
+                              quickPanel: _quickPanel,
+                              quickPanelWidth: _quickPanelWidth(context),
+                              child: AdaptiveScaffold(
+                                layout: layout,
+                                // Stored choices arriving at launch snap into place.
+                                animate: prefs.loaded,
+                                body: RawGestureDetector(
+                                  // translucent: join the hit chain without swallowing taps
+                                  // meant for the chat; wraps the whole chat column so empty
+                                  // areas still drag. Not 对话详情 beside it: its tabs swipe.
+                                  // No drawer to pull while the sidebar shows.
+                                  behavior: HitTestBehavior.translucent,
+                                  gestures: {
+                                    if (!sidebar) ..._drawerGestures,
+                                    if (quickPanelOn) ..._quickPanelGestures,
+                                  },
+                                  child: chat,
+                                ),
+                                sidebar: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    // Wide windows: the outline column at its left.
+                                    if (layout.hasOutline) const SafeArea(right: false, child: OutlinePane()),
+                                    Expanded(
+                                      // The outline keeps clear of a cutout on the left.
+                                      child: Builder(
+                                        builder: (context) => MediaQuery.removePadding(
+                                          context: context,
+                                          removeLeft: layout.hasOutline,
+                                          child: PrimaryScrollController(
+                                            controller: _sidebarScroll,
+                                            child: SessionsDrawer(
+                                              key: const ValueKey('persistent-sidebar'),
+                                              // It stays: picking a conversation just shows it.
+                                              onClose: () {},
+                                              onOpen: _openDestination,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                rail: AdaptiveRail(
+                                  onMenu: _onMenu,
+                                  menuTooltip: AdaptiveChrome.menuTooltipFor(layout),
+                                  onSearch: _search,
+                                  onHost: () => showHostSheet(
+                                    context,
+                                    onManage: () => _openDestination(DrawerDestination.remote),
+                                  ),
+                                  onWeb: () => _openDestination(DrawerDestination.web),
+                                  onSettings: () => _openDestination(DrawerDestination.settings),
+                                ),
+                                panel: layout.panelAvailable && sessionId != null
+                                    ? SessionDetailPage.panel(key: ValueKey(sessionId), sessionId: sessionId)
+                                    : null,
                               ),
-                              sidebar: SessionsDrawer(
-                                key: const ValueKey('persistent-sidebar'),
-                                // It stays: picking a conversation just shows it.
-                                onClose: () {},
-                                onOpen: _openDestination,
-                              ),
-                              rail: AdaptiveRail(
-                                onMenu: _onMenu,
-                                menuTooltip: AdaptiveChrome.menuTooltipFor(layout),
-                                onSearch: _search,
-                                onHost: () =>
-                                    showHostSheet(context, onManage: () => _openDestination(DrawerDestination.remote)),
-                                onWeb: () => _openDestination(DrawerDestination.web),
-                                onSettings: () => _openDestination(DrawerDestination.settings),
-                              ),
-                              panel: layout.panelAvailable && sessionId != null
-                                  ? SessionDetailPage.panel(key: ValueKey(sessionId), sessionId: sessionId)
-                                  : null,
                             ),
                           ),
-                        ),
-                        Positioned.fill(
-                          // The open drawer and its scrim take the swipe that pushes it
-                          // back; closed, nothing here is hit.
-                          child: RawGestureDetector(
-                            behavior: HitTestBehavior.deferToChild,
-                            gestures: _drawerGestures,
-                            child: _DrawerOverlay(
-                              animation: _drawer,
-                              width: width,
-                              drawer: SessionsDrawer(
+                          Positioned.fill(
+                            // The open drawer and its scrim take the swipe that pushes it
+                            // back; closed, nothing here is hit.
+                            child: RawGestureDetector(
+                              behavior: HitTestBehavior.deferToChild,
+                              gestures: _drawerGestures,
+                              child: _DrawerOverlay(
+                                animation: _drawer,
+                                width: width,
+                                // Beside the sidebar there is no drawer to pull: none is
+                                // mounted, or its hidden copy (TickerMode off) would end the
+                                // sidebar's multi-select as soon as it began.
+                                drawer: sidebar
+                                    ? const SizedBox.shrink()
+                                    : SessionsDrawer(
+                                        onClose: _closeDrawer,
+                                        onOpen: _openDestination,
+                                        identityBarHeight: _identityBar,
+                                        drawerMotion: _drawer,
+                                      ),
                                 onClose: _closeDrawer,
-                                onOpen: _openDestination,
-                                identityBarHeight: _identityBar,
-                                drawerMotion: _drawer,
                               ),
-                              onClose: _closeDrawer,
                             ),
                           ),
-                        ),
-                        Positioned.fill(
-                          child: RawGestureDetector(
-                            behavior: HitTestBehavior.deferToChild,
-                            gestures: quickPanelOn ? _quickPanelGestures : const {},
-                            child: _DrawerOverlay(
-                              animation: _quickPanel,
-                              width: _quickPanelWidth(context),
-                              fromRight: true,
-                              drawer: QuickPanel(motion: _quickPanel, onOpen: _openDestination),
-                              onClose: _closeQuickPanel,
+                          Positioned.fill(
+                            child: RawGestureDetector(
+                              behavior: HitTestBehavior.deferToChild,
+                              gestures: quickPanelOn ? _quickPanelGestures : const {},
+                              child: _DrawerOverlay(
+                                animation: _quickPanel,
+                                width: _quickPanelWidth(context),
+                                fromRight: true,
+                                drawer: QuickPanel(motion: _quickPanel, onOpen: _openDestination),
+                                onClose: _closeQuickPanel,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -449,6 +506,99 @@ class _HomeShellState extends ConsumerState<HomeShell> with TickerProviderStateM
         ),
       ),
     );
+  }
+}
+
+/// Multi-select from a hardware keyboard, wherever the list is (the
+/// sidebar, or the drawer pulled over): ⌘A (Ctrl+A off Apple) chooses every
+/// listed row, Esc ends it, Delete / ⌫ archives the chosen rows (with the
+/// usual undo), and a ⇧-click chooses (or lets go) the rows from the last
+/// one clicked. Only while selecting and no text field has the keys: a text
+/// field keeps its own ⌘A, Esc and ⌫, and outside multi-select every key goes
+/// on to [HomeShortcuts] and the page.
+class _SelectionKeys extends ConsumerStatefulWidget {
+  const _SelectionKeys({required this.child});
+
+  final Widget child;
+
+  @override
+  ConsumerState<_SelectionKeys> createState() => _SelectionKeysState();
+}
+
+class _SelectionKeysState extends ConsumerState<_SelectionKeys> {
+  /// The rows a range or 全选 runs over, in the list's order, as last built.
+  List<String> _order = const [];
+
+  static bool get _apple => switch (defaultTargetPlatform) {
+    TargetPlatform.iOS || TargetPlatform.macOS => true,
+    _ => false,
+  };
+
+  static bool get _editingText {
+    final context = FocusManager.instance.primaryFocus?.context;
+    return context != null &&
+        (context.widget is EditableText || context.findAncestorStateOfType<EditableTextState>() != null);
+  }
+
+  void _onSelection(Set<String>? previous, Set<String>? next) {
+    final anchor = ref.read(selectionAnchorProvider.notifier);
+    if (next == null) return;
+    if (previous == null) {
+      anchor.set(next.length == 1 ? next.single : null);
+      return;
+    }
+    final target = toggledRow(previous, next);
+    if (target == null) return;
+    if (HardwareKeyboard.instance.isShiftPressed) {
+      final range = shiftRange(
+        previous: previous,
+        next: next,
+        order: _order,
+        anchor: ref.read(selectionAnchorProvider),
+        target: target,
+      );
+      // The anchor stays where the range started.
+      if (range != null) {
+        scheduleMicrotask(() {
+          if (mounted) ref.read(drawerSelectionProvider.notifier).setAll(range);
+        });
+        return;
+      }
+    }
+    anchor.set(target);
+  }
+
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final selection = ref.read(drawerSelectionProvider);
+    if (selection == null || _editingText) return KeyEventResult.ignored;
+    final keyboard = HardwareKeyboard.instance;
+    final command = keyboard.isMetaPressed || (!_apple && keyboard.isControlPressed);
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.escape) {
+      ref.read(drawerSelectionProvider.notifier).end();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.keyA && command && !keyboard.isShiftPressed) {
+      ref.read(drawerSelectionProvider.notifier).setAll(_order);
+      return KeyEventResult.handled;
+    }
+    if ((key == LogicalKeyboardKey.delete || key == LogicalKeyboardKey.backspace) && !command) {
+      if (selection.isNotEmpty && ref.read(drawerScopeProvider)?.readOnly == false) {
+        unawaited(archiveSelectionFlow(context, ref));
+      }
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Only while selecting: the rest of the time the list is not followed.
+    final selecting = ref.watch(drawerSelectionProvider.select((s) => s != null));
+    _order = selecting ? drawerSelectableIds(watchDrawerBlocks(ref) ?? const []) : const [];
+    ref.listen<Set<String>?>(drawerSelectionProvider, _onSelection);
+    return Focus(canRequestFocus: false, skipTraversal: true, onKeyEvent: _onKey, child: widget.child);
   }
 }
 

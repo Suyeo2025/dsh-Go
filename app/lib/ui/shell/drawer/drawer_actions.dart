@@ -21,6 +21,7 @@ import '../../../state/workspaces_state.dart';
 import 'folder_sheets.dart';
 import '../session_search_page.dart' show showSessionSearch;
 import 'archive_notice.dart';
+import 'row_actions.dart';
 import '../../common/brief_notice.dart';
 
 void _toast(ScaffoldMessengerState? messenger, String text, {String? undoLabel, VoidCallback? onUndo}) {
@@ -304,4 +305,69 @@ Future<void> archiveSelectionFlow(BuildContext context, WidgetRef ref) async {
     return;
   }
   ref.read(drawerSelectionProvider.notifier).end();
+}
+
+// ── Manual order in the workspace tree ───────────────────────────────────────
+
+/// Moves [sessionId] before [beforeId] (null: to the end) in [workspaceId]'s
+/// order on the Host. The new order shows at once; when the Host refuses or
+/// doesn't answer it goes back and a 「排序没有保存」 notice offers 重试.
+Future<bool> moveRowFlow(
+  BuildContext context,
+  WidgetRef ref,
+  String workspaceId,
+  String sessionId, {
+  String? beforeId,
+}) async {
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  final notifier = ref.read(workspacesProvider.notifier);
+  Future<bool> attempt() async {
+    try {
+      return await notifier.moveSession(workspaceId, sessionId, beforeId: beforeId);
+    } on StateError {
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  final saved = await attempt();
+  if (!saved) {
+    _toast(
+      messenger,
+      appL10n.smStateReorderFailed,
+      undoLabel: appL10n.commonRetry,
+      onUndo: () {
+        if (!context.mounted) return;
+        unawaited(moveRowFlow(context, ref, workspaceId, sessionId, beforeId: beforeId));
+      },
+    );
+  }
+  return saved;
+}
+
+/// 上移一位 / 下移一位 / 移到最前 / 移到最后 ([delta]: -1, +1, [rowMoveFirst],
+/// [rowMoveLast]) inside the row's zone of its workspace group; a failure says
+/// so with 重试.
+Future<RowActionResult> moveRowByFlow(
+  BuildContext context,
+  WidgetRef ref,
+  String workspaceId,
+  String sessionId, {
+  required int delta,
+}) async {
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  final result = await moveRow(ref, workspaceId, sessionId, delta: delta);
+  if (result == RowActionResult.failed) {
+    _toast(
+      messenger,
+      appL10n.smStateReorderFailed,
+      undoLabel: appL10n.commonRetry,
+      onUndo: () {
+        if (!context.mounted) return;
+        unawaited(moveRowByFlow(context, ref, workspaceId, sessionId, delta: delta));
+      },
+    );
+  }
+  return result;
 }

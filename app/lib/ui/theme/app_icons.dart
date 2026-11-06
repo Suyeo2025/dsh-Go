@@ -37,6 +37,12 @@ abstract final class AppIcons {
   static const scrollToBottom = DshGlyphs.arrowDown;
   static const sidebar = DshGlyphs.sidebarSimpleRight;
   static const dragHandle = DshGlyphs.dotsSixVertical;
+
+  /// 工作区树里移动一行(⋯ 选单):上移 / 下移一位是尖角,移到最前 / 最后是箭头。
+  static const moveUp = DshGlyphs.caretUp;
+  static const moveDown = DshGlyphs.caretDown;
+  static const moveFirst = DshGlyphs.arrowUp;
+  static const moveLast = DshGlyphs.arrowDown;
   static const swap = DshGlyphs.arrowsLeftRight;
 
   /// 终端方向键、补全面板里的回车提示。
