@@ -49,6 +49,34 @@ void main() {
       await _pump(tester, const WhaleTail(level: 4, color: deepSeekBlue), reduced: true);
       expect(await framesOver(tester, const Duration(seconds: 1), step: _hz120), 0);
     });
+
+    testWidgets('its page covered: holds, no frames', (tester) async {
+      await _pump(tester, const TickerMode(enabled: false, child: WhaleTail(level: 4, color: deepSeekBlue)));
+      expect(await framesOver(tester, const Duration(seconds: 1), step: _hz120), 0);
+    });
+
+    testWidgets('the levels still swim at different speeds', (tester) async {
+      // Sprite frames covered in a second of the same form (level 0–2 share it).
+      Future<double> swim(int level) async {
+        await _pump(tester, WhaleTail(key: ValueKey(level), level: level, color: deepSeekBlue));
+        final whale = tester.state<WhaleTailState>(find.byType(WhaleTail));
+        var covered = 0.0;
+        var last = whale.frame;
+        for (var i = 0; i < 24; i++) {
+          await tester.pump(const Duration(milliseconds: 125));
+          final now = whale.frame;
+          covered += (now - last) % 24;
+          last = now;
+        }
+        return covered;
+      }
+
+      final slow = await swim(0);
+      final mid = await swim(1);
+      final fast = await swim(2);
+      expect(slow, lessThan(mid));
+      expect(mid, lessThan(fast));
+    });
   });
 
   group('quiet arc (a running tool)', () {
@@ -75,6 +103,27 @@ void main() {
       final frames = await framesOver(tester, const Duration(seconds: 2), step: _hz120);
       expect(frames, inInclusiveRange(18, 30));
     });
+
+    // A running turn: the tool's arc, the strip's whale tail and the header's
+    // dot all step on one clock, so together they still cost about 12 frames
+    // a second instead of the whale's own rate on top.
+    for (final level in [0, 1, 2, 3, 4]) {
+      testWidgets('with the whale tail at level $level and a busy dot: the same dozen frames', (tester) async {
+        await _pump(
+          tester,
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const QuietArc(color: deepSeekBlue),
+              WhaleTail(level: level, color: deepSeekBlue),
+              const StatusDot(tone: StatusTone.busy),
+            ],
+          ),
+        );
+        final frames = await framesOver(tester, const Duration(seconds: 2), step: _hz120);
+        expect(frames, inInclusiveRange(18, 30));
+      });
+    }
 
     testWidgets('animations off: holds, no frames', (tester) async {
       await _pump(tester, const QuietArc(color: deepSeekBlue), reduced: true);

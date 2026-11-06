@@ -225,7 +225,8 @@ void main() {
       set(() => level = 2);
       await tester.pump(const Duration(milliseconds: 16));
       await tester.pump(const Duration(milliseconds: 16));
-      expect(whale().rate, inExclusiveRange(0.5, 0.6));
+      // Eased part of the way (one clock step of it), not jumped to 1.
+      expect(whale().rate, inExclusiveRange(0.5, 0.75));
       for (var i = 0; i < 20; i++) {
         await tester.pump(const Duration(milliseconds: 100));
       }
