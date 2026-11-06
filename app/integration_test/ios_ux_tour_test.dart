@@ -327,9 +327,7 @@ class _Tour {
   Future<List<({String key, String id, String title})>> sessions() async {
     await openDrawer();
     final out = <({String key, String id, String title})>[];
-    final tiles = find.byWidgetPredicate(
-      (w) => w.key is ValueKey<String> && RegExp(r'^session-(?!delete)').hasMatch((w.key! as ValueKey<String>).value),
-    );
+    final tiles = find.byElementPredicate(_isSessionTile);
     for (final e in tiles.evaluate()) {
       final key = (e.widget.key! as ValueKey<String>).value;
       final title = find
@@ -925,4 +923,15 @@ class _Tour {
 class _NotHere implements Exception {
   const _NotHere(this.why);
   final String why;
+}
+
+/// A conversation's row in the sessions list (keyed `session-<id>`). Session ids start with
+/// `session-` themselves and the chat screen, its detail panel and todo bar are keyed with the
+/// bare id, so only rows inside the sessions drawer / sidebar count (on iPad the chat beside the
+/// sidebar matched too, and "opening" it tapped the middle of the chat).
+bool _isSessionTile(Element e) {
+  final key = e.widget.key;
+  return key is ValueKey<String> &&
+      RegExp(r'^session-(?!delete)').hasMatch(key.value) &&
+      e.findAncestorWidgetOfExactType<SessionsDrawer>() != null;
 }

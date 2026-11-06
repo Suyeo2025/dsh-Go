@@ -28,6 +28,8 @@ import 'package:dsh_app/state/font_state.dart';
 import 'package:dsh_app/state/locale_state.dart';
 import 'package:dsh_app/ui/chat/artifact_preview.dart' show artifactPreviewable;
 import 'package:dsh_app/ui/chat/chat_list.dart' show ChatList;
+import 'package:dsh_app/ui/plugins/islands/island_gate.dart' show islandHostUrlProvider;
+import 'package:webview_flutter/webview_flutter.dart' show WebViewWidget;
 import 'package:dsh_app/ui/chat/widgets/artifact_card.dart' show ArtifactTile;
 import 'package:dsh_app/ui/chat/widgets/attachments.dart' show SentAttachments;
 import 'package:dsh_app/ui/common/third_party_licenses.dart';
@@ -126,7 +128,13 @@ final class _LoggingHttp implements UpdateHttp {
 /// The app as main() starts it, the font download's HTTP logged.
 Widget _app() => ProviderScope(
   observers: const [_BuildPhaseObserver()],
-  overrides: [fontEnvironmentProvider.overrideWithValue(FontEnvironment(http: () => _LoggingHttp(IoUpdateHttp())))],
+  overrides: [
+    fontEnvironmentProvider.overrideWithValue(FontEnvironment(http: () => _LoggingHttp(IoUpdateHttp()))),
+    // No plugin islands here: a WKWebView (platform view) stalls the test's frames on the
+    // simulator (the iPad run hung once the conversation-detail panel showed one). Seats show
+    // their fallback; islands are covered by ios_islands_test.dart (sim-smoke.sh --islands).
+    islandHostUrlProvider.overrideWith((ref, host) => null),
+  ],
   child: const DshApp(),
 );
 
@@ -136,6 +144,27 @@ void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('iOS smoke', timeout: const Timeout(Duration(minutes: 20)), (tester) async {
+    // Stall watchdog: no frame for 25 s while the test runs (a pump waiting forever, as the
+    // iPad run did in jump-to-bottom) logs the scheduler's state and asks for a forced frame
+    // once, so the log says whether the engine stopped or nothing asked for a frame.
+    var lastFrame = DateTime.now();
+    var forced = false;
+    SchedulerBinding.instance.addPersistentFrameCallback((_) => lastFrame = DateTime.now());
+    final watchdog = Timer.periodic(const Duration(seconds: 5), (_) {
+      final quiet = DateTime.now().difference(lastFrame);
+      if (quiet < const Duration(seconds: 25)) return;
+      final s = SchedulerBinding.instance;
+      debugPrint(
+        'SMOKE_STALL quiet=${quiet.inSeconds}s phase=${s.schedulerPhase.name} scheduled=${s.hasScheduledFrame} '
+        'enabled=${s.framesEnabled} lifecycle=${s.lifecycleState?.name} transient=${s.transientCallbackCount} '
+        'policy=${binding.framePolicy.name} forced=$forced',
+      );
+      if (!forced) {
+        forced = true;
+        s.scheduleForcedFrame();
+      }
+    });
+    addTearDown(watchdog.cancel);
     // Errors the app leaves uncaught land here, not in the test binding's
     // handler (which insists on owning FlutterError.onError while it reports).
     final errors = <String>[];
@@ -361,6 +390,39 @@ Future<void> _smoke(WidgetTester tester, IntegrationTestWidgetsFlutterBinding bi
       if (!await waitFor(find.byType(SessionsDrawer))) throw StateError('drawer did not open');
     }
 
+    /// Opens the conversation behind [tile] (in a loop trying several), and gives it up as soon
+    /// as it shows a web view of its own (a platform view stalls the test's frames on the
+    /// simulator). Islands are off in this test ([_app]); this guards anything else embedding one.
+    final islandConversations = <String>{};
+    // The conversation on screen. On a wide window (iPad) its tile must not be tapped again: the
+    // sidebar folds away on the finger going down, the finger coming up lands on the chat under
+    // it (a deliverable's Quick Look took the app to the background and the run hung).
+    String? openKey;
+    bool wideLayout() =>
+        find.byKey(const ValueKey('rail-menu')).evaluate().isNotEmpty ||
+        find.byKey(const ValueKey('persistent-sidebar')).evaluate().isNotEmpty;
+    Future<bool> openUnlessIsland(Finder tile, String key) async {
+      if (islandConversations.contains(key)) return false;
+      if (key == openKey && wideLayout() && find.byType(ChatList).evaluate().isNotEmpty) {
+        debugPrint('SMOKE_OPEN $key (already open)');
+        return true;
+      }
+      final before = find.byType(WebViewWidget).evaluate().toSet();
+      debugPrint('SMOKE_OPEN $key');
+      await tester.tap(tile.hitTestable().first);
+      openKey = key;
+      for (var t = 0; t < 3500; t += 100) {
+        await tester.pump(const Duration(milliseconds: 100));
+        if (find.byType(WebViewWidget).evaluate().any((e) => !before.contains(e))) {
+          islandConversations.add(key);
+          steps.add({'step': 'skipped $key: it mounts a plugin island (a WKWebView stalls the test)', 'ok': true});
+          debugPrint('SMOKE_ISLAND_SKIP $key');
+          return false;
+        }
+      }
+      return true;
+    }
+
     Future<void> openQuickPanel() async {
       // A wide window keeps the sessions as a sidebar and has no quick panel.
       if (find.byKey(const ValueKey('persistent-sidebar')).evaluate().isNotEmpty) {
@@ -457,20 +519,16 @@ Future<void> _smoke(WidgetTester tester, IntegrationTestWidgetsFlutterBinding bi
     await step('drawer', () async {
       await openDrawer();
       if (_live) {
-        final session = find.byWidgetPredicate(
-          (w) =>
-              w.key is ValueKey<String> && RegExp(r'^session-(?!delete)').hasMatch((w.key! as ValueKey<String>).value),
-        );
+        final session = find.byElementPredicate(_isSessionTile);
         if (!await waitFor(session, seconds: 40)) throw StateError('no sessions listed from the host');
       }
       await frames(800);
     });
     if (_live) {
       await step('session-open', () async {
-        final session = find.byWidgetPredicate(
-          (w) =>
-              w.key is ValueKey<String> && RegExp(r'^session-(?!delete)').hasMatch((w.key! as ValueKey<String>).value),
-        );
+        final session = find.byElementPredicate(_isSessionTile);
+        await waitFor(session);
+        openKey = (tester.widget(session.hitTestable().first).key! as ValueKey<String>).value;
         await tapAndSettle(session, 5000);
       });
     }
@@ -484,15 +542,7 @@ Future<void> _smoke(WidgetTester tester, IntegrationTestWidgetsFlutterBinding bi
             .position;
         final keys = <String>[];
         await openDrawer();
-        for (final e
-            in find
-                .byWidgetPredicate(
-                  (w) =>
-                      w.key is ValueKey<String> &&
-                      RegExp(r'^session-(?!delete)').hasMatch((w.key! as ValueKey<String>).value),
-                )
-                .hitTestable()
-                .evaluate()) {
+        for (final e in find.byElementPredicate(_isSessionTile).hitTestable().evaluate()) {
           keys.add((e.widget.key! as ValueKey<String>).value);
         }
         String? longest;
@@ -501,8 +551,7 @@ Future<void> _smoke(WidgetTester tester, IntegrationTestWidgetsFlutterBinding bi
           await openDrawer();
           final tile = find.byKey(ValueKey(key));
           if (tile.hitTestable().evaluate().isEmpty) continue;
-          await tester.tap(tile.hitTestable().first);
-          await frames(3500);
+          if (!await openUnlessIsland(tile, key)) continue;
           if (find.byType(ChatList).evaluate().isEmpty) continue;
           final p = chatPosition();
           final extent = p.maxScrollExtent - p.minScrollExtent + p.viewportDimension;
@@ -513,8 +562,8 @@ Future<void> _smoke(WidgetTester tester, IntegrationTestWidgetsFlutterBinding bi
         }
         if (longest == null) throw StateError('no conversation opened');
         await openDrawer();
-        await tester.tap(find.byKey(ValueKey(longest)).hitTestable().first);
-        await frames(4000);
+        await openUnlessIsland(find.byKey(ValueKey(longest)), longest);
+        await frames(500);
         final start = chatPosition();
         final atBottom = start.pixels;
         // Up: the finger goes down the screen, a long fast fling.
@@ -585,15 +634,7 @@ Future<void> _smoke(WidgetTester tester, IntegrationTestWidgetsFlutterBinding bi
         bool drawerOut() => find.byType(SessionsDrawer).hitTestable().evaluate().isNotEmpty;
         final keys = <String>[];
         await openDrawer();
-        for (final e
-            in find
-                .byWidgetPredicate(
-                  (w) =>
-                      w.key is ValueKey<String> &&
-                      RegExp(r'^session-(?!delete)').hasMatch((w.key! as ValueKey<String>).value),
-                )
-                .hitTestable()
-                .evaluate()) {
+        for (final e in find.byElementPredicate(_isSessionTile).hitTestable().evaluate()) {
           keys.add((e.widget.key! as ValueKey<String>).value);
         }
         ScrollableState? table;
@@ -602,8 +643,7 @@ Future<void> _smoke(WidgetTester tester, IntegrationTestWidgetsFlutterBinding bi
           await openDrawer();
           final tile = find.byKey(ValueKey(key));
           if (tile.hitTestable().evaluate().isEmpty) continue;
-          await tester.tap(tile.hitTestable().first);
-          await frames(3500);
+          if (!await openUnlessIsland(tile, key)) continue;
           if (find.byType(ChatList).evaluate().isEmpty) continue;
           for (var page = 0; page < 10 && table == null; page++) {
             table = wideTable();
@@ -695,15 +735,7 @@ Future<void> _smoke(WidgetTester tester, IntegrationTestWidgetsFlutterBinding bi
       await step('session-file-preview', () async {
         final sessionKeys = <String>[];
         await openDrawer();
-        for (final e
-            in find
-                .byWidgetPredicate(
-                  (w) =>
-                      w.key is ValueKey<String> &&
-                      RegExp(r'^session-(?!delete)').hasMatch((w.key! as ValueKey<String>).value),
-                )
-                .hitTestable()
-                .evaluate()) {
+        for (final e in find.byElementPredicate(_isSessionTile).hitTestable().evaluate()) {
           sessionKeys.add((e.widget.key! as ValueKey<String>).value);
         }
         final targets = [
@@ -718,8 +750,7 @@ Future<void> _smoke(WidgetTester tester, IntegrationTestWidgetsFlutterBinding bi
           await openDrawer();
           final tile = find.byKey(ValueKey(key));
           if (tile.hitTestable().evaluate().isEmpty) continue;
-          await tester.tap(tile.hitTestable().first);
-          await frames(3500);
+          if (!await openUnlessIsland(tile, key)) continue;
           for (var page = 0; page < 6; page++) {
             for (final target in targets) {
               final hit = target.hitTestable();
@@ -810,9 +841,7 @@ Future<void> _smoke(WidgetTester tester, IntegrationTestWidgetsFlutterBinding bi
       // A conversation in it.
       await home();
       await openDrawer();
-      final session = find.byWidgetPredicate(
-        (w) => w.key is ValueKey<String> && RegExp(r'^session-(?!delete)').hasMatch((w.key! as ValueKey<String>).value),
-      );
+      final session = find.byElementPredicate(_isSessionTile);
       if (session.hitTestable().evaluate().isNotEmpty) {
         await tapAndSettle(session, 3500);
         await screenshot('font-wenkai-session');
@@ -914,4 +943,15 @@ String _routeName(NavigatorState nav) {
   });
   final route = top;
   return route is ModalRoute ? '${route.settings.name ?? route.runtimeType}' : '$route';
+}
+
+/// A conversation's row in the sessions list (keyed `session-<id>`). Session ids start with
+/// `session-` themselves and the chat screen, its detail panel and todo bar are keyed with the
+/// bare id, so only rows inside the sessions drawer / sidebar count (on iPad the chat beside the
+/// sidebar matched too, and "opening" it tapped the middle of the chat).
+bool _isSessionTile(Element e) {
+  final key = e.widget.key;
+  return key is ValueKey<String> &&
+      RegExp(r'^session-(?!delete)').hasMatch(key.value) &&
+      e.findAncestorWidgetOfExactType<SessionsDrawer>() != null;
 }

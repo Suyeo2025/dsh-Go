@@ -56,7 +56,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 const _out = String.fromEnvironment('SMOKE_OUT');
 const _url = String.fromEnvironment('SMOKE_DIRECT_URL');
 const _token = String.fromEnvironment('SMOKE_DIRECT_TOKEN');
-const _window = Duration(seconds: 10);
+// 20 s: a pet put on screen just before plays for up to 8 s before it rests; the per-second
+// counts show when a scene settles, fpsLast10 is the steady state.
+const _window = Duration(seconds: 20);
 const _diagWindow = Duration(seconds: 3);
 
 final _riskyTitle = RegExp(r'密码|口令|password|token|密钥|凭据|credential|宽带|账号|secret|api ?key', caseSensitive: false);
@@ -142,6 +144,13 @@ class _Probe {
 
   bool _counting = false;
   int _begun = 0;
+
+  /// Frames in which something was built or painted. The live test binding asks the engine for
+  /// the next frame after every frame a pump didn't ask for (LiveTestWidgetsFlutterBinding.
+  /// handleDrawFrame), so a single frame the app requests turns into an endless run of empty
+  /// frames: [_begun] says "the app asked for a frame at all", [_work] how many it needed.
+  int _work = 0;
+  bool _workThisFrame = false;
   int _rastered = 0;
   int _buildUs = 0;
   int _rasterUs = 0;
@@ -204,9 +213,7 @@ class _Probe {
   Future<List<({String key, String title, bool running})>> sessions() async {
     await openDrawer();
     final out = <({String key, String title, bool running})>[];
-    final tiles = find.byWidgetPredicate(
-      (w) => w.key is ValueKey<String> && RegExp(r'^session-(?!delete)').hasMatch((w.key! as ValueKey<String>).value),
-    );
+    final tiles = find.byElementPredicate(_isSessionTile);
     for (final e in tiles.evaluate()) {
       final key = (e.widget.key! as ValueKey<String>).value;
       final of = find.byElementPredicate((x) => x == e);
@@ -291,24 +298,35 @@ class _Probe {
     scenes.add(result);
     await _write(partial: true);
     debugPrint(
-      'PERF_RESULT $name begun=${result['framesBegun']} rastered=${result['framesRastered']} '
+      'PERF_RESULT $name begun=${result['framesBegun']} work=${result['framesWork']} workLast10=${result['workLast10']}/s rastered=${result['framesRastered']} '
       'tickers=${result['transientCallbacksAtEnd']} http=${(result['http'] as Map).length}',
     );
   }
 
   /// The clean window: hands off, frames and requests counted.
   Future<Map<String, Object?>> measure(String name) async {
-    _begun = _rastered = _buildUs = _rasterUs = 0;
+    _begun = _work = _rastered = _buildUs = _rasterUs = 0;
     _http.clear();
+    debugOnProfilePaint = (_) => _workThisFrame = true;
+    debugOnRebuildDirtyWidget = (_, _) => _workThisFrame = true;
     final tickers = <int>[];
     _counting = true;
     debugPrint('PERF_CPU $name ${_window.inSeconds}');
+    final perSecond = <int>[];
+    var mark = 0;
     final end = DateTime.now().add(_window);
     while (DateTime.now().isBefore(end)) {
       await Future<void>.delayed(const Duration(milliseconds: 500));
       tickers.add(SchedulerBinding.instance.transientCallbackCount);
+      if (tickers.length.isEven) {
+        perSecond.add(_work - mark);
+        mark = _work;
+      }
     }
     _counting = false;
+    debugOnProfilePaint = null;
+    debugOnRebuildDirtyWidget = null;
+    final last10 = perSecond.length > 10 ? perSecond.sublist(perSecond.length - 10) : perSecond;
     // Timings come in batches: let the last ones arrive (they're dropped from now on).
     final requests = <String, int>{};
     for (final r in _http) {
@@ -320,6 +338,12 @@ class _Probe {
       'framesBegun': _begun,
       'framesRastered': _rastered,
       'fpsBegun': double.parse((_begun / secs).toStringAsFixed(1)),
+      'framesWork': _work,
+      'fpsWork': double.parse((_work / secs).toStringAsFixed(1)),
+      'workPerSecond': perSecond,
+      'workLast10': last10.isEmpty
+          ? 0
+          : double.parse((last10.reduce((a, b) => a + b) / last10.length).toStringAsFixed(1)),
       'avgBuildMs': _rastered == 0 ? 0 : double.parse((_buildUs / _rastered / 1000).toStringAsFixed(2)),
       'avgRasterMs': _rastered == 0 ? 0 : double.parse((_rasterUs / _rastered / 1000).toStringAsFixed(2)),
       'transientCallbacksMax': tickers.isEmpty ? 0 : tickers.reduce((a, b) => a > b ? a : b),
@@ -458,7 +482,11 @@ class _Probe {
     if (!_persistentAdded) {
       _persistentAdded = true;
       SchedulerBinding.instance.addPersistentFrameCallback((_) {
-        if (_counting) _begun++;
+        if (_counting) {
+          _begun++;
+          if (_workThisFrame) _work++;
+        }
+        _workThisFrame = false;
       });
     }
     FlutterError.onError = (d) => notes.add(scrub('FlutterError: ${'${d.exception}'.split('\n').first}'));
@@ -627,4 +655,15 @@ class _Probe {
 class _NotHere implements Exception {
   const _NotHere(this.why);
   final String why;
+}
+
+/// A conversation's row in the sessions list (keyed `session-<id>`). Session ids start with
+/// `session-` themselves and the chat screen, its detail panel and todo bar are keyed with the
+/// bare id, so only rows inside the sessions drawer / sidebar count (on iPad the chat beside the
+/// sidebar matched too, and "opening" it tapped the middle of the chat).
+bool _isSessionTile(Element e) {
+  final key = e.widget.key;
+  return key is ValueKey<String> &&
+      RegExp(r'^session-(?!delete)').hasMatch(key.value) &&
+      e.findAncestorWidgetOfExactType<SessionsDrawer>() != null;
 }
