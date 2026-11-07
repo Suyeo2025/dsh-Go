@@ -11,7 +11,8 @@
 //             the official modal layer and menus close on
 //   'popup'   a popover that closes on a touch elsewhere (the composer's
 //             suggestions, pickers, the Cordis panel) got one
-//   'drawer'  the app's drawer closed (phone layout, dsh_web_phone.js)
+//   'drawer'  the app's drawer closed (phone layout, dsh_web_phone.js), or
+//             the page's own (rc.5's narrow frame), through its mask
 //   'panel'   the right panel covering the conversation (files, terminal)
 //             folded away
 //   'page'    the main area went up a level: a plugin's page to the list, a
@@ -140,8 +141,18 @@
       return 'drawer';
     }
 
-    // 4. The right panel covering the conversation.
+    // 3b. The page's own drawer (rc.5's narrow frame), open: a touch on its
+    //     mask, as a person would close it.
     var f = frame();
+    if (f && f.hasAttribute('data-sidebar-drawer') && !f.hasAttribute('data-sidebar-collapsed')) {
+      var mask = f.querySelector(':scope > [class*="_drawerMask"]');
+      if (mask) {
+        mask.click();
+        return 'drawer';
+      }
+    }
+
+    // 4. The right panel covering the conversation.
     if (f && f.getAttribute('data-rightbar-fullscreen') === 'true') {
       var fold = lastShown('[data-slot="rightbar"] button[data-sidebar-right-toggle]');
       if (fold) {

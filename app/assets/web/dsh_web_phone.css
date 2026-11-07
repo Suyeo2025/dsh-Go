@@ -12,6 +12,12 @@
  * - "desktop", 1024px and up: the official layout, with a band above the
  *   sidebar for the app's back button and the sidebar's background running
  *   under the status and gesture bars.
+ * - "official", frames below 1024px of a DSH Web with a narrow drawer of its
+ *   own (0.2.1-rc.5 and later, frame[data-sidebar-drawer], reported by
+ *   dsh_web_phone.js): its drawer, mask, menu button and gestures as
+ *   shipped. Only the safe areas (the frame's rows clear of the system bars,
+ *   the drawer's and the page's backgrounds running under them) and room in
+ *   the header row for the app's one button, before the page's menu button.
  *
  * Rules, because plugins build on the official Web UI and must keep working:
  * - Layout containers only (shell grid, drawer, settings sheet, dialog size,
@@ -51,14 +57,15 @@ body > [class*="_overlay"] {
 }
 
 /* Touch: row actions (more / archive / pin) only appear on mouse hover;
-   show them on the selected session so they can be reached at all. */
-[class*="_sessionRow"][class*="_selected"] [class*="_rowActions"] {
+   show them on the selected session so they can be reached at all. Not in
+   a page's own drawer: its sidebar stays as shipped. */
+:root:not([data-dsh-app-layout="official"]) [class*="_sessionRow"][class*="_selected"] [class*="_rowActions"] {
   display: flex !important;
   opacity: 1 !important;
   visibility: visible !important;
 }
-[class*="_sessionRow"][class*="_selected"] [class*="_time"],
-[class*="_sessionRow"][class*="_selected"] [class*="_pinIndicator"] {
+:root:not([data-dsh-app-layout="official"]) [class*="_sessionRow"][class*="_selected"] [class*="_time"],
+:root:not([data-dsh-app-layout="official"]) [class*="_sessionRow"][class*="_selected"] [class*="_pinIndicator"] {
   display: none !important;
 }
 
@@ -351,6 +358,34 @@ body > [class*="_overlay"] {
 }
 :root[data-dsh-app-layout="desktop"] [data-slot="root"] > [class*="_frame"]:has(> [data-shell-bottom] > [data-slot="shell.bottom"]:empty) > [class*="_sidebarCol"] [data-slot="sidebar"] > [class*="_root"] {
   padding-bottom: calc(6px + var(--dsh-app-frame-bottom, 0px)) !important;
+}
+
+/* ── Official layout: DSH Web's own narrow drawer ─────────────────────────── */
+
+/* #root covers the window (web_view_page.dart); the frame pads its rows
+   clear of the status and gesture bars and its background runs under them.
+   The page's drawer and its mask are the frame's absolute children (inset
+   0): they cover the padding too, so the drawer's background and the dimmed
+   page run under the bars like the rest — no band of another colour. */
+:root[data-dsh-app-layout="official"] [data-slot="root"] > [class*="_frame"] {
+  box-sizing: border-box !important;
+  padding-top: var(--dsh-app-status, 0px) !important;
+  padding-bottom: var(--dsh-app-frame-bottom, 0px) !important;
+  /* The header row's leading room (the page's menu button), plus the app's
+     button before it. */
+  --dsh-frame-leading-clearance: calc(48px + var(--dsh-app-lead, 0px)) !important;
+}
+/* The drawer's content starts below the status bar and ends above the
+   gesture bar; its own background fills both (the borders are its fill). */
+:root[data-dsh-app-layout="official"] [data-slot="root"] > [class*="_frame"] > [class*="_sidebarCol"] {
+  border-top: var(--dsh-app-status, 0px) solid var(--dsw-specific-sidebar-fill) !important;
+  border-bottom: var(--dsh-app-frame-bottom, 0px) solid var(--dsw-specific-sidebar-fill) !important;
+}
+/* The page's menu button: in its header row (below the status bar), after
+   the app's button. */
+:root[data-dsh-app-layout="official"] [data-slot="root"] > [class*="_frame"] > [class*="_leadingSeat"] {
+  top: calc(11px + var(--dsh-app-status, 0px)) !important;
+  left: calc(12px + var(--dsh-app-lead, 0px)) !important;
 }
 
 @keyframes dshapp-fade-in {

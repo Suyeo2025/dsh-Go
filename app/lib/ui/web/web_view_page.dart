@@ -121,6 +121,26 @@ enum WebChrome {
   /// DSH Web's own layout: back sits in a band above its sidebar, centred
   /// on the icon rail's column, which stays put as the sidebar opens.
   side,
+
+  /// DSH Web with a narrow drawer of its own (0.2.1-rc.5 and later, seen on
+  /// the page: dsh_web_phone.js): its menu button, drawer, mask and gestures
+  /// work as shipped. The app only keeps the page inside the safe area, its
+  /// background running under the system bars, and puts its one button
+  /// (back, or 网页模式's handle) at the start of the page's header row,
+  /// which moves the page's own menu button over for it.
+  official,
+}
+
+/// What dsh_web_phone.js reports on the `DshAppLayout` channel.
+abstract final class WebLayoutReport {
+  /// The page folds its sidebar into a drawer of its own.
+  static const official = 'official';
+
+  /// ... and that drawer is open (the app's button steps aside).
+  static const officialOpen = 'official-open';
+
+  /// It doesn't (an older DSH): the app's drawer.
+  static const app = 'app';
 }
 
 /// Geometry of the app's controls over a web page.
@@ -137,6 +157,14 @@ abstract final class WebChromeMetrics {
   /// [WebChrome.inline]: offset of the buttons below the status bar (DSH
   /// Web's header row is 40px from 10px down).
   static const inlineTop = 10.0;
+
+  /// [WebChrome.official]: the app's button, centred on the page's own menu
+  /// button (28px, 11px down in its 40px header row) and that far in from
+  /// the edge; the page's button moves over by [officialLead].
+  static const officialButton = 36.0;
+  static const officialTop = 7.0;
+  static const officialEdge = 8.0;
+  static const officialLead = officialEdge + officialButton + 4;
 
   /// [WebChrome.side]: the band above the sidebar and the official icon
   /// rail's width (`computeColumns` collapsedWidth).
@@ -188,6 +216,7 @@ class WebPageInsets {
     required double keyboard,
     required bool dshWeb,
     required bool adapt,
+    bool officialDrawer = false,
   }) {
     final typing = keyboard > 0;
     final gesture = math.max(padding.bottom, WebChromeMetrics.gestureFloor);
@@ -215,7 +244,24 @@ class WebPageInsets {
     }
     // A phone on its side stays a phone however wide it is (windows under 480
     // tall).
-    if (size.width - padding.horizontal < dshWebDesktopWidth || size.height < WebChromeMetrics.phoneHeight) {
+    final narrow = size.width - padding.horizontal < dshWebDesktopWidth || size.height < WebChromeMetrics.phoneHeight;
+    // The page folds its sidebar into a drawer of its own: it keeps it.
+    // #root covers the window; the page's frame pads its rows clear of the
+    // system bars (dsh_web_phone.css), so its drawer and mask run under them.
+    if (narrow && officialDrawer) {
+      return WebPageInsets(
+        chrome: WebChrome.official,
+        left: padding.left,
+        right: padding.right,
+        layerTop: padding.top,
+        bottom: gesture,
+        lead: WebChromeMetrics.officialLead,
+        status: padding.top,
+        frameBottom: typing ? 0 : gesture,
+        keyboard: keyboard,
+      );
+    }
+    if (narrow) {
       const b = WebChromeMetrics.button;
       const top = WebChromeMetrics.inlineTop;
       // Typing on a phone on its side leaves too little room for the header
@@ -308,6 +354,7 @@ class WebPageInsets {
     WebChrome.bar => padding.top + WebChromeMetrics.barHeight,
     WebChrome.inline => padding.top + WebChromeMetrics.inlineTop + WebChromeMetrics.button,
     WebChrome.side => padding.top + band,
+    WebChrome.official => padding.top + WebChromeMetrics.officialTop + WebChromeMetrics.officialButton,
   };
 
   /// Moves the page's content clear of the controls and the system bars while
@@ -325,6 +372,7 @@ class WebPageInsets {
     final layout = switch (chrome) {
       WebChrome.inline => 'drawer',
       WebChrome.side => 'desktop',
+      WebChrome.official => 'official',
       WebChrome.bar => '',
     };
     final vars = [
@@ -539,6 +587,14 @@ class _WebViewPageState extends State<WebViewPage> {
   WebPageInsets? _insets;
   WebPageInsets? _appliedInsets;
 
+  /// The page said it folds its sidebar into a drawer of its own
+  /// (dsh_web_phone.js, `DshAppLayout`): [WebChrome.official] from then on.
+  bool _officialDrawer = false;
+
+  /// The page's own drawer is open: the app's button would sit on its logo
+  /// row, so it steps aside until it closes.
+  bool _officialOpen = false;
+
   /// The keyboard the page is laid out for ([WebKeyboard]).
   final _keyboard = WebKeyboard();
   double _keyboardRaw = 0;
@@ -628,6 +684,7 @@ class _WebViewPageState extends State<WebViewPage> {
           controller.addJavaScriptChannel('DshAppCompose', onMessageReceived: (m) => widget.link?._composed(m.message)),
         if (widget.dshWeb && widget.onSession != null)
           controller.addJavaScriptChannel('DshAppState', onMessageReceived: _onState),
+        if (widget._adapt) controller.addJavaScriptChannel('DshAppLayout', onMessageReceived: _onLayout),
       ].map((f) => f.catchError((_) {})),
     );
     if (!mounted || controller != _controller) return;
@@ -729,6 +786,17 @@ class _WebViewPageState extends State<WebViewPage> {
     try {
       await _controller.runJavaScript(await _stateBridge());
     } catch (_) {}
+  }
+
+  /// dsh_web_phone.js: `official` once the page shows a drawer of its own.
+  void _onLayout(JavaScriptMessage message) {
+    final open = message.message == WebLayoutReport.officialOpen;
+    final official = open || message.message == WebLayoutReport.official;
+    if (!mounted || (official == _officialDrawer && open == _officialOpen)) return;
+    setState(() {
+      _officialDrawer = official;
+      _officialOpen = open;
+    });
   }
 
   void _onState(JavaScriptMessage message) {
@@ -920,6 +988,7 @@ class _WebViewPageState extends State<WebViewPage> {
       keyboard: keyboard,
       dshWeb: widget.dshWeb,
       adapt: widget._adapt,
+      officialDrawer: _officialDrawer,
     );
     // DSH Web lifts its root above the keyboard; other pages shrink above it.
     final shrink = widget.dshWeb ? 0.0 : keyboard;
@@ -1019,6 +1088,7 @@ class _WebViewPageState extends State<WebViewPage> {
                 ),
               switch (insets.chrome) {
                 WebChrome.inline => _inlineControls(padding, hidden: insets.compact),
+                WebChrome.official => _officialControls(padding),
                 WebChrome.side => _sideControls(padding),
                 WebChrome.bar => _bar(context, padding),
               },
@@ -1056,6 +1126,24 @@ class _WebViewPageState extends State<WebViewPage> {
             ],
           ),
         ),
+      ),
+    ),
+  );
+
+  /// DSH Web with its own drawer: the way back only, at the start of the
+  /// page's header row (the page's menu button sits right after it); out of
+  /// the way while that drawer is open.
+  Widget _officialControls(EdgeInsets padding) => Positioned(
+    key: const ValueKey('web-controls-official'),
+    left: padding.left + WebChromeMetrics.officialEdge,
+    top: padding.top + WebChromeMetrics.officialTop,
+    child: IgnorePointer(
+      ignoring: _officialOpen,
+      child: AnimatedOpacity(
+        opacity: _officialOpen ? 0 : 1,
+        duration: AppMotion.of(context, AppMotion.standard),
+        curve: AppMotion.std,
+        child: _leading(WebChromeMetrics.officialButton),
       ),
     ),
   );

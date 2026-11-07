@@ -10,6 +10,15 @@
 // drawer starts to move, then the grid's column animating under it — which
 // is what made opening and closing the drawer stutter. Kept expanded, opening
 // is one transform on the compositor.
+//
+// Only for a DSH Web without a narrow drawer of its own. 0.2.1-rc.5 folds a
+// narrow frame's sidebar into one (frame[data-sidebar-drawer], with its own
+// mask, menu button and gestures): then nothing here touches the sidebar,
+// and the app is told (`DshAppLayout`: "official") to lay the page out
+// around that drawer instead of its own (html[data-dsh-app-layout=official],
+// web_view_page.dart); "official-open" while that drawer is open (the app's
+// button steps aside: it would sit on the drawer's logo row). "app" says the
+// page has none: the app's drawer.
 (function () {
   if (window.__dshApp) return;
   var OPEN = 'data-dsh-app-drawer';
@@ -96,19 +105,60 @@
     }
   }
 
+  // The page's own narrow drawer (rc.5): the frame says so, and holds its
+  // mask.
+  function officialDrawer() {
+    var f = frame();
+    return !!f && (f.hasAttribute('data-sidebar-drawer') || !!f.querySelector(':scope > [class*="_drawerMask"]'));
+  }
+
+  var reported = null;
+  function report(kind) {
+    if (reported === kind) return;
+    reported = kind;
+    try {
+      if (window.DshAppLayout) window.DshAppLayout.postMessage(kind);
+    } catch (e) {}
+  }
+
   // Ready for the drawer: the official sidebar expanded underneath (unless a
   // right panel needs its track), the drawer closed. Again whenever the
   // layout changes (rotation, a resize across the official breakpoint, which
-  // folds the sidebar again).
+  // folds the sidebar again). A page with a drawer of its own is left alone;
+  // one without has to show its frame for a moment first (the frame is
+  // drawn before it says it is a drawer).
   var settleTimer = 0;
+  var frameSeen = 0;
+  var APP_AFTER = 600;
+  // The page's own drawer opening and closing, told to the app.
+  var watched = null;
+  function officialState() {
+    var f = frame();
+    report(f && !f.hasAttribute('data-sidebar-collapsed') ? 'official-open' : 'official');
+  }
+  function watchOfficial(f) {
+    if (watched === f) return;
+    watched = f;
+    new MutationObserver(function () {
+      if (watched === f && officialDrawer()) officialState();
+    }).observe(f, { attributes: true, attributeFilter: ['data-sidebar-collapsed', 'data-sidebar-drawer'] });
+  }
   function settle(tries) {
     clearTimeout(settleTimer);
-    if (!drawer()) return;
     var f = frame();
-    if (!f || !toggleButton()) {
+    if (f && officialDrawer()) {
+      if (f.hasAttribute(OPEN)) f.removeAttribute(OPEN);
+      officialState();
+      watchOfficial(f);
+      return;
+    }
+    if (!drawer()) return;
+    if (f && !frameSeen) frameSeen = Date.now();
+    if (!f || !toggleButton() || Date.now() - frameSeen < APP_AFTER) {
       if (tries > 0) settleTimer = setTimeout(function () { settle(tries - 1); }, 200);
       return;
     }
+    report('app');
     if (!f.hasAttribute(OPEN)) setExpanded(!rightPanel());
   }
   settle(50);
@@ -245,5 +295,7 @@
     toggleSidebar: function () { setSidebar(!sidebarOpen()); },
     closeSidebar: function () { setSidebar(false); },
     sidebarOpen: sidebarOpen,
+    // What was told to the app (tests and the back bridge read it).
+    layout: function () { return reported; },
   };
 })();

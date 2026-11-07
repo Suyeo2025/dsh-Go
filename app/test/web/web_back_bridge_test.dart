@@ -49,6 +49,18 @@ void main() {
     expect(out['idempotent'], true);
   }, skip: skip);
 
+  // DSH Web 0.2.1-rc.5's own narrow drawer (the app's drawer stands down):
+  // back folds it through its mask, as a touch beside it would.
+  test("the page's own drawer: a press folds it through its mask, then nothing is left", () async {
+    final out = await back({'layout': 'official', 'official': 'open', 'noPhoneLayout': true, 'presses': presses(2)});
+    expect(out['steps'], ['drawer', 'none']);
+    expect(out['officialOpen'], false);
+    expect(out['log'], contains('click drawerMask'));
+    final closed = await back({'layout': 'official', 'official': 'closed', 'noPhoneLayout': true});
+    expect(closed['steps'], ['none']);
+    expect(closed['log'], isNot(contains('click drawerMask')));
+  }, skip: skip);
+
   test('a menu over a dialog: the menu first, one layer per press', () async {
     final out = await back({
       'layers': [

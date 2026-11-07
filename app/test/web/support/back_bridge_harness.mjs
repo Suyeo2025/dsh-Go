@@ -13,6 +13,7 @@
 //   editing    focus is in a text field
 //   layout     'drawer' | 'desktop' | ''      (html[data-dsh-app-layout])
 //   drawer     the app's drawer is open (window.__dshApp)
+//   official   the page's own narrow drawer (rc.5): 'open' | 'closed'
 //   noPhoneLayout  no window.__dshApp at all
 //   rightFull  the right panel covers the conversation
 //   page       'conversation' | 'page'      what the main area shows
@@ -41,6 +42,7 @@ class El {
     this.onClick = null;
   }
   getAttribute(n) { return n in this.attrs ? String(this.attrs[n]) : null; }
+  hasAttribute(n) { return n in this.attrs; }
   getClientRects() { return this.isConnected ? [{}] : []; }
   click() { log.push('click ' + this.name); this.onClick?.(); }
   blur() { log.push('blur ' + this.name); if (document.activeElement === this) document.activeElement = document.body; }
@@ -100,7 +102,18 @@ const app = s.noPhoneLayout
       toggleSidebar: () => {},
     };
 
-const frame = new El('frame', s.rightFull ? { 'data-rightbar-fullscreen': 'true' } : {});
+const frame = new El('frame', {
+  ...(s.rightFull ? { 'data-rightbar-fullscreen': 'true' } : {}),
+  ...(s.official ? { 'data-sidebar-drawer': '' } : {}),
+  ...(s.official === 'closed' ? { 'data-sidebar-collapsed': '' } : {}),
+});
+// The page's own drawer mask: a touch on it folds the drawer.
+const drawerMask = new El('drawerMask', { class: 'x_drawerMask' });
+drawerMask.onClick = () => { frame.attrs['data-sidebar-collapsed'] = ''; };
+frame.querySelector = (sel) => {
+  if (sel === ':scope > [class*="_drawerMask"]') return s.official ? drawerMask : null;
+  throw new Error('frame.querySelector: ' + sel);
+};
 const fold = new El('fold', { tag: 'BUTTON' });
 fold.onClick = () => { delete frame.attrs['data-rightbar-fullscreen']; };
 
@@ -183,5 +196,6 @@ process.stdout.write(JSON.stringify({
   popups: popups.filter((e) => e.isConnected).map((e) => e.name),
   drawer: drawerOpen,
   rightFull: frame.attrs['data-rightbar-fullscreen'] === 'true',
+  officialOpen: !!s.official && !('data-sidebar-collapsed' in frame.attrs),
   main: mainChild.name,
 }));

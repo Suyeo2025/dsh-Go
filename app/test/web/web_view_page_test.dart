@@ -274,6 +274,74 @@ void main() {
       expect(_platform.controller.insetsScript, contains("'data-dsh-app-compact', false"));
     });
 
+    // DSH Web 0.2.1-rc.5 folds a narrow frame's sidebar into a drawer of its
+    // own (dsh_web_phone.js reports it on DshAppLayout): the page keeps that
+    // drawer, its mask and its menu button; the app keeps one button.
+    testWidgets("a page with its own drawer: the app's menu goes, back sits before the page's own", (tester) async {
+      await _pump(tester, _phonePortrait);
+      expect(_button('对话与工作区'), findsOneWidget, reason: 'before the page said: the app drawer');
+      _platform.controller.post('DshAppLayout', WebLayoutReport.official);
+      await tester.pump();
+      await tester.pump();
+      expect(_button('对话与工作区'), findsNothing);
+      expect(find.byKey(const ValueKey('web-controls-official')), findsOneWidget);
+      final back = tester.getRect(_button('返回'));
+      expect(back.size, const Size.square(WebChromeMetrics.officialButton));
+      expect(back.left, WebChromeMetrics.officialEdge);
+      expect(back.top, 52 + WebChromeMetrics.officialTop);
+      // The page's own menu button is 28 tall, 11 down its header row: the
+      // same centre line.
+      expect(back.center.dy, 52 + 11 + 14);
+      final script = _platform.controller.insetsScript!;
+      expect(script, contains("setAttribute('data-dsh-app-layout', 'official')"));
+      expect(script, contains('--dsh-app-lead:${WebChromeMetrics.officialLead.toStringAsFixed(1)}px'));
+      // #root covers the window; the frame pads its rows (the drawer and its
+      // mask run under the bars).
+      expect(script, contains('top:0.0px!important;bottom:0.0px!important'));
+      expect(script, contains('--dsh-app-status:52.0px'));
+      expect(script, contains('--dsh-app-frame-bottom:24.0px'));
+      // The page's drawer open: the button steps aside, back when it closes.
+      Finder officialFade() => find.descendant(
+        of: find.byKey(const ValueKey('web-controls-official')),
+        matching: find.byType(AnimatedOpacity),
+      );
+      _platform.controller.post('DshAppLayout', WebLayoutReport.officialOpen);
+      await tester.pumpAndSettle();
+      expect(tester.widget<AnimatedOpacity>(officialFade()).opacity, 0);
+      expect(_platform.controller.insetsScript, contains("'official'"));
+      _platform.controller.post('DshAppLayout', WebLayoutReport.official);
+      await tester.pumpAndSettle();
+      expect(tester.widget<AnimatedOpacity>(officialFade()).opacity, 1);
+      // An older page (no drawer of its own) gets the app's drawer back.
+      _platform.controller.post('DshAppLayout', WebLayoutReport.app);
+      await tester.pump();
+      await tester.pump();
+      expect(_button('对话与工作区'), findsOneWidget);
+      expect(_platform.controller.insetsScript, contains("'drawer'"));
+    });
+
+    test("the page's own drawer only changes narrow frames", () {
+      WebPageInsets official(_Window w, {double keyboard = 0}) => WebPageInsets.resolve(
+        size: w.size,
+        padding: MirroredSideInsets.mirror(w.padding),
+        keyboard: keyboard,
+        dshWeb: true,
+        adapt: true,
+        officialDrawer: true,
+      );
+      for (final w in [_phonePortrait, _phoneLandscape, _tablet600, _tablet840]) {
+        expect(official(w).chrome, WebChrome.official, reason: '${w.size}');
+      }
+      expect(official(_tablet1280).chrome, WebChrome.side);
+      final landscape = official(_phoneLandscape);
+      expect((landscape.left, landscape.right, landscape.rootTop, landscape.rootBottom), (_side, _side, 0, 0));
+      expect((landscape.status, landscape.frameBottom, landscape.layerTop), (28, 24, 28));
+      // Typing: the root ends at the keyboard, the frame pads nothing below.
+      final typing = official(_phonePortrait, keyboard: 330);
+      expect((typing.keyboard, typing.frameBottom, typing.compact), (330, 0, false));
+      expect(typing.script, contains(':root #root{bottom:330.0px!important}'));
+    });
+
     testWidgets('rotation re-insets the page without reloading it', (tester) async {
       await _pump(tester, _phonePortrait);
       final controller = _platform.controller;
