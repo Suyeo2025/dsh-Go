@@ -49,6 +49,10 @@ import 'package:dsh_app/ui/settings/font_licenses.dart';
 import 'package:dsh_app/ui/settings/index/settings_pages.dart';
 import 'package:dsh_app/ui/settings/settings_widgets.dart';
 import 'package:dsh_app/ui/shell/drawer/drawer_filter_bar.dart' show DrawerViewButton;
+import 'package:dsh_app/push/push_settings_page.dart' show ScheduleNotifySection;
+import 'package:dsh_app/ui/common/list_page_row.dart' show ListPageRow;
+import 'package:dsh_app/ui/engine_settings/subagent_settings_page.dart' show SubagentSettingsPage;
+import 'package:dsh_app/ui/settings/search/settings_search_page.dart' show SettingsSearchPage;
 import 'package:dsh_app/ui/shell/home_shell.dart';
 import 'package:dsh_app/ui/shell/page_frame.dart' show GlassIconButton;
 import 'package:dsh_app/ui/shell/quick_panel.dart';
@@ -453,6 +457,7 @@ class _Tour {
     if (_runs('settings')) await settings();
     if (_runs('web')) await web();
     if (_only.split(',').contains('web-drawer')) await webDrawer();
+    if (_only.split(',').contains('v3-ui')) await v3Ui();
     if (!_landscape && _runs('landscape')) await landscape();
   }
 
@@ -1218,6 +1223,57 @@ class _Tour {
     debugPrint('WEB_DRAWER ${jsonEncode(result)}');
     skipped.add({'name': 'web-drawer-result', 'why': jsonEncode(result)});
     await home();
+  }
+
+  /// 26cc071e checks: 插件 › 已安装 has 「内置插件」 and its 子智能体 row opens the native page;
+  /// settings search 「子智能体」; 推送设置 has the scheduled-task section.
+  Future<void> v3Ui() async {
+    final out = <String, Object?>{};
+    await part('v3-ui', () async {
+      await home();
+      unawaited(rootNav().push(MaterialPageRoute<void>(builder: (_) => settingsPage(SettingsPageId.plugins))));
+      await frames(2500);
+      final card = find.byKey(const ValueKey('builtin-plugins'));
+      // Lazily built below the fold: scroll to it (waitFor alone never sees it).
+      await frames(3000);
+      out['builtinCard'] = await reveal(card);
+      await shot('v3-plugins-builtin', '插件 › 已安装：内置插件卡片');
+      final row = find.byKey(const ValueKey('builtin-plugin|subagent'));
+      out['subagentRow'] = row.evaluate().isNotEmpty;
+      if (row.evaluate().isNotEmpty) {
+        await reveal(row);
+        await tester.tap(row.hitTestable().first);
+        await frames(2000);
+        out['subagentPage'] = await waitFor(find.byType(SubagentSettingsPage), seconds: 10);
+        await shot('v3-subagent-page', '内置插件 › 子智能体：原生页');
+      }
+      await home();
+      unawaited(rootNav().push(SettingsSearchPage.route()));
+      await frames(1500);
+      final field = find.byKey(const ValueKey('settings-search-field'));
+      if (!await waitFor(field, seconds: 10)) throw StateError('no settings search field');
+      await tester.enterText(find.descendant(of: field, matching: find.byType(EditableText)).first, '子智能体');
+      await frames(1800);
+      final rows = find.descendant(of: find.byType(SettingsSearchPage), matching: find.byType(ListPageRow));
+      out['searchResults'] = [
+        for (final e in rows.evaluate())
+          if ((e.widget as ListPageRow).title case final String t) '$t｜${(e.widget as ListPageRow).subtitle ?? ''}',
+      ];
+      FocusManager.instance.primaryFocus?.unfocus();
+      await frames(600);
+      await shot('v3-search-subagent', '设置搜索「子智能体」');
+      await home();
+      unawaited(
+        rootNav().push(MaterialPageRoute<void>(builder: (_) => settingsPage(SettingsPageId.pushNotifications))),
+      );
+      await frames(2500);
+      final section = find.byType(ScheduleNotifySection);
+      out['scheduleSection'] = await reveal(section);
+      await frames(800);
+      await shot('v3-push-schedule', '推送设置：定时任务提醒');
+      await home();
+    });
+    debugPrint('V3_UI ${jsonEncode(out)}');
   }
 
   Future<void> landscape() async {
