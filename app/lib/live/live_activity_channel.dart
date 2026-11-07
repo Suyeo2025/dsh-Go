@@ -71,6 +71,9 @@ enum LiveDismissal {
   immediate('immediate'),
   after4s('after4s'),
   after15m('after15m'),
+
+  /// v2: a finished turn's card stays on the lock screen this long.
+  after20m('after20m'),
   system('default');
 
   const LiveDismissal(this.wire);

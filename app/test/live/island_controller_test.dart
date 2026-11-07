@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dsh_app/live/island_prefs_state.dart';
 import 'package:dsh_app/live/live_activity_channel.dart';
+import 'package:dsh_app/live/live_activity_content.dart' show OtherRun;
 import 'package:dsh_app/live/live_activity_state.dart';
 import 'package:dsh_app/platform/platform_caps.dart';
 import 'package:dsh_app/state/notify_state.dart' show appForegroundProvider;
@@ -25,6 +26,9 @@ final fakeViewsProvider = NotifierProvider<FakeViews, Map<String, IslandSessionV
 
 final _t0 = DateTime.utc(2026, 11, 6, 8);
 
+/// The device clock the controller reads (tests move it).
+var _now = _t0.add(const Duration(minutes: 1));
+
 IslandSessionView _idle() => const IslandSessionView(synced: true);
 IslandSessionView _sending() => const IslandSessionView(synced: true, localSend: true);
 IslandSessionView _running({
@@ -40,9 +44,19 @@ IslandSessionView _running({
   approvals: approvals,
   activity: RunActivity(kind: ActivityKind.tool, title: '', toolName: tool, turnStart: _t0, toolsDone: done),
 );
-IslandSessionView _ended(String kind, {int tools = 14}) => IslandSessionView(
+
+/// A run just started, nothing but thinking yet (a short reply so far).
+IslandSessionView _fresh({bool localSend = false, Duration age = Duration.zero}) => IslandSessionView(
+  running: true,
+  synced: true,
+  localSend: localSend,
+  title: '回个话',
+  activity: RunActivity(kind: ActivityKind.thinking, title: '', turnStart: _now.subtract(age)),
+);
+IslandSessionView _ended(String kind, {int tools = 14, String? reply}) => IslandSessionView(
   synced: true,
   title: '重构登录模块',
+  reply: reply,
   lastTurnTools: tools,
   lastTurn: TurnTrace(
     turn: 1,
@@ -68,6 +82,8 @@ void main() {
   var supported = true;
   var dwell = const Duration(hours: 1);
   late StreamController<void> leaving;
+  var others = (runs: const <OtherRun>[], pending: const <String>{});
+  var waiting = const <String, IslandWaiting>{};
 
   setUp(() {
     calls.clear();
@@ -75,6 +91,9 @@ void main() {
     supported = true;
     dwell = const Duration(hours: 1);
     leaving = StreamController<void>.broadcast();
+    _now = _t0.add(const Duration(minutes: 1));
+    others = (runs: const <OtherRun>[], pending: const <String>{});
+    waiting = const {};
     SharedPreferences.setMockInitialValues({});
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
       liveActivityMethodChannel,
@@ -103,9 +122,10 @@ void main() {
     final c = ProviderContainer(
       overrides: [
         islandSessionViewProvider.overrideWith((ref, id) => ref.watch(fakeViewsProvider)[id] ?? _idle()),
-        islandOthersProvider.overrideWithValue((runs: const [], pending: const {})),
+        islandOthersProvider.overrideWith((ref) => others),
+        islandWaitingProvider.overrideWithValue(() => waiting),
         islandLinksProvider.overrideWithValue((_) => () {}),
-        islandClockProvider.overrideWithValue(() => _t0.add(const Duration(minutes: 1))),
+        islandClockProvider.overrideWithValue(() => _now),
         islandThrottleProvider.overrideWithValue(const Duration(milliseconds: 40)),
         islandDwellProvider.overrideWithValue(dwell),
         islandLeavingProvider.overrideWithValue(leaving.stream),
@@ -309,20 +329,35 @@ void main() {
       expect((state['pending']! as Map)['expired'], false);
     });
 
-    test('done: a last update with breachTick + 1, then end after 4 s', () async {
+    test('done while looking at another conversation: breachTick + 1, the card stays 20 min', () async {
       final c = await ready();
       await sendIn(c, 's1');
+      c.read(currentSessionProvider.notifier).select(null);
+      await settle();
       calls.clear();
-      c.read(fakeViewsProvider.notifier).set('s1', _ended('completed'));
+      c.read(fakeViewsProvider.notifier).set('s1', _ended('completed', reply: '好的，我来看看。登录接口已改成按令牌续期，测试全部通过。'));
       await settle();
       expect(methods(), ['update', 'end']);
       final state = lastOf('update')['state']! as Map;
       expect(state['phase'], 'done');
       expect(state['breachTick'], 1);
       expect(state['summary'], '14 步 · 12:34');
-      expect(lastOf('end')['dismissal'], 'after4s');
+      expect(state['summaryLine'], '登录接口已改成按令牌续期，测试全部通过。');
+      expect(state['showStop'], false);
+      expect(lastOf('end')['dismissal'], 'after20m');
       expect((lastOf('end')['state']! as Map)['phase'], 'done');
       expect(c.read(islandControllerProvider).ended, isTrue);
+    });
+
+    test('done while looking at it: put away at once', () async {
+      final c = await ready();
+      await sendIn(c, 's1');
+      calls.clear();
+      c.read(fakeViewsProvider.notifier).set('s1', _ended('completed'));
+      await settle();
+      expect(methods(), ['update', 'end']);
+      expect(lastOf('end')['dismissal'], 'immediate');
+      expect(c.read(islandControllerProvider).activeSessionId, isNull);
     });
 
     test('failed ends after 15 min; stopped ends at once', () async {
@@ -429,8 +464,143 @@ void main() {
       c.read(islandControllerProvider);
       await c.read(liveActivityStatusProvider.future);
       await settle();
-      expect(lastOf('end')['dismissal'], 'after4s');
+      expect(lastOf('end')['dismissal'], 'after20m');
       expect(c.read(islandControllerProvider).ended, isTrue);
+    });
+
+    // ── v2 start rules ──
+
+    test('a short reply from here never gets one; its first tool call does', () async {
+      final c = await ready();
+      c.read(currentSessionProvider.notifier).select('s1');
+      await settle();
+      final views = c.read(fakeViewsProvider.notifier)..set('s1', _idle());
+      await settle();
+      views.set('s1', _sending());
+      await settle();
+      views.set('s1', _fresh(localSend: true));
+      await settle();
+      expect(methods(), isNot(contains('start')));
+      views.set('s1', _running());
+      await settle();
+      expect(lastOf('start')['sessionId'], 's1');
+    });
+
+    test('a reply from here that just runs on: started once it is 8 s old', () async {
+      final c = await ready();
+      c.read(currentSessionProvider.notifier).select('s1');
+      await settle();
+      final views = c.read(fakeViewsProvider.notifier)..set('s1', _idle());
+      await settle();
+      views.set('s1', _sending());
+      await settle();
+      views.set('s1', _fresh(localSend: true, age: islandShortRun - const Duration(milliseconds: 30)));
+      await settle();
+      expect(methods(), isNot(contains('start')));
+      // The wait is a timer up to [islandShortRun] from the run's start.
+      _now = _now.add(const Duration(seconds: 1));
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      await settle();
+      expect(lastOf('start')['sessionId'], 's1');
+    });
+
+    test('a short reply that is over before it qualifies never shows up', () async {
+      final c = await ready();
+      await openRunning(c, 's1', _fresh());
+      await leave();
+      c.read(fakeViewsProvider.notifier).set('s1', _ended('completed'));
+      await settle();
+      await leave();
+      expect(methods(), isNot(contains('start')));
+    });
+
+    test('leaving with nothing open: the conversation waiting on you', () async {
+      const q = UserQuestionRequest(
+        eventId: 'ev-q',
+        sessionId: 's5',
+        questions: [
+          UserQuestion(
+            id: 'q1',
+            question: '要把旧接口一起删掉吗？',
+            options: [QuestionOption('删掉', null), QuestionOption('保留并标记为废弃的接口', null)],
+          ),
+        ],
+      );
+      others = (runs: [OtherRun(sessionId: 's5', title: '接口清理', startedAt: _t0)], pending: const {'s5'});
+      waiting = const {
+        's5': (approvals: <ApprovalRequest>[], questions: [q]),
+      };
+      final c = await ready();
+      await leave();
+      final start = lastOf('start');
+      expect(start['sessionId'], 's5');
+      expect(start['title'], '接口清理');
+      final state = start['state']! as Map;
+      expect(state['phase'], 'question');
+      final pending = state['pending']! as Map;
+      expect(pending['eventId'], 'ev-q');
+      expect(pending['options'], [
+        {'id': '0', 'label': '删掉'},
+        {'id': '1', 'label': '保留并标记为废弃的…'},
+      ]);
+      expect(c.read(islandControllerProvider).activeSessionId, 's5');
+    });
+
+    test('leaving: else the running conversation this phone sent to in the last 30 min', () async {
+      others = (runs: [OtherRun(sessionId: 's6', title: '跑测试', startedAt: _t0)], pending: const <String>{});
+      final c = await ready();
+      // A message in s6 (a reply too young yet), then off to the list.
+      c.read(currentSessionProvider.notifier).select('s6');
+      await settle();
+      final views = c.read(fakeViewsProvider.notifier)..set('s6', _sending());
+      await settle();
+      views.set('s6', _fresh());
+      await settle();
+      c.read(currentSessionProvider.notifier).select(null);
+      await settle();
+      expect(methods(), isNot(contains('start')));
+      await leave();
+      expect(lastOf('start')['sessionId'], 's6');
+
+      // Swiped away while it runs: not again this run.
+      await c
+          .read(liveActivityChannelProvider)
+          .handle(const MethodCall('onActivityState', {'sessionId': 's6', 'state': 'dismissed'}));
+      await settle();
+      calls.clear();
+      await leave();
+      expect(methods(), isNot(contains('start')));
+    });
+
+    test('a message sent over 30 min ago does not count', () async {
+      others = (runs: [OtherRun(sessionId: 's6', title: '跑测试', startedAt: _t0)], pending: const <String>{});
+      final c = await ready();
+      c.read(currentSessionProvider.notifier).select('s6');
+      await settle();
+      c.read(fakeViewsProvider.notifier).set('s6', _sending());
+      await settle();
+      c.read(currentSessionProvider.notifier).select(null);
+      await settle();
+      _now = _now.add(islandRecentSend + const Duration(minutes: 1));
+      await leave();
+      expect(methods(), isNot(contains('start')));
+    });
+
+    test('leaving with an Activity already on: nothing else starts', () async {
+      final c = await ready();
+      await sendIn(c, 's1');
+      waiting = const {
+        's5': (
+          approvals: [ApprovalRequest(eventId: 'ev5', sessionId: 's5', toolName: 'bash')],
+          questions: <UserQuestionRequest>[],
+        ),
+      };
+      c.read(currentSessionProvider.notifier).select(null);
+      await settle();
+      calls.clear();
+      await leave();
+      expect(methods(), isNot(contains('start')));
+      expect(c.read(islandControllerProvider).activeSessionId, 's1');
     });
   });
 

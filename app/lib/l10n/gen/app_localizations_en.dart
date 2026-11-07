@@ -8250,18 +8250,18 @@ class L10nEn extends L10n {
   String get laSettingsModeOff => 'Off';
 
   @override
-  String get laSettingsModeForeground => 'In app';
+  String get laSettingsModeForeground => 'In app only';
 
   @override
-  String get laSettingsModeAlways => 'Always';
+  String get laSettingsModeAlways => 'Automatic';
 
   @override
   String get laSettingsFooter =>
-      'Off: plain notifications only. In app: shown when you send a message in the app, then kept up to date by push. Always: approvals and questions from elsewhere can also be handled from the lock screen (needs push pairing).';
+      'Automatic (recommended): a long run you were watching or just sent a message to shows on the Dynamic Island and the lock screen once you leave the app; while you\'re away, only things that need you (an approval, a question, a failure) appear remotely (needs push pairing). In app only: only the app starts one. Off: plain notifications only. Short replies that end in seconds don\'t show up, and while the app is in front the island stays empty: go to the home screen to see it.';
 
   @override
   String get laSettingsNeedsPairing =>
-      'Always needs push pairing first: enter the push bridge address above and turn it on.';
+      'Automatic needs push pairing to appear while you\'re away: enter the push bridge address above and turn it on.';
 
   @override
   String get laSettingsSystemOffTitle => 'Live Activities are off in Settings';

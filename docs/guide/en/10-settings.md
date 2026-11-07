@@ -58,12 +58,12 @@ Shows your DeepSeek account or API key and balance; tap it to open your account.
 Needs an iPhone on iOS 16.2 or later; iPad and Android don't have it.
 
 - **Off**: no Live Activity, plain notifications only.
-- **In app** (default): when you send a message in the app and the turn starts, a Live Activity appears on the Dynamic Island and the lock screen: the title, the tool at work, the step and a timer; with a to-do list it moves by how much is done. After you leave the app the push bridge keeps it up to date, so pair push on the same page first.
-- **Always**: as above, and approvals and questions started elsewhere also show up on the lock screen (iOS 17.2 or later).
+- **Automatic** (default, recommended): once a conversation you were watching or just sent a message to is under way (running a few seconds or calling a tool), leaving the app puts a Live Activity on the Dynamic Island and the lock screen: the title, the tool at work, the step, to-do progress and a timer. Short replies that end in seconds don't show up. While you're away, only things that need you (an approval, a question, a failure) appear remotely (iOS 17.2 or later). After you leave the app the push bridge keeps it up to date, so pair push on the same page first.
+- **In app only**: started by the app as above, never remotely. While the app is in front the island stays empty; go to the home screen to see it.
 
 When something needs your approval, the expanded island or the lock-screen banner shows “Allow” and “Deny”. On a locked phone the buttons only ask you to unlock; risky commands (such as a force push or deleting a whole folder) also ask for Face ID. The buttons stay for 2 minutes, then turn into “Open”, which takes you to the app. There is no "allow all", and nothing is ever allowed on its own. Questions are always answered in the app.
 
-When a turn finishes, the Live Activity goes away after a few seconds; after an error it stays for 15 minutes. If Live Activities are off for DSH Go in Settings, this row is greyed out with a note; tap **Open Settings** to turn them on. With the Dynamic Island off, approvals, questions and finished turns still come as plain notifications; nothing is lost.
+When a turn finishes, the lock-screen card stays for 20 minutes with the first line of the conclusion; if you are looking at that chat, it goes away at once. After an error it stays for 15 minutes. A question with one single-choice prompt can be answered right from the island; “Stop” needs two taps. If Live Activities are off for DSH Go in Settings, this row is greyed out with a note; tap **Open Settings** to turn them on. With the Dynamic Island off, approvals, questions and finished turns still come as plain notifications; nothing is lost.
 
 ## Hosts
 

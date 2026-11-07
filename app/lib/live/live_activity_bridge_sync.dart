@@ -186,8 +186,12 @@ class LiveActivityBridgeSync {
   }
 
   Future<void> _sendStartToken({bool retry = true}) async {
+    if (_startToken == null) return;
+    // The default is 自动: wait for the stored choice, so one who picked
+    // 仅 App 内 never has the token sent before it is read.
+    await _ref.read(islandPrefsProvider.notifier).ready;
     final token = _startToken;
-    if (token == null || _ref.read(islandPrefsProvider).mode != IslandMode.always) return;
+    if (!_active || token == null || _ref.read(islandPrefsProvider).mode != IslandMode.always) return;
     final lang = islandLangOf(AppLocale.current);
     final ok = await _send(_startKey, (c, t) => c.putPushToStart(t, token, lang: lang), retry: retry);
     if (ok && _startToken == token) _startSent = true;

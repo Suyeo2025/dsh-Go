@@ -1,5 +1,5 @@
 // The bridge side of the「鲸游」Live Activity: what goes to dsh-watch-bridge
-// (body shapes of the three routes), push-to-start only in 前后台都显示, a
+// (body shapes of the three routes), push-to-start only in 自动 (the default), a
 // network failure retried once, and nothing without a pairing or off iOS.
 // Every token here is fake.
 
@@ -132,20 +132,37 @@ void main() {
       expect(sync.registered, isEmpty);
     });
 
-    test('push-to-start only in 前后台都显示; switching away deletes it', () async {
+    test('push-to-start in 自动, the default; 仅 App 内 deletes it, 自动 again sends it', () async {
       final c = make();
       final sync = await ready(c);
       await sync.onPushToStartToken(_startToken);
-      expect(bridge.calls, isEmpty, reason: '仅前台启动 is the default');
-
-      await c.read(islandPrefsProvider.notifier).setMode(IslandMode.always);
-      await sync.onModeChanged(IslandMode.always);
-      expect(calls(), ['PUT /v1/device/live-activity/start-token']);
+      expect(calls(), ['PUT /v1/device/live-activity/start-token'], reason: '自动 is the default');
       expect(bridge.calls.single.json, {'token': _startToken, 'lang': 'zh'});
 
       await c.read(islandPrefsProvider.notifier).setMode(IslandMode.foreground);
       await sync.onModeChanged(IslandMode.foreground);
       expect(calls().last, 'DELETE /v1/device/live-activity/start-token');
+
+      await c.read(islandPrefsProvider.notifier).setMode(IslandMode.always);
+      await sync.onModeChanged(IslandMode.always);
+      expect(calls().last, 'PUT /v1/device/live-activity/start-token');
+    });
+
+    test('仅 App 内 picked in v1 stays: the token is never sent', () async {
+      SharedPreferences.setMockInitialValues({
+        PushController.prefsKey: jsonEncode({
+          'bridge': 'https://watch.example.com',
+          'hostId': 'direct-1',
+          'deviceId': 'd-1',
+        }),
+        IslandPrefsController.prefsKey: 'foreground',
+      });
+      final c = make();
+      final sync = c.read(liveActivityBridgeSyncProvider);
+      // Before the stored choice is read: it waits for it.
+      await sync.onPushToStartToken(_startToken);
+      expect(c.read(islandPrefsProvider).mode, IslandMode.foreground);
+      expect(calls().where((c) => c.contains('start-token')), isEmpty);
     });
 
     test('a network failure is tried again once', () async {

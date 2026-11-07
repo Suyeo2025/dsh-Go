@@ -255,4 +255,143 @@ void main() {
     expect(a.sameAs(_content(activity: _tool('bash', done: 14))), isFalse);
     expect(a.sameAs(null), isFalse);
   });
+
+  group('v2', () {
+    UserQuestionRequest question(List<UserQuestion> qs) =>
+        UserQuestionRequest(eventId: 'ev-q', sessionId: 's1', questions: qs);
+    UserQuestion q({
+      List<String> options = const ['删掉', '保留', '标废弃', '先别动'],
+      bool multi = false,
+      Map<String, Object?>? intent,
+    }) => UserQuestion(
+      id: 'q1',
+      question: '要删旧接口吗？',
+      options: [for (final o in options) QuestionOption(o, null)],
+      multiSelect: multi,
+      intent: intent,
+    );
+
+    test('question options: first three, ids are indexes, labels masked and cut', () {
+      final c = _content(
+        activity: _tool('bash'),
+        questions: [
+          question([
+            q(options: ['用 sk-abcdefghijklmnop1234567890 登录', '保留', '标废弃', '先别动']),
+          ]),
+        ],
+      );
+      final options = (c.toMap()['pending']! as Map)['options']! as List;
+      expect(options, hasLength(3));
+      expect([for (final o in options) (o as Map)['id']], ['0', '1', '2']);
+      final first = (options.first as Map)['label'] as String;
+      expect(first.runes.length, lessThanOrEqualTo(10));
+      expect(first, isNot(contains('abcdefghij')));
+    });
+
+    test('no options for several questions, multiple choice, a plan review or none', () {
+      for (final r in [
+        question([q(), q()]),
+        question([q(multi: true)]),
+        question([
+          q(intent: {'kind': 'plan-review', 'approve': '删掉'}),
+        ]),
+        question([q(options: const [])]),
+      ]) {
+        final pending = _content(questions: [r]).toMap()['pending']! as Map;
+        expect(pending.containsKey('options'), isFalse, reason: '$r');
+      }
+      // Approvals never have options.
+      expect((_content(approvals: [_approval('a')]).toMap()['pending']! as Map).containsKey('options'), isFalse);
+    });
+
+    test('todo buoys: one each up to 8, then 8 slices', () {
+      TodoItem t(String s) => TodoItem('第 $s 项', s);
+      expect(islandBuoys([t('completed'), t('in_progress'), t('pending')]), ['done', 'active', 'todo']);
+      final twenty = [
+        for (var i = 0; i < 20; i++)
+          t(
+            i < 9
+                ? 'completed'
+                : i == 9
+                ? 'in_progress'
+                : 'pending',
+          ),
+      ];
+      final buoys = islandBuoys(twenty);
+      expect(buoys, hasLength(8));
+      expect(buoys, ['done', 'done', 'done', 'active', 'todo', 'todo', 'todo', 'todo']);
+      expect(islandBuoys(const []), isEmpty);
+      final map = _content(activity: _tool('bash'), todos: twenty).toMap();
+      expect(map['todos'], hasLength(8));
+      expect(map['todoDone'], 9);
+      expect(map['todoTotal'], 20);
+      expect(map['todoLabel'], '第 in_progre…');
+      final none = _content(activity: _tool('bash')).toMap();
+      expect(none.containsKey('todos'), isFalse);
+      expect(none.containsKey('todoTotal'), isFalse);
+    });
+
+    test('summaryLine: the first statement, greetings and code skipped, masked', () {
+      expect(islandSummaryLine('好的，我来看看。\n\n登录模块已经改好，测试通过。还有一处待确认。'), '登录模块已经改好，测试通过。');
+      expect(
+        islandSummaryLine("Let me check.\nAll 42 tests pass now. I also fixed the flaky one."),
+        'All 42 tests pass now.',
+      );
+      expect(islandSummaryLine('```dart\nprint(1);\n```\n## 结果\n- **修复**了 `auth.dart` 里的空指针'), '修复了 auth.dart 里的空指针');
+      expect(islandSummaryLine('密钥 sk-abcdefghijklmnop1234567890 已轮换完成。')!, isNot(contains('abcdefghijklmnop')));
+      expect(islandSummaryLine('好的。'), '好的。', reason: 'only a greeting: it is still the line');
+      expect(islandSummaryLine('长' * 100)!.runes.length, 60);
+      expect(islandSummaryLine(null), isNull);
+      expect(islandSummaryLine('   '), isNull);
+    });
+
+    test('done carries summaryLine; running shows stop, finished does not; v is 2', () {
+      final running = _content(activity: _tool('bash')).toMap();
+      expect(running['v'], 2);
+      expect(running['showStop'], true);
+      expect(running.containsKey('summaryLine'), isFalse);
+      expect(running.containsKey('stopArmedUntil'), isFalse, reason: 'only Swift writes it');
+      expect(running['stepStartedAt'], isNull, reason: 'no tool start known');
+      final withSince = _content(
+        activity: RunActivity(
+          kind: ActivityKind.tool,
+          title: '',
+          toolName: 'bash',
+          turnStart: _t0,
+          since: _t0.add(const Duration(minutes: 2)),
+        ),
+      ).toMap();
+      expect(withSince['stepStartedAt'], unixSeconds(_t0.add(const Duration(minutes: 2))));
+      final done = _content(
+        finish: IslandFinish(failed: false, start: _t0, end: _t0, steps: 3, reply: '好的。全部改完了，没有新增失败。'),
+      ).toMap();
+      expect(done['summaryLine'], '全部改完了，没有新增失败。');
+      expect(done['showStop'], false);
+    });
+
+    test('v2 at the limits stays well under 4 KB', () {
+      final huge = '😀' * 500;
+      final c = _content(
+        title: huge,
+        activity: _tool(huge),
+        questions: [
+          question([
+            q(options: [huge, huge, huge, huge]),
+          ]),
+        ],
+        todos: [for (var i = 0; i < 400; i++) TodoItem(huge, i.isEven ? 'completed' : 'in_progress')],
+        others: [for (var i = 0; i < 9; i++) OtherRun(sessionId: 'session-$i', title: huge, startedAt: _t0)],
+        finish: null,
+      );
+      final bytes = utf8.encode(jsonEncode(c.toMap())).length;
+      expect(bytes, lessThan(4096));
+      final done = _content(
+        title: huge,
+        todos: [for (var i = 0; i < 400; i++) TodoItem(huge, 'completed')],
+        others: [for (var i = 0; i < 9; i++) OtherRun(sessionId: 'session-$i', title: huge, startedAt: _t0)],
+        finish: IslandFinish(failed: true, start: _t0, end: _t0, steps: 9, reason: huge, reply: huge),
+      );
+      expect(utf8.encode(jsonEncode(done.toMap())).length, lessThan(4096));
+    });
+  });
 }

@@ -7813,16 +7813,17 @@ class L10nZh extends L10n {
   String get laSettingsModeOff => '关';
 
   @override
-  String get laSettingsModeForeground => '仅前台';
+  String get laSettingsModeForeground => '仅 App 内';
 
   @override
-  String get laSettingsModeAlways => '前后台都显示';
+  String get laSettingsModeAlways => '自动';
 
   @override
-  String get laSettingsFooter => '关：只用普通通知。仅前台：在 App 里发出消息时显示，之后由推送维持。前后台都显示：别的端的审批和提问也能从锁屏直接处理（需要配对推送）。';
+  String get laSettingsFooter =>
+      '自动（推荐）：在 App 里看着或刚发过消息的长任务，离开 App 后显示在灵动岛和锁屏；不在 App 里时，只有需要你确认、回答或出错的事才会远程弹出（需要配对推送）。仅 App 内：只由 App 自己启动。关：只用普通通知。几秒就结束的短回复不会上岛；App 在前台时灵动岛上不显示，回到桌面就能看到。';
 
   @override
-  String get laSettingsNeedsPairing => '前后台都显示需要先配对推送：在本页上方填推送服务地址并开启。';
+  String get laSettingsNeedsPairing => '自动模式要先配对推送，离开 App 后才能远程弹出：在本页上方填推送服务地址并开启。';
 
   @override
   String get laSettingsSystemOffTitle => '实时活动已在系统里关闭';

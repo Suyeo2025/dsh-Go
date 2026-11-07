@@ -1,7 +1,9 @@
 // The「鲸游」Live Activity's ContentState, built from what the app knows of a
 // conversation. Keys and meaning: plan/design/live-activity-a/contract.md §1,
 // plus the revision in plan/ios-wave2-design.md «la-dart › 契约修订»
-// (`pending.approvalExpiresAt`, `pending.expired`). The bridge
+// (`pending.approvalExpiresAt`, `pending.expired`) and the v2 additions in
+// plan/design/live-activity-v2-contract.md §1 (question options, todo buoys,
+// the conclusion's first sentence, the stop button). The bridge
 // (dsh-watch-bridge src/push/liveactivity.ts) sends the same shape while the
 // app is away, so the labels here follow its table.
 //
@@ -26,6 +28,17 @@ const islandTextMax = 48;
 const islandLabelMax = 12;
 const islandOthersMax = 2;
 
+/// v2: at most three answer buttons of ≤ 10 characters, eight todo buoys, a
+/// conclusion line of ≤ 60.
+const islandOptionsMax = 3;
+const islandOptionLabelMax = 10;
+const islandBuoysMax = 8;
+const islandTodoLabelMax = 12;
+const islandSummaryLineMax = 60;
+
+/// The ContentState version this app writes.
+const islandContentVersion = 2;
+
 /// How long an approval / question keeps its buttons on the island.
 const islandApprovalWindow = Duration(seconds: 120);
 
@@ -41,6 +54,7 @@ class IslandPending {
     required this.askedAt,
     required this.approvalExpiresAt,
     this.expired = false,
+    this.options = const [],
   });
 
   final String eventId;
@@ -57,6 +71,10 @@ class IslandPending {
   /// The two minutes are over: the island trades its buttons for 「打开」.
   final bool expired;
 
+  /// One-tap answers of a question (v2 §1.1): `id` is the option's index in
+  /// the original question, the bridge answers with that option's own label.
+  final List<({String id, String label})> options;
+
   Map<String, Object?> toMap() => {
     'eventId': eventId,
     'kind': kind,
@@ -65,6 +83,10 @@ class IslandPending {
     'askedAt': unixSeconds(askedAt),
     'approvalExpiresAt': unixSeconds(approvalExpiresAt),
     'expired': expired,
+    if (options.isNotEmpty)
+      'options': [
+        for (final o in options) {'id': o.id, 'label': o.label},
+      ],
   };
 }
 
@@ -88,7 +110,14 @@ class OtherRun {
 
 /// Input: how the turn ended ([start] / [end] Host time).
 class IslandFinish {
-  const IslandFinish({required this.failed, required this.start, required this.end, required this.steps, this.reason});
+  const IslandFinish({
+    required this.failed,
+    required this.start,
+    required this.end,
+    required this.steps,
+    this.reason,
+    this.reply,
+  });
   final bool failed;
   final DateTime start;
   final DateTime end;
@@ -98,6 +127,9 @@ class IslandFinish {
 
   /// The failure as the Host gave it (masked and cut here).
   final String? reason;
+
+  /// The turn's last reply (its first statement becomes `summaryLine`).
+  final String? reply;
 }
 
 class IslandContent {
@@ -116,6 +148,13 @@ class IslandContent {
     this.othersPending = 0,
     this.summary,
     this.breachTick = 0,
+    this.buoys = const [],
+    this.todoDone,
+    this.todoTotal,
+    this.todoLabel,
+    this.summaryLine,
+    this.showStop = false,
+    this.stepStartedAt,
   });
 
   /// The Activity's title (an attribute, not part of ContentState).
@@ -133,6 +172,21 @@ class IslandContent {
   final int othersPending;
   final String? summary;
   final int breachTick;
+
+  /// v2: `done` / `active` / `todo` per buoy (≤ 8, see [islandBuoys]).
+  final List<String> buoys;
+  final int? todoDone;
+  final int? todoTotal;
+  final String? todoLabel;
+
+  /// The conclusion's first statement (done / failed only).
+  final String? summaryLine;
+
+  /// The run can be stopped from the island.
+  final bool showStop;
+
+  /// When the tool at work started (device clock).
+  final DateTime? stepStartedAt;
 
   bool get finished => phase == IslandPhase.done || phase == IslandPhase.failed;
 
@@ -155,16 +209,25 @@ class IslandContent {
             askedAt: pending!.askedAt,
             approvalExpiresAt: pending!.approvalExpiresAt,
             expired: expired,
+            options: pending!.options,
           ),
     others: others,
     othersCount: othersCount,
     othersPending: othersPending,
     summary: summary,
     breachTick: breachTick ?? this.breachTick,
+    buoys: buoys,
+    todoDone: todoDone,
+    todoTotal: todoTotal,
+    todoLabel: todoLabel,
+    summaryLine: summaryLine,
+    showStop: showStop,
+    stepStartedAt: stepStartedAt,
   );
 
   /// The channel / bridge payload (`ContentStateMap`).
   Map<String, Object?> toMap() => {
+    'v': islandContentVersion,
     'phase': phase.name,
     'startedAt': unixSeconds(startedAt),
     'expectedEndAt': unixSeconds(expectedEndAt),
@@ -178,6 +241,17 @@ class IslandContent {
     'othersPending': othersPending,
     'summary': summary,
     'breachTick': breachTick,
+    // v2 keys only when they say something (older readers skip them anyway).
+    if (buoys.isNotEmpty)
+      'todos': [
+        for (final b in buoys) {'s': b},
+      ],
+    'todoDone': ?todoDone,
+    'todoTotal': ?todoTotal,
+    'todoLabel': ?todoLabel,
+    'summaryLine': ?summaryLine,
+    'showStop': showStop,
+    if (stepStartedAt case final at?) 'stepStartedAt': unixSeconds(at),
   };
 
   /// Same payload (what the Activity would show is the same).
@@ -259,6 +333,68 @@ String islandDuration(Duration d) {
   return h > 0 ? '$h:${two(m)}:${two(sec)}' : '${two(m)}:${two(sec)}';
 }
 
+/// The buoys of [todos] (v2 §1.2): one per todo up to [islandBuoysMax], else
+/// [islandBuoysMax] even slices (all done → done, any in progress → active).
+List<String> islandBuoys(List<TodoItem> todos) {
+  String of(String status) => switch (status) {
+    'completed' => 'done',
+    'in_progress' => 'active',
+    _ => 'todo',
+  };
+  final n = todos.length;
+  if (n <= islandBuoysMax) return [for (final t in todos) of(t.status)];
+  String slice(int i) {
+    final part = [for (final t in todos.sublist(i * n ~/ islandBuoysMax, (i + 1) * n ~/ islandBuoysMax)) of(t.status)];
+    if (part.every((s) => s == 'done')) return 'done';
+    if (part.contains('active')) return 'active';
+    return 'todo';
+  }
+
+  return [for (var i = 0; i < islandBuoysMax; i++) slice(i)];
+}
+
+/// One-tap answers for [request] (v2 §1.1): one single-choice question with
+/// options, not a plan review; else none.
+List<({String id, String label})> islandOptionsOf(UserQuestionRequest request) {
+  if (request.questions.length != 1) return const [];
+  final q = request.questions.single;
+  if (q.multiSelect || q.options.isEmpty || q.intent?['kind'] == 'plan-review') return const [];
+  return [
+    for (final (i, o) in q.options.take(islandOptionsMax).indexed)
+      (id: '$i', label: islandLine(o.label, islandOptionLabelMax)),
+  ];
+}
+
+/// Openers that announce rather than conclude (v2 §1.3).
+final _pleasantry = RegExp(
+  r'^(好的|好|ok|okay|sure|当然|我来|我将|让我|接下来|首先|let me|i.ll|i will|now)(?![a-z])',
+  caseSensitive: false,
+);
+
+/// The first statement of a reply (v2 §1.3): Markdown dropped (code blocks
+/// whole), cut at the first sentence end, greetings and announcements
+/// skipped; masked, one line, ≤ [islandSummaryLineMax]. Null for nothing.
+String? islandSummaryLine(String? reply) {
+  if (reply == null) return null;
+  final text = reply
+      .replaceAll(RegExp(r'```[\s\S]*?(```|$)'), '\n')
+      .replaceAllMapped(RegExp(r'`([^`\n]*)`'), (m) => m.group(1)!)
+      .replaceAllMapped(RegExp(r'!?\[([^\]\n]*)\]\([^)\n]*\)'), (m) => m.group(1)!)
+      .replaceAll(RegExp(r'^[ \t]{0,3}(#{1,6}[ \t]+|[-*+][ \t]+|\d+[.)][ \t]+|>[ \t]*)', multiLine: true), '')
+      .replaceAll(RegExp(r'\*{1,3}|_{2,3}|~~'), '');
+  final sentences = [
+    for (final m in RegExp(r'[^。！？!?\n]*?(?:[。！？!?]|\.(?=\s|$)|(?=\n)|$)').allMatches(text))
+      if (m.group(0)!.trim() case final s when s.isNotEmpty) s,
+  ];
+  if (sentences.isEmpty) return null;
+  final chosen = sentences.firstWhere(
+    (s) => !_pleasantry.hasMatch(s) && s.runes.length > 4,
+    orElse: () => sentences.first,
+  );
+  final line = islandLine(chosen, islandSummaryLineMax);
+  return line.isEmpty ? null : line;
+}
+
 /// The ContentState for one conversation.
 ///
 /// [activity] is `runActivityOf` of the conversation (null when it isn't
@@ -301,6 +437,11 @@ IslandContent islandContentOf({
   final list = todos ?? const <TodoItem>[];
   final done = list.where((t) => t.status == 'completed').length;
   final double? progress = list.isEmpty ? null : done / list.length;
+  final buoys = islandBuoys(list);
+  final current =
+      list.where((t) => t.status == 'in_progress').firstOrNull ??
+      list.where((t) => t.status != 'completed').firstOrNull;
+  final todoLabel = current == null ? null : islandLine(current.content, islandTodoLabelMax);
 
   final sorted = [...others]..sort((a, b) => b.startedAt.compareTo(a.startedAt));
   final listed = [
@@ -334,6 +475,11 @@ IslandContent islandContentOf({
               islandTextMax,
             ),
       breachTick: breachTick,
+      buoys: buoys,
+      todoDone: list.isEmpty ? null : done,
+      todoTotal: list.isEmpty ? null : list.length,
+      todoLabel: finish.failed ? todoLabel : null,
+      summaryLine: islandSummaryLine(finish.reply),
     );
   }
 
@@ -353,6 +499,7 @@ IslandContent islandContentOf({
       askedAt: at,
       approvalExpiresAt: expires,
       expired: !now.isBefore(expires),
+      options: islandOptionsOf(q),
     );
   } else if (approvals.isNotEmpty) {
     final a = approvals.first;
@@ -393,5 +540,11 @@ IslandContent islandContentOf({
     othersCount: others.length,
     othersPending: othersPending,
     breachTick: breachTick,
+    buoys: buoys,
+    todoDone: list.isEmpty ? null : done,
+    todoTotal: list.isEmpty ? null : list.length,
+    todoLabel: todoLabel,
+    showStop: true,
+    stepStartedAt: activity?.kind == ActivityKind.tool ? activity?.since?.add(clockSkew) : null,
   );
 }

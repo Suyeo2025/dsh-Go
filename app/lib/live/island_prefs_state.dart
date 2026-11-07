@@ -1,6 +1,9 @@
 // 灵动岛 (iOS Live Activity「鲸游」) preference: off / start only from the
 // foreground / also let the bridge start one while the app is away
-// (push-to-start). Stored in SharedPreferences as `island_mode`.
+// (push-to-start). Stored in SharedPreferences as `island_mode`, only once
+// the person picks one: with nothing stored the default applies, so the v2
+// default ([IslandMode.always], 「自动」) reaches everyone who never chose,
+// and a choice made in v1 stays (plan/design/live-activity-v2-contract.md §3.1).
 //
 // Android and every other platform: always off, and setMode does nothing
 // (the Android status-bar activity is lib/state/live_activity_state.dart).
@@ -16,23 +19,26 @@ enum IslandMode {
   /// 关: no Activity at all.
   off,
 
-  /// 仅前台启动: the app starts one when a message is sent from it.
+  /// 仅 App 内: only the app starts one (from a conversation it shows).
   foreground,
 
-  /// 前后台都显示: as [foreground], and the bridge may start one for an
-  /// approval or a question while the app is away (iOS 17.2+).
+  /// 自动 (the default): as [foreground], and the bridge may start one while
+  /// the app is away, only when you are needed: an approval, a question, a
+  /// failure (iOS 17.2+).
   always;
+
+  static const fallback = always;
 
   static IslandMode parse(Object? raw) => switch (raw) {
     'off' => off,
     'always' => always,
     'foreground' => foreground,
-    _ => foreground,
+    _ => fallback,
   };
 }
 
 class IslandPrefs {
-  const IslandPrefs({this.mode = IslandMode.foreground, this.loaded = false});
+  const IslandPrefs({this.mode = IslandMode.fallback, this.loaded = false});
 
   final IslandMode mode;
 
@@ -67,7 +73,7 @@ class IslandPrefsController extends Notifier<IslandPrefs> {
   }
 
   Future<void> _load() async {
-    IslandMode mode = IslandMode.foreground;
+    IslandMode mode = IslandMode.fallback;
     try {
       mode = IslandMode.parse((await SharedPreferences.getInstance()).getString(prefsKey));
     } catch (_) {

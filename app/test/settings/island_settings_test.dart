@@ -76,7 +76,7 @@ void main() {
   SettingsSegmentTile<IslandMode> modeTile(WidgetTester tester) =>
       tester.widget<SettingsSegmentTile<IslandMode>>(find.byKey(const ValueKey('island-mode')));
 
-  testWidgets('remote-only: the three modes, 仅前台 by default; 前后台都显示 asks for pairing', (tester) async {
+  testWidgets('remote-only: the three modes, 自动 by default (asks for pairing); 仅 App 内 does not', (tester) async {
     final c = await pump(tester, const PushSettingsPage());
     final l10n = appL10n;
     expect(find.text(l10n.laSettingsSection), findsOneWidget);
@@ -85,8 +85,9 @@ void main() {
     }
     expect(find.text(l10n.laSettingsFooter), findsOneWidget);
     final tile = modeTile(tester);
-    expect(tile.selected, IslandMode.foreground);
+    expect(tile.selected, IslandMode.always);
     expect(tile.onChanged, isNotNull);
+    expect(find.byKey(const ValueKey('island-needs-pairing')), findsOneWidget);
     expect(find.byKey(const ValueKey('island-system-off')), findsNothing);
     // Registered in the settings index, on this page.
     expect(SettingsIndex.has(Spots.islandMode), isTrue);
@@ -95,13 +96,14 @@ void main() {
       findsOneWidget,
     );
 
-    tile.onChanged!(IslandMode.always);
+    expect((await SharedPreferences.getInstance()).getString(IslandPrefsController.prefsKey), isNull);
+    tile.onChanged!(IslandMode.foreground);
     for (var i = 0; i < 4; i++) {
       await tester.pump(const Duration(milliseconds: 60));
     }
-    expect(c.read(islandPrefsProvider).mode, IslandMode.always);
-    expect((await SharedPreferences.getInstance()).getString(IslandPrefsController.prefsKey), 'always');
-    expect(find.byKey(const ValueKey('island-needs-pairing')), findsOneWidget);
+    expect(c.read(islandPrefsProvider).mode, IslandMode.foreground);
+    expect((await SharedPreferences.getInstance()).getString(IslandPrefsController.prefsKey), 'foreground');
+    expect(find.byKey(const ValueKey('island-needs-pairing')), findsNothing);
 
     modeTile(tester).onChanged!(IslandMode.off);
     for (var i = 0; i < 4; i++) {
@@ -109,6 +111,13 @@ void main() {
     }
     expect(c.read(islandPrefsProvider).mode, IslandMode.off);
     expect(find.byKey(const ValueKey('island-needs-pairing')), findsNothing);
+  });
+
+  testWidgets('a choice made in v1 stays (仅 App 内 stored)', (tester) async {
+    SharedPreferences.setMockInitialValues({IslandPrefsController.prefsKey: 'foreground'});
+    final c = await pump(tester, const PushSettingsPage());
+    expect(c.read(islandPrefsProvider).mode, IslandMode.foreground);
+    expect(modeTile(tester).selected, IslandMode.foreground);
   });
 
   testWidgets('Live Activities off in Settings: greyed out, with the way to the switch', (tester) async {

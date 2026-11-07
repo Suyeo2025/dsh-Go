@@ -1,21 +1,25 @@
 // The「鲸游」Live Activity's life on iOS (the Android status-bar activity is
 // lib/state/live_activity_state.dart, a different thing).
 //
-// * Start, while the app is in front, 灵动岛 is on and the system allows Live
-//   Activities (never on an iPad), for the conversation open on screen when:
-//   - it starts running within a moment of a message sent from this phone;
-//   - it has been running (started here or anywhere else) while open for
-//     [islandDwellProvider]: on the home screen it is there already;
-//   - the app is about to leave the screen (`inactive`) with it running and
-//     the wait not over yet.
-//   One Activity at a time: a new conversation ends the old one first, unless
-//   the old one waits on the person (an approval or a question keeps it).
+// * Start (plan/design/live-activity-v2-contract.md §3.2), while the app is
+//   in front, 灵动岛 is on and the system allows Live Activities (never on an
+//   iPad), and only for a run worth it: [islandShortRun] old, or a tool call
+//   already (a short reply never gets one):
+//   - S1 the open conversation runs a turn a message from this phone started;
+//   - S2 the open conversation has been running (started anywhere) while open
+//     for [islandDwellProvider]: on the home screen it is there already;
+//   - S3 the app is about to leave the screen (`inactive`): the open running
+//     conversation; else, with no Activity, one waiting on the person; else
+//     one still running that this phone sent to in the last [islandRecentSend].
+//   Once per conversation and run; one swiped away is left alone until its
+//   run is over. One Activity at a time: a new conversation ends the old one
+//   first, unless the old one waits on the person (it keeps its buttons).
 // * Update: while the app is in front, from the conversation's chat state
 //   (every 2 s at most; a request appearing or going away, done and failed at
 //   once). In the background the bridge takes over (live_activity_bridge_sync).
-// * End: done → a last update (breachTick + 1) and an end that lingers 4 s;
-//   failed → 15 min; stopped / forked → at once; opening the finished
-//   conversation in the app → at once. The system's own end or dismissal
+// * End: done → a last update (breachTick + 1) and an end whose card stays on
+//   the lock screen 20 min; failed → 15 min; stopped / forked → at once;
+//   finished while looking at it, or opened later in the app → at once. The system's own end or dismissal
 //   clears it here and tells the bridge.
 // * After a relaunch the Activity the system still runs is taken over.
 // * 灵动岛 switched off, or Live Activities off in Settings: everything ends.
@@ -23,7 +27,17 @@
 import 'dart:async';
 
 import 'package:dsh_client/dsh_client.dart'
-    show ApprovalRequest, TodoItem, ToolChatItem, TraceKind, TurnTrace, UserQuestionRequest;
+    show
+        ApprovalRequest,
+        ApprovalRequestedEvent,
+        AssistantChatItem,
+        TodoItem,
+        ToolChatItem,
+        TraceKind,
+        TurnTrace,
+        UserChatItem,
+        UserQuestionRequest,
+        UserQuestionRequestedEvent;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -36,10 +50,10 @@ import '../state/chat_state.dart' show ChatState, chatProvider;
 import '../state/drawer_view_state.dart' show drawerScopeProvider;
 import '../state/hosts_state.dart';
 import '../state/notify_state.dart' show appForegroundProvider;
-import '../state/session_attention_state.dart' show pendingInteractionsProvider;
-import '../state/sessions_state.dart' show currentSessionProvider;
+import '../state/session_attention_state.dart' show pendingInteractionsProvider, pendingSourceProvider;
+import '../state/sessions_state.dart' show currentSessionProvider, sessionsProvider;
 import '../ui/chat/media/media_format.dart' show chatTitleShown;
-import '../ui/chat/run_info.dart' show RunActivity, runActivityOf;
+import '../ui/chat/run_info.dart' show ActivityKind, RunActivity, runActivityOf;
 import '../ui/chat/tool_view.dart';
 import '../ui/common/discard_guard.dart';
 import 'island_prefs_state.dart';
@@ -50,6 +64,14 @@ import 'live_activity_content.dart';
 /// A turn that starts this long after a message sent from here counts as
 /// started by it.
 const islandLocalSendWindow = Duration(seconds: 2);
+
+/// A run younger than this, with no tool call yet, gets no Activity: a short
+/// reply never takes the island (v2 §3.2).
+const islandShortRun = Duration(seconds: 8);
+
+/// Leaving the app, a running conversation this phone sent to this recently
+/// is the last choice for an Activity (S3 ③).
+const islandRecentSend = Duration(minutes: 30);
 
 /// Device clock (tests pin it).
 final islandClockProvider = Provider<DateTime Function()>((ref) => DateTime.now);
@@ -93,6 +115,7 @@ class IslandSessionView {
     this.title,
     this.localSend = false,
     this.commands = const {},
+    this.reply,
   });
 
   factory IslandSessionView.of(ChatState s) {
@@ -136,7 +159,18 @@ class IslandSessionView {
       title: s.title,
       localSend: s.pending.any((p) => p.inboxId == null && !p.isAutomatic && !p.failed),
       commands: commands,
+      // Read once the turn is over only: streamed text doesn't change the view.
+      reply: s.running ? null : _lastReply(s),
     );
+  }
+
+  /// The newest reply after the last prompt.
+  static String? _lastReply(ChatState s) {
+    for (final item in s.items.reversed) {
+      if (item is UserChatItem) return null;
+      if (item is AssistantChatItem && item.text.trim().isNotEmpty) return item.text;
+    }
+    return null;
   }
 
   final bool running;
@@ -159,6 +193,9 @@ class IslandSessionView {
   /// A message sent from this phone hasn't reached the Host's inbox yet.
   final bool localSend;
   final Map<String, String> commands;
+
+  /// The finished turn's last reply (null while running).
+  final String? reply;
 
   static String _todoKey(List<TodoItem>? t) =>
       t == null ? '-' : '${t.length}/${t.where((x) => x.status == 'completed').length}';
@@ -184,6 +221,7 @@ class IslandSessionView {
     title,
     localSend,
     for (final e in commands.entries) '${e.key}=${e.value}',
+    reply,
   ];
 
   @override
@@ -222,6 +260,45 @@ final islandOthersProvider = Provider<IslandOthers>((ref) {
     pending: pending.keys.toSet(),
   );
 });
+
+/// What one top-level conversation waits on the person for.
+typedef IslandWaiting = ({List<ApprovalRequest> approvals, List<UserQuestionRequest> questions});
+
+/// The active host's requests waiting on the person, by top-level
+/// conversation (a subagent's go to its root). Read when the app leaves the
+/// screen (S3 ②); tests override it.
+final islandWaitingProvider = Provider<Map<String, IslandWaiting> Function()>(
+  (ref) => () {
+    final source = ref.read(pendingSourceProvider);
+    if (source == null) return const {};
+    final all = {for (final s in ref.read(sessionsProvider.notifier).allSessions) s.sessionId: s};
+    String rootOf(String id) {
+      for (var depth = 0; depth < 8; depth++) {
+        final info = all[id];
+        final parent = info?.parentSessionId;
+        if (info == null || !info.isSubagent || parent == null || parent.isEmpty) return id;
+        id = parent;
+      }
+      return id;
+    }
+
+    final out = <String, IslandWaiting>{};
+    IslandWaiting of(String id) =>
+        out[id] ?? (approvals: const <ApprovalRequest>[], questions: const <UserQuestionRequest>[]);
+    for (final event in source.pending()) {
+      switch (event) {
+        case ApprovalRequestedEvent(:final request):
+          final root = rootOf(request.sessionId), w = of(root);
+          out[root] = (approvals: [...w.approvals, request], questions: w.questions);
+        case UserQuestionRequestedEvent(:final request):
+          final root = rootOf(request.sessionId), w = of(root);
+          out[root] = (approvals: w.approvals, questions: [...w.questions, request]);
+        default:
+      }
+    }
+    return out;
+  },
+);
 
 enum IslandSource { local, bridge }
 
@@ -296,6 +373,20 @@ class IslandController extends Notifier<IslandState> {
   /// left): no second try until it stops running or another one opens.
   String? _triedFor;
 
+  /// The open conversation's run: started by a message from here (S1), or
+  /// looked at for the dwell (S2). Either starts it once it qualifies.
+  bool _localStart = false;
+  bool _dwellReached = false;
+
+  /// Wakes [_tryOpen] when the open run turns [islandShortRun] old.
+  Timer? _qualify;
+
+  /// When this phone last sent a message, per conversation (S3 ③).
+  final _localSends = <String, DateTime>{};
+
+  /// Swiped away while still running: not started again until its run ends.
+  final _declined = <String>{};
+
   LiveActivityChannel get _channel => ref.read(liveActivityChannelProvider);
   LiveActivityBridgeSync get _bridge => ref.read(liveActivityBridgeSyncProvider);
   DateTime _now() => ref.read(islandClockProvider)();
@@ -343,6 +434,7 @@ class IslandController extends Notifier<IslandState> {
     _throttle?.cancel();
     _expiry?.cancel();
     _dwell?.cancel();
+    _qualify?.cancel();
     _currentSub?.close();
     _activeSub?.close();
     _othersSub?.close();
@@ -367,9 +459,7 @@ class IslandController extends Notifier<IslandState> {
     _currentId = id;
     _currentView = null;
     _lastLocalSendAt = null;
-    _dwell?.cancel();
-    _dwell = null;
-    _triedFor = null;
+    _resetOpenRun();
     if (id == null) return;
     _currentSub = ref.listen<IslandSessionView>(
       islandSessionViewProvider(id),
@@ -382,53 +472,137 @@ class IslandController extends Notifier<IslandState> {
     }
   }
 
+  void _resetOpenRun() {
+    _dwell?.cancel();
+    _dwell = null;
+    _qualify?.cancel();
+    _qualify = null;
+    _triedFor = null;
+    _localStart = false;
+    _dwellReached = false;
+  }
+
   void _onCurrent(String id, IslandSessionView view) {
     if (id != _currentId) return;
     final previous = _currentView;
     _currentView = view;
     final now = _now();
-    if (view.localSend) _lastLocalSendAt = now;
-    final started = previous != null && !previous.running && view.running;
-    final local = _lastLocalSendAt != null && now.difference(_lastLocalSendAt!) <= islandLocalSendWindow;
-    if (started && local) {
-      _dwell?.cancel();
-      _dwell = null;
-      _triedFor = id;
-      scheduleMicrotask(() => unawaited(_start(id)));
+    if (view.localSend) {
+      _lastLocalSendAt = now;
+      _localSends[id] = now;
+    }
+    if (!view.running) {
+      _resetOpenRun();
+      if (view.synced) _declined.remove(id);
       return;
     }
-    _armDwell(id, view);
+    final started = previous != null && !previous.running;
+    final local = _lastLocalSendAt != null && now.difference(_lastLocalSendAt!) <= islandLocalSendWindow;
+    if (started && local) _localStart = true;
+    if (!_dwellReached && _dwell == null && _wants(id, view)) {
+      _dwell = Timer(ref.read(islandDwellProvider), () {
+        _dwell = null;
+        _dwellReached = true;
+        _tryOpen(id);
+      });
+    }
+    _tryOpen(id);
   }
 
   /// Whether the open conversation [id] could get an Activity now: running,
-  /// fully loaded, and not the one already shown.
+  /// fully loaded, not swiped away this run, and not the one already shown.
   bool _wants(String id, IslandSessionView? view) =>
-      view != null && view.running && view.synced && !(state.activeSessionId == id && !state.ended);
+      view != null &&
+      view.running &&
+      view.synced &&
+      !_declined.contains(id) &&
+      !(state.activeSessionId == id && !state.ended);
 
-  void _armDwell(String id, IslandSessionView view) {
-    if (!view.running) {
-      _dwell?.cancel();
-      _dwell = null;
-      if (_triedFor == id) _triedFor = null;
-      return;
-    }
-    if (_dwell != null || _triedFor == id || !_wants(id, view)) return;
-    _dwell = Timer(ref.read(islandDwellProvider), () {
-      _dwell = null;
-      if (_currentId != id || !_wants(id, _currentView)) return;
-      _triedFor = id;
-      unawaited(_start(id));
-    });
+  /// The run is worth an Activity: a tool call (or a request) already, or
+  /// [islandShortRun] old.
+  bool _qualifies(IslandSessionView view) {
+    if (view.approvals.isNotEmpty || view.questions.isNotEmpty) return true;
+    final a = view.activity;
+    if (a == null) return false;
+    if (a.toolsDone > 0 || a.kind == ActivityKind.tool || a.kind == ActivityKind.approval) return true;
+    final start = a.turnStart;
+    return start != null && _now().difference(start.add(view.clockSkew)) >= islandShortRun;
   }
 
-  /// Leaving the screen before the wait was over: try now, while still in front.
-  void _onLeaving() {
-    final id = _currentId;
-    if (id == null || _triedFor == id || !_wants(id, _currentView)) return;
+  /// S1 / S2: starts the open conversation's Activity once its run qualifies.
+  void _tryOpen(String id) {
+    final view = _currentView;
+    if (_currentId != id || view == null || !(_localStart || _dwellReached) || _triedFor == id) return;
+    if (!_wants(id, view)) return;
+    if (!_qualifies(view)) {
+      final start = view.activity?.turnStart;
+      if (_qualify == null && start != null) {
+        final wait = start.add(view.clockSkew).add(islandShortRun).difference(_now());
+        _qualify = Timer(wait.isNegative ? Duration.zero : wait + const Duration(milliseconds: 1), () {
+          _qualify = null;
+          _tryOpen(id);
+        });
+      }
+      return;
+    }
+    _qualify?.cancel();
+    _qualify = null;
     _dwell?.cancel();
     _dwell = null;
     _triedFor = id;
-    unawaited(_start(id));
+    scheduleMicrotask(() => unawaited(_start(id)));
+  }
+
+  /// S3: leaving the screen. The open running conversation first (no dwell
+  /// needed); with no Activity, else one waiting on the person, else one this
+  /// phone sent to lately that still runs.
+  void _onLeaving() {
+    final id = _currentId;
+    final view = _currentView;
+    if (id != null && view != null && _triedFor != id && _wants(id, view) && _qualifies(view)) {
+      _qualify?.cancel();
+      _qualify = null;
+      _dwell?.cancel();
+      _dwell = null;
+      _triedFor = id;
+      unawaited(_start(id));
+      return;
+    }
+    if (!_eligible || (state.activeSessionId != null && !state.ended)) return;
+    final pick = _leavingPick();
+    if (pick != null) unawaited(_start(pick.$1, view: pick.$2));
+  }
+
+  /// S3 ② and ③, from the conversation list and the host's open requests
+  /// (no chat state for them yet: the bridge fills in the rest).
+  (String, IslandSessionView)? _leavingPick() {
+    final waiting = ref.read(islandWaitingProvider)();
+    final runs = {for (final r in ref.read(islandOthersProvider).runs) r.sessionId: r};
+    _declined.removeWhere((id) => !runs.containsKey(id) && !waiting.containsKey(id));
+    IslandSessionView viewOf(String id, {IslandWaiting? w}) {
+      final run = runs[id];
+      return IslandSessionView(
+        running: true,
+        synced: true,
+        title: run?.title,
+        activity: RunActivity(kind: ActivityKind.thinking, title: '', turnStart: run?.startedAt),
+        approvals: w?.approvals ?? const [],
+        questions: w?.questions ?? const [],
+      );
+    }
+
+    for (final MapEntry(key: id, value: w) in waiting.entries) {
+      if (_declined.contains(id) || (w.approvals.isEmpty && w.questions.isEmpty)) continue;
+      return (id, viewOf(id, w: w));
+    }
+    final now = _now();
+    final recent = [
+      for (final MapEntry(key: id, value: at) in _localSends.entries)
+        if (runs.containsKey(id) && !_declined.contains(id) && now.difference(at) <= islandRecentSend) (id, at),
+    ]..sort((a, b) => b.$2.compareTo(a.$2));
+    _localSends.removeWhere((_, at) => now.difference(at) > islandRecentSend);
+    if (recent.isEmpty) return null;
+    return (recent.first.$1, viewOf(recent.first.$1));
   }
 
   /// The Activity on screen waits on the person: it isn't traded for another.
@@ -548,8 +722,9 @@ class IslandController extends Notifier<IslandState> {
 
   // ── Start ───────────────────────────────────────────────────────────────
 
-  Future<void> _start(String id) async {
+  Future<void> _start(String id, {IslandSessionView? view}) async {
     if (_starting || !ref.mounted) return;
+    final viewFor = view;
     _starting = true;
     try {
       final prefs = ref.read(islandPrefsProvider.notifier);
@@ -558,8 +733,8 @@ class IslandController extends Notifier<IslandState> {
       if (!ref.read(appForegroundProvider)) return;
       final support = await ref.read(liveActivityStatusProvider.future);
       if (!ref.mounted || !support.usable) return;
-      final view = _currentId == id ? _currentView : _activeView;
-      if (view == null || !view.running) return;
+      final view = viewFor ?? (_currentId == id ? _currentView : _activeView);
+      if (view == null || !view.running || _declined.contains(id)) return;
       if (state.activeSessionId == id && !state.ended) {
         _schedule(urgent: true);
         return;
@@ -719,6 +894,8 @@ class IslandController extends Notifier<IslandState> {
         return;
       }
       final failed = kind != 'completed';
+      // Finished while looking at it: nothing to come back to on the lock screen.
+      final viewing = _currentId == id && ref.read(appForegroundProvider);
       final end = turn?.end ?? _now().subtract(view.clockSkew);
       final finish = IslandFinish(
         failed: failed,
@@ -726,6 +903,7 @@ class IslandController extends Notifier<IslandState> {
         end: end,
         steps: view.lastTurnTools,
         reason: failed ? turn?.endReason?.error?.message : null,
+        reply: view.reply,
       );
       final breach = (state.lastContent?.breachTick ?? 0) + (failed ? 0 : 1);
       final content = _contentFor(id, view, finish: finish, breachTick: breach);
@@ -735,12 +913,16 @@ class IslandController extends Notifier<IslandState> {
       await _channel.end(
         sessionId: id,
         state: content.toMap(),
-        dismissal: failed ? LiveDismissal.after15m : LiveDismissal.after4s,
+        dismissal: viewing
+            ? LiveDismissal.immediate
+            : failed
+            ? LiveDismissal.after15m
+            : LiveDismissal.after20m,
       );
-      unawaited(_bridge.forget(id));
-      // Already looking at it: no need to linger.
-      if (ref.mounted && _currentId == id && ref.read(appForegroundProvider) && failed) {
-        await _endNow(id);
+      if (viewing && ref.mounted) {
+        _clear(id);
+      } else {
+        unawaited(_bridge.forget(id));
       }
     } finally {
       _finishing = false;
@@ -770,6 +952,10 @@ class IslandController extends Notifier<IslandState> {
 
   void _onActivityState(LiveStateChange change) {
     if (!change.state.over) return;
+    // Swiped away while it still ran: this run is left alone (v2 §3.2).
+    if (change.state == LiveActivityPhase.dismissed && state.activeSessionId == change.sessionId && !state.ended) {
+      _declined.add(change.sessionId);
+    }
     if (state.activeSessionId == change.sessionId) {
       _clear(change.sessionId);
     } else {
