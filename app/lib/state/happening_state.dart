@@ -677,64 +677,81 @@ List<HappeningEntry> _compute(Ref ref, Map<String, HappeningEntry> settled) {
 /// Running and waiting rows, without the ones that just ended.
 final happeningLiveProvider = Provider<List<HappeningEntry>>((ref) => _compute(ref, const {}));
 
-/// Rows that just ended, by conversation id, each removed
-/// [happeningLingerProvider] after it ended (or as soon as it runs or waits
-/// again). Another Host or workspace clears them: no lingering across scopes.
-class HappeningSettledController extends Notifier<Map<String, HappeningEntry>> {
+/// Rows that just ended, by conversation id, each kept
+/// [happeningLingerProvider] after it ended (or until it runs or waits
+/// again). Kept by [happeningProvider] itself as it computes, never written
+/// from a listener: the list is often recomputed by a widget's build reading
+/// it, and a provider must not be modified while the tree builds. Expiry
+/// comes from a timer, outside any build.
+class HappeningLinger {
+  final Map<String, HappeningEntry> _rows = {};
   final Map<String, Timer> _timers = {};
+  List<HappeningEntry>? _lastLive;
 
-  @override
-  Map<String, HappeningEntry> build() {
-    ref.watch(activeHostProvider);
-    ref.watch(selectedWorkspaceIdProvider);
-    _cancelAll();
-    ref.onDispose(_cancelAll);
-    ref.listen(happeningLiveProvider, (previous, next) {
-      final now = {for (final e in next) e.sessionId};
-      var changed = Map.of(state);
-      var dirty = false;
-      for (final id in now) {
-        if (changed.remove(id) != null) {
-          _timers.remove(id)?.cancel();
-          dirty = true;
-        }
-      }
-      final inScope = {
-        for (final s in ref.read(drawerScopeProvider)?.sessions ?? const <SessionSummary>[]) s.sessionId,
-      };
-      final clock = ref.read(drawerClockProvider);
-      final linger = ref.read(happeningLingerProvider);
-      for (final e in previous ?? const <HappeningEntry>[]) {
-        final id = e.sessionId;
-        // Gone from scope (archived, deleted, another workspace): no linger.
-        if (now.contains(id) || !inScope.contains(id)) continue;
-        changed[id] = e.copyWith(settledAt: clock());
-        _timers.remove(id)?.cancel();
-        _timers[id] = Timer(linger, () {
-          _timers.remove(id);
-          if (ref.mounted && state.containsKey(id)) state = {...state}..remove(id);
-        });
-        dirty = true;
-      }
-      if (dirty) state = changed;
-    });
-    return const {};
+  /// Called when a row's linger ends (the list recomputes without it).
+  VoidCallback? onExpired;
+
+  /// The rows lingering now.
+  Map<String, HappeningEntry> get rows => Map.unmodifiable(_rows);
+
+  /// Follows the live rows from the last call to [live]: one that left while
+  /// still listed in [inScope] lingers, settled at [now]; one back in the
+  /// live list stops lingering.
+  void update(List<HappeningEntry> live, Set<String> inScope, DateTime now, Duration linger) {
+    final previous = _lastLive;
+    if (identical(previous, live)) return;
+    _lastLive = live;
+    final ids = {for (final e in live) e.sessionId};
+    for (final id in ids) {
+      if (_rows.remove(id) != null) _timers.remove(id)?.cancel();
+    }
+    for (final e in previous ?? const <HappeningEntry>[]) {
+      final id = e.sessionId;
+      // Gone from scope (archived, deleted, another workspace): no linger.
+      if (ids.contains(id) || !inScope.contains(id)) continue;
+      _rows[id] = e.copyWith(settledAt: now);
+      _timers.remove(id)?.cancel();
+      _timers[id] = Timer(linger, () {
+        _timers.remove(id);
+        if (_rows.remove(id) != null) onExpired?.call();
+      });
+    }
   }
 
-  void _cancelAll() {
+  void dispose() {
     for (final t in _timers.values) {
       t.cancel();
     }
     _timers.clear();
+    _rows.clear();
+    onExpired = null;
   }
 }
 
-final happeningSettledProvider = NotifierProvider<HappeningSettledController, Map<String, HappeningEntry>>(
-  HappeningSettledController.new,
-);
+/// The lingering rows of one Host and workspace: another one starts afresh.
+final happeningLingerBookProvider = Provider<HappeningLinger>((ref) {
+  ref.watch(activeHostProvider);
+  ref.watch(selectedWorkspaceIdProvider);
+  final book = HappeningLinger();
+  ref.onDispose(book.dispose);
+  return book;
+});
 
 /// 正在发生, in display order (see [happeningOf]); empty while the list loads.
-final happeningProvider = Provider<List<HappeningEntry>>((ref) => _compute(ref, ref.watch(happeningSettledProvider)));
+final happeningProvider = Provider<List<HappeningEntry>>((ref) {
+  final book = ref.watch(happeningLingerBookProvider);
+  final live = ref.watch(happeningLiveProvider);
+  book.update(
+    live,
+    {for (final s in ref.watch(drawerScopeProvider)?.sessions ?? const <SessionSummary>[]) s.sessionId},
+    ref.read(drawerClockProvider)(),
+    ref.watch(happeningLingerProvider),
+  );
+  book.onExpired = () {
+    if (ref.mounted) ref.invalidateSelf();
+  };
+  return _compute(ref, book.rows);
+});
 
 // ── The rows' timers ─────────────────────────────────────────────────────────
 
