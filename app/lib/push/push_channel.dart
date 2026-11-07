@@ -226,6 +226,16 @@ class PushChannel {
   /// The notification that launched the app, once; null when none.
   Future<PushRoute?> takeLaunchTap() async => PushRoute.fromMap(await _call<Object?>('takeLaunchTap'));
 
+  /// Hands the Notification Service Extension what it needs to decrypt the
+  /// pushes (notify-v3 §4.3): this phone's X25519 private key (base64url),
+  /// the bridge's device id and the app language, into the shared Keychain
+  /// group. Never the bridge token. Without a native side: nothing.
+  Future<void> setNotificationSecrets({required String privateKey, required String deviceId, required String lang}) =>
+      _call<void>('setNotificationSecrets', {'privateKey': privateKey, 'deviceId': deviceId, 'lang': lang});
+
+  /// Unpaired: the extension's copy goes.
+  Future<void> clearNotificationSecrets() => _call<void>('clearNotificationSecrets', const <String, Object?>{});
+
   /// Removes the delivered notifications of [sessionId] (it is open now).
   Future<void> clearDelivered(String sessionId) => _call<void>('clearDelivered', {'sessionId': sessionId});
 

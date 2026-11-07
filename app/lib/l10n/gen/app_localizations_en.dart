@@ -8241,6 +8241,40 @@ class L10nEn extends L10n {
   }
 
   @override
+  String get islandBackground => 'In background';
+
+  @override
+  String islandGoalDone(int rounds) {
+    String _temp0 = intl.Intl.pluralLogic(rounds, locale: localeName, other: '$rounds rounds', one: '1 round');
+    return 'Goal reached · $_temp0';
+  }
+
+  @override
+  String get islandGoalStuck => 'Goal stuck';
+
+  @override
+  String islandTreeAgents(int count) {
+    String _temp0 = intl.Intl.pluralLogic(count, locale: localeName, other: '$count subagents', one: '1 subagent');
+    return '$_temp0';
+  }
+
+  @override
+  String islandTreeJobs(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count background tasks',
+      one: '1 background task',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String islandTreeFailed(int count) {
+    return '$count failed';
+  }
+
+  @override
   String get laSettingsSection => 'Dynamic Island and Live Activities';
 
   @override
@@ -8294,6 +8328,28 @@ class L10nEn extends L10n {
 
   @override
   String get searchKwIsland => 'dynamic island,live activity,live activities,lock screen,whale';
+
+  @override
+  String get laScheduleSection => 'Automation alerts';
+
+  @override
+  String get laScheduleDefault => 'All automations';
+
+  @override
+  String get laScheduleAlways => 'Always';
+
+  @override
+  String get laScheduleFailures => 'Failures';
+
+  @override
+  String get laScheduleNever => 'Never';
+
+  @override
+  String get laScheduleFooter =>
+      'Whether an automation that finishes while you\'re away notifies you: Failures (default) only rings when it fails; Always also files each result quietly in the Automation group of Notification Center; Never sends nothing. Anything that needs your approval or an answer always notifies. Needs push pairing.';
+
+  @override
+  String get laScheduleFollowDefault => 'Default';
 
   @override
   String get launchScreenTitle => 'Launch screen';
@@ -11369,6 +11425,36 @@ class L10nEn extends L10n {
 
   @override
   String get plugInputGestureRequired => 'This effect requires a user tap';
+
+  @override
+  String get plugUiBuiltInTitle => 'Built-in plugins';
+
+  @override
+  String get plugUiBuiltInSubagent => 'Subagent';
+
+  @override
+  String get plugUiBuiltInWebSearch => 'Web search';
+
+  @override
+  String get plugUiBuiltInAgentLoop => 'Agent loop';
+
+  @override
+  String get plugUiBuiltInShell => 'Shell';
+
+  @override
+  String get plugUiBuiltInFootnote =>
+      'Features that ship with DSH, named as on DSH Web\'s Plugins page; each opens its settings in the app.';
+
+  @override
+  String get plugUiSearchKwBuiltIn => 'built-in plugins,subagent,web search,agent loop,shell,terminal';
+
+  @override
+  String get plugUiSearchKwSubagentAlias => 'subagents,sub-agent,model selection,allowed models';
+
+  @override
+  String plugUiSettingsReloadFailed(String entry) {
+    return 'The host reloaded its plugins and $entry didn\'t start, so this change wasn\'t applied. Fix or turn off that plugin and try again.';
+  }
 
   @override
   String get pluginsOperationHostChanged => 'Host changed — nothing was done';

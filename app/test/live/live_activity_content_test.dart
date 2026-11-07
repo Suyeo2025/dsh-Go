@@ -168,21 +168,22 @@ void main() {
     expect(islandRiskOf(''), 'unknown');
   });
 
-  test('question comes first and gets the same window', () {
-    final c = _content(
-      approvals: [_approval('ev1')],
-      questions: [
-        UserQuestionRequest(
-          eventId: 'q1',
-          sessionId: 's1',
-          questions: const [UserQuestion(id: 'x', question: '用哪个\n数据库？')],
-        ),
-      ],
+  test('an approval comes before a question (v3 §2.3); a question gets the same window', () {
+    final question = UserQuestionRequest(
+      eventId: 'q1',
+      sessionId: 's1',
+      questions: const [UserQuestion(id: 'x', question: '用哪个\n数据库？')],
     );
+    final both = _content(approvals: [_approval('ev1')], questions: [question]);
+    expect(both.phase, IslandPhase.approval);
+    expect(both.pending!.eventId, 'ev1');
+    expect(both.toMap()['pendingCount'], 2);
+    final c = _content(questions: [question]);
     expect(c.phase, IslandPhase.question);
     expect(c.pending!.kind, 'question');
     expect(c.pending!.text, '用哪个 数据库？');
     expect(c.pending!.approvalExpiresAt, _now.add(islandApprovalWindow));
+    expect(c.toMap().containsKey('pendingCount'), isFalse);
   });
 
   test('others: at most two, newest first, counts kept', () {
@@ -359,9 +360,9 @@ void main() {
       expect(islandSummaryLine('   '), isNull);
     });
 
-    test('done carries summaryLine; running shows stop, finished does not; v is 2', () {
+    test('done carries summaryLine; running shows stop, finished does not; v is 3', () {
       final running = _content(activity: _tool('bash')).toMap();
-      expect(running['v'], 2);
+      expect(running['v'], 3);
       expect(running['showStop'], true);
       expect(running.containsKey('summaryLine'), isFalse);
       expect(running.containsKey('stopArmedUntil'), isFalse, reason: 'only Swift writes it');

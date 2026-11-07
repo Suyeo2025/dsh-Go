@@ -16,13 +16,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/l10n.dart' show AppLocale;
 import '../live/live_activity_bridge_sync.dart';
+import '../live/live_activity_content.dart' show islandLangOf;
 import '../platform/platform_caps.dart';
 import '../remote/secret_store.dart';
 import '../state/app_info.dart';
 import '../state/hosts_state.dart';
 import 'bridge_client.dart';
 import 'push_channel.dart';
+import 'schedule_notify_state.dart';
 
 /// A paired bridge.
 class PushPairing {
@@ -240,7 +243,22 @@ class PushController extends Notifier<PushState> {
     state = state.copyWith(loaded: true, pairing: () => pairing, system: system, health: _healthFor(pairing, system));
     // Apple: ask for the token on every launch; it may have changed.
     if (pairing != null && system.auth.allowed) unawaited(_channel.register());
-    if (pairing != null) unawaited(refresh());
+    if (pairing != null) {
+      unawaited(_shareNotificationSecrets(pairing));
+      unawaited(refresh());
+    }
+  }
+
+  /// The extension that decrypts pushes gets the key (notify-v3 §4.3).
+  Future<void> _shareNotificationSecrets(PushPairing pairing) async {
+    if (!isRemoteOnlyPlatform) return;
+    final key = await _readSecret(keyPairKey);
+    if (key == null || !ref.mounted) return;
+    await _channel.setNotificationSecrets(
+      privateKey: key.replaceAll('=', ''),
+      deviceId: pairing.deviceId,
+      lang: islandLangOf(AppLocale.current),
+    );
   }
 
   PushHealth _healthFor(PushPairing? pairing, PushSystemStatus system) {
@@ -368,8 +386,13 @@ class PushController extends Notifier<PushState> {
     } finally {
       if (ref.mounted) state = state.copyWith(busy: false);
     }
-    // 灵动岛: the Live Activity tokens known so far go to the new bridge.
-    if (ref.mounted) unawaited(ref.read(liveActivityBridgeSyncProvider).resync());
+    // 灵动岛: the Live Activity tokens known so far go to the new bridge;
+    // the automation reminder choice and the extension's key too.
+    if (ref.mounted) {
+      unawaited(ref.read(liveActivityBridgeSyncProvider).resync());
+      unawaited(ref.read(scheduleNotifyProvider.notifier).sync(ifChosen: true));
+      if (state.pairing case final p?) unawaited(_shareNotificationSecrets(p));
+    }
     await enableNotifications();
   }
 
@@ -419,6 +442,7 @@ class PushController extends Notifier<PushState> {
       }
       // 灵动岛: the bridge still knows this phone; re-send the Live Activity tokens.
       unawaited(ref.read(liveActivityBridgeSyncProvider).resync());
+      unawaited(ref.read(scheduleNotifyProvider.notifier).sync(ifChosen: true));
     } on BridgeException catch (e) {
       if (!ref.mounted) return;
       if (e.unpaired) {
@@ -503,6 +527,7 @@ class PushController extends Notifier<PushState> {
       await _save(null);
       // The bridge drops the whole device: forget the Live Activity tokens here only.
       if (ref.mounted) unawaited(ref.read(liveActivityBridgeSyncProvider).clear(remote: false));
+      if (isRemoteOnlyPlatform) unawaited(_channel.clearNotificationSecrets());
     } finally {
       if (ref.mounted) state = state.copyWith(busy: false, pairing: () => null, health: PushHealth.off);
     }

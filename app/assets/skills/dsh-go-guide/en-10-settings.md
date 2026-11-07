@@ -65,6 +65,10 @@ When something needs your approval, the expanded island or the lock-screen banne
 
 When a turn finishes, the lock-screen card stays for 20 minutes with the first line of the conclusion; if you are looking at that chat, it goes away at once. After an error it stays for 15 minutes. A question with one single-choice prompt can be answered right from the island; “Stop” needs two taps. If Live Activities are off for DSH Go in Settings, this row is greyed out with a note; tap **Open Settings** to turn them on. With the Dynamic Island off, approvals, questions and finished turns still come as plain notifications; nothing is lost.
 
+When a chat starts background tasks, subagents, a team or a goal that keeps going, the main reply alone doesn't count as done: the island shows "Replied · 2 background tasks running", and only ticks off once all of it has stopped and stayed quiet for 20 seconds, with a single notification. A failed subtask doesn't ring on its own; it is told in that last notification.
+
+**Automation alerts** decides whether an automation that finishes while you're away notifies you: **Failures** (default) only rings when it fails; **Always** also files each result quietly in the Automation group of Notification Center; **Never** sends nothing. Pick one for all automations, then change single tasks if needed. Anything that needs your approval or an answer always notifies, whatever this says.
+
 ## Hosts
 
 - **Local engine** and **Remote host**: see [Engine and remote hosts](03-engine-hosts.md).

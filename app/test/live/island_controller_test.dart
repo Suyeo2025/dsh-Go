@@ -4,6 +4,7 @@ import 'package:dsh_app/live/island_prefs_state.dart';
 import 'package:dsh_app/live/live_activity_channel.dart';
 import 'package:dsh_app/live/live_activity_content.dart' show OtherRun;
 import 'package:dsh_app/live/live_activity_state.dart';
+import 'package:dsh_app/live/work_tree.dart';
 import 'package:dsh_app/platform/platform_caps.dart';
 import 'package:dsh_app/state/notify_state.dart' show appForegroundProvider;
 import 'package:dsh_app/state/sessions_state.dart' show currentSessionProvider;
@@ -23,6 +24,25 @@ class FakeViews extends Notifier<Map<String, IslandSessionView>> {
 }
 
 final fakeViewsProvider = NotifierProvider<FakeViews, Map<String, IslandSessionView>>(FakeViews.new);
+
+/// The work trees the controller sees, per root.
+class FakeTrees extends Notifier<Map<String, WorkTree>> {
+  @override
+  Map<String, WorkTree> build() => const {};
+
+  void set(String id, WorkTree tree) => state = {...state, id: tree};
+}
+
+final fakeTreesProvider = NotifierProvider<FakeTrees, Map<String, WorkTree>>(FakeTrees.new);
+
+extension on JobInfo {
+  JobInfo copyWithStatus(String status) => JobInfo(id: id, kind: kind, label: label, status: status);
+}
+
+extension on IslandSessionView {
+  IslandSessionView copyWithWake() =>
+      IslandSessionView(running: running, synced: synced, title: title, activity: activity, wake: true);
+}
 
 final _t0 = DateTime.utc(2026, 11, 6, 8);
 
@@ -84,6 +104,7 @@ void main() {
   late StreamController<void> leaving;
   var others = (runs: const <OtherRun>[], pending: const <String>{});
   var waiting = const <String, IslandWaiting>{};
+  var settleWindow = Duration.zero;
 
   setUp(() {
     calls.clear();
@@ -94,6 +115,7 @@ void main() {
     _now = _t0.add(const Duration(minutes: 1));
     others = (runs: const <OtherRun>[], pending: const <String>{});
     waiting = const {};
+    settleWindow = Duration.zero;
     SharedPreferences.setMockInitialValues({});
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
       liveActivityMethodChannel,
@@ -124,6 +146,8 @@ void main() {
         islandSessionViewProvider.overrideWith((ref, id) => ref.watch(fakeViewsProvider)[id] ?? _idle()),
         islandOthersProvider.overrideWith((ref) => others),
         islandWaitingProvider.overrideWithValue(() => waiting),
+        workTreeProvider.overrideWith((ref, id) => ref.watch(fakeTreesProvider)[id] ?? WorkTree.empty(id)),
+        islandSettleWindowProvider.overrideWithValue(settleWindow),
         islandLinksProvider.overrideWithValue((_) => () {}),
         islandClockProvider.overrideWithValue(() => _now),
         islandThrottleProvider.overrideWithValue(const Duration(milliseconds: 40)),
@@ -466,6 +490,147 @@ void main() {
       await settle();
       expect(lastOf('end')['dismissal'], 'after20m');
       expect(c.read(islandControllerProvider).ended, isTrue);
+    });
+
+    // ── v3 work tree ──
+
+    WorkTree treeWith({List<JobInfo> jobs = const [], List<ApprovalRequest> approvals = const []}) => WorkTree(
+      rootId: 's1',
+      agents: [for (final a in approvals) TreeAgent(sessionId: a.sessionId, label: '审查员', running: false)],
+      jobs: jobs,
+      approvals: approvals,
+    );
+    const job = JobInfo(id: 'j1', kind: 'bash', label: 'sleep 120', status: 'running');
+
+    test('root replied, a job still runs: background, nothing ends; the job done → settled after the window', () async {
+      settleWindow = const Duration(milliseconds: 60);
+      final c = await ready();
+      await sendIn(c, 's1');
+      c.read(currentSessionProvider.notifier).select(null);
+      await settle();
+      c.read(fakeTreesProvider.notifier).set('s1', treeWith(jobs: [job]));
+      await settle();
+      calls.clear();
+      c.read(fakeViewsProvider.notifier).set('s1', _ended('completed'));
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      await settle();
+      expect(methods(), isNot(contains('end')));
+      expect((lastOf('update')['state']! as Map)['phase'], 'background');
+      expect(c.read(islandControllerProvider).ended, isFalse);
+
+      // The job is over: quiet for the window, then one end.
+      c.read(fakeTreesProvider.notifier).set('s1', treeWith(jobs: [job.copyWithStatus('completed')]));
+      await settle();
+      expect(methods(), isNot(contains('end')), reason: 'not before the window');
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      await settle();
+      expect(methods().where((m) => m == 'end'), hasLength(1));
+      expect(lastOf('end')['dismissal'], 'after20m');
+    });
+
+    test('busy again within the window: not settled', () async {
+      settleWindow = const Duration(milliseconds: 80);
+      final c = await ready();
+      await sendIn(c, 's1');
+      c.read(currentSessionProvider.notifier).select(null);
+      await settle();
+      calls.clear();
+      c.read(fakeViewsProvider.notifier).set('s1', _ended('completed'));
+      await settle();
+      // A job wakes the root at once (goal rounds, job wake-ups).
+      c.read(fakeViewsProvider.notifier).set('s1', _running(done: 2));
+      await Future<void>.delayed(const Duration(milliseconds: 160));
+      await settle();
+      expect(methods(), isNot(contains('end')));
+      expect(c.read(islandControllerProvider).ended, isFalse);
+    });
+
+    test("a subagent's approval stays on the island while the root's chat has none (B8)", () async {
+      final c = await ready();
+      await sendIn(c, 's1');
+      c.read(currentSessionProvider.notifier).select('s1');
+      await settle();
+      calls.clear();
+      c
+          .read(fakeTreesProvider.notifier)
+          .set(
+            's1',
+            treeWith(
+              approvals: const [ApprovalRequest(eventId: 'ev-sub', sessionId: 'sub1', toolName: 'bash')],
+            ),
+          );
+      await settle();
+      c.read(fakeViewsProvider.notifier).set('s1', _running(done: 3));
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      await settle();
+      final state = lastOf('update')['state']! as Map;
+      expect(state['phase'], 'approval');
+      expect((state['pending']! as Map)['eventId'], 'ev-sub');
+      expect((state['pending']! as Map)['from'], '审查员');
+      // The root idle, the subagent waiting: background-busy, not done.
+      calls.clear();
+      c.read(fakeViewsProvider.notifier).set('s1', _ended('completed'));
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      await settle();
+      expect(methods(), isNot(contains('end')));
+    });
+
+    GoalProjection goalAt(String phase, DateTime updatedAt, {int rounds = 5}) => GoalProjection.fromJson({
+      'goal': {'id': 'g1', 'revision': 1, 'objective': '修好', 'phase': phase, 'maxGoalRounds': 20},
+      'roundsStarted': rounds,
+      'updatedAt': updatedAt.millisecondsSinceEpoch,
+    })!;
+    IslandSessionView withGoal(IslandSessionView v, GoalProjection g) => IslandSessionView(
+      running: v.running,
+      synced: v.synced,
+      title: v.title,
+      activity: v.activity,
+      lastTurn: v.lastTurn,
+      lastTurnTools: v.lastTurnTools,
+      goal: g,
+    );
+
+    test('a goal reached during this run: 目标达成; one reached or paused long ago says nothing', () async {
+      final c = await ready();
+      await sendIn(c, 's1');
+      c.read(currentSessionProvider.notifier).select(null);
+      await settle();
+      final views = c.read(fakeViewsProvider.notifier);
+      views.set('s1', withGoal(_running(done: 1), goalAt('active', _t0)));
+      await settle();
+      calls.clear();
+      views.set('s1', withGoal(_ended('completed'), goalAt('complete', _t0.add(const Duration(minutes: 13)))));
+      await settle();
+      expect((lastOf('end')['state']! as Map)['summary'], '目标达成 · 5 轮');
+
+      // Another conversation whose goal was reached (or paused) an hour before.
+      for (final phase in ['complete', 'paused']) {
+        await sendIn(c, 's2');
+        c.read(currentSessionProvider.notifier).select(null);
+        await settle();
+        calls.clear();
+        views.set('s2', withGoal(_ended('completed'), goalAt(phase, _t0.subtract(const Duration(hours: 1)))));
+        await settle();
+        expect(lastOf('end')['dismissal'], 'after20m', reason: phase);
+        expect((lastOf('end')['state']! as Map)['summary'], '14 步 · 12:34', reason: phase);
+        views.set('s2', _idle());
+        await settle();
+      }
+    });
+
+    test('a woken turn after the end does not start a new Activity', () async {
+      final c = await ready();
+      await sendIn(c, 's1');
+      c.read(currentSessionProvider.notifier).select(null);
+      await settle();
+      c.read(fakeViewsProvider.notifier).set('s1', _ended('completed'));
+      await settle();
+      expect(c.read(islandControllerProvider).ended, isTrue);
+      calls.clear();
+      c.read(fakeViewsProvider.notifier).set('s1', _running().copyWithWake());
+      await settle();
+      await leave();
+      expect(methods(), isNot(contains('start')));
     });
 
     // ── v2 start rules ──

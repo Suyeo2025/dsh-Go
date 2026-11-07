@@ -7804,6 +7804,32 @@ class L10nZh extends L10n {
   }
 
   @override
+  String get islandBackground => '后台进行中';
+
+  @override
+  String islandGoalDone(int rounds) {
+    return '目标达成 · $rounds 轮';
+  }
+
+  @override
+  String get islandGoalStuck => '目标卡住了';
+
+  @override
+  String islandTreeAgents(int count) {
+    return '$count 个子代理';
+  }
+
+  @override
+  String islandTreeJobs(int count) {
+    return '$count 个后台任务';
+  }
+
+  @override
+  String islandTreeFailed(int count) {
+    return '其中 $count 个失败';
+  }
+
+  @override
   String get laSettingsSection => '灵动岛与锁屏实时活动';
 
   @override
@@ -7854,6 +7880,28 @@ class L10nZh extends L10n {
 
   @override
   String get searchKwIsland => '灵动岛,实时活动,锁屏,鲸游,Live Activity,Dynamic Island';
+
+  @override
+  String get laScheduleSection => '定时任务提醒';
+
+  @override
+  String get laScheduleDefault => '所有定时任务';
+
+  @override
+  String get laScheduleAlways => '总是';
+
+  @override
+  String get laScheduleFailures => '仅失败';
+
+  @override
+  String get laScheduleNever => '从不';
+
+  @override
+  String get laScheduleFooter =>
+      '定时任务在你不在时跑完后要不要提醒：仅失败（默认）只在出错时响；总是会把每次结果安静地放进通知中心的「自动化」组；从不则什么都不发。需要你确认或回答的事总会提醒。需要配对推送。';
+
+  @override
+  String get laScheduleFollowDefault => '跟随默认';
 
   @override
   String get launchScreenTitle => '启动画面';
@@ -10814,6 +10862,35 @@ class L10nZh extends L10n {
 
   @override
   String get plugInputGestureRequired => '该效果需要用户点按';
+
+  @override
+  String get plugUiBuiltInTitle => '内置插件';
+
+  @override
+  String get plugUiBuiltInSubagent => '子智能体';
+
+  @override
+  String get plugUiBuiltInWebSearch => '网页搜索';
+
+  @override
+  String get plugUiBuiltInAgentLoop => 'Agent 循环';
+
+  @override
+  String get plugUiBuiltInShell => '终端';
+
+  @override
+  String get plugUiBuiltInFootnote => 'DSH 自带的功能，名称同网页版插件页；点进去是 App 里对应的设置页。';
+
+  @override
+  String get plugUiSearchKwBuiltIn => '内置插件,子智能体,子代理,网页搜索,联网搜索,Agent 循环,终端,命令执行';
+
+  @override
+  String get plugUiSearchKwSubagentAlias => '子智能体,子 Agent,模型选择,可选模型';
+
+  @override
+  String plugUiSettingsReloadFailed(String entry) {
+    return '主机重新加载插件时 $entry 没能启动，这次修改没有生效。修好或关掉这个插件后再试。';
+  }
 
   @override
   String get pluginsOperationHostChanged => '主机已切换，未执行';

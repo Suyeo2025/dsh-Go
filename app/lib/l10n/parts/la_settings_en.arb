@@ -15,5 +15,12 @@
   "laSettingsStatusOff": "Off",
   "laSettingsStatusSystemOff": "Off in Settings",
   "laSettingsStatusUnsupported": "Not supported",
-  "searchKwIsland": "dynamic island,live activity,live activities,lock screen,whale"
+  "searchKwIsland": "dynamic island,live activity,live activities,lock screen,whale",
+  "laScheduleSection": "Automation alerts",
+  "laScheduleDefault": "All automations",
+  "laScheduleAlways": "Always",
+  "laScheduleFailures": "Failures",
+  "laScheduleNever": "Never",
+  "laScheduleFooter": "Whether an automation that finishes while you're away notifies you: Failures (default) only rings when it fails; Always also files each result quietly in the Automation group of Notification Center; Never sends nothing. Anything that needs your approval or an answer always notifies. Needs push pairing.",
+  "laScheduleFollowDefault": "Default"
 }

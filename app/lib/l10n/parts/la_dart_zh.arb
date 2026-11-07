@@ -49,5 +49,39 @@
         "type": "String"
       }
     }
+  },
+  "islandBackground": "后台进行中",
+  "islandGoalDone": "目标达成 · {rounds} 轮",
+  "@islandGoalDone": {
+    "placeholders": {
+      "rounds": {
+        "type": "int"
+      }
+    }
+  },
+  "islandGoalStuck": "目标卡住了",
+  "islandTreeAgents": "{count} 个子代理",
+  "@islandTreeAgents": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "islandTreeJobs": "{count} 个后台任务",
+  "@islandTreeJobs": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "islandTreeFailed": "其中 {count} 个失败",
+  "@islandTreeFailed": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   }
 }

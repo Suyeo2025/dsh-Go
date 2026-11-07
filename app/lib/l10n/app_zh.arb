@@ -5020,6 +5020,40 @@
       }
     }
   },
+  "islandBackground": "后台进行中",
+  "islandGoalDone": "目标达成 · {rounds} 轮",
+  "@islandGoalDone": {
+    "placeholders": {
+      "rounds": {
+        "type": "int"
+      }
+    }
+  },
+  "islandGoalStuck": "目标卡住了",
+  "islandTreeAgents": "{count} 个子代理",
+  "@islandTreeAgents": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "islandTreeJobs": "{count} 个后台任务",
+  "@islandTreeJobs": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "islandTreeFailed": "其中 {count} 个失败",
+  "@islandTreeFailed": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "laSettingsSection": "灵动岛与锁屏实时活动",
   "laSettingsIslandMode": "灵动岛",
   "laSettingsModeOff": "关",
@@ -5037,6 +5071,13 @@
   "laSettingsStatusSystemOff": "系统已关闭",
   "laSettingsStatusUnsupported": "不支持",
   "searchKwIsland": "灵动岛,实时活动,锁屏,鲸游,Live Activity,Dynamic Island",
+  "laScheduleSection": "定时任务提醒",
+  "laScheduleDefault": "所有定时任务",
+  "laScheduleAlways": "总是",
+  "laScheduleFailures": "仅失败",
+  "laScheduleNever": "从不",
+  "laScheduleFooter": "定时任务在你不在时跑完后要不要提醒：仅失败（默认）只在出错时响；总是会把每次结果安静地放进通知中心的「自动化」组；从不则什么都不发。需要你确认或回答的事总会提醒。需要配对推送。",
+  "laScheduleFollowDefault": "跟随默认",
   "launchScreenTitle": "启动画面",
   "launchDefault": "默认",
   "launchCustom": "自定义",
@@ -6517,6 +6558,22 @@
   "plugInputTimePicker": "插件时间",
   "plugInputChoices": "插件选项",
   "plugInputGestureRequired": "该效果需要用户点按",
+  "plugUiBuiltInTitle": "内置插件",
+  "plugUiBuiltInSubagent": "子智能体",
+  "plugUiBuiltInWebSearch": "网页搜索",
+  "plugUiBuiltInAgentLoop": "Agent 循环",
+  "plugUiBuiltInShell": "终端",
+  "plugUiBuiltInFootnote": "DSH 自带的功能，名称同网页版插件页；点进去是 App 里对应的设置页。",
+  "plugUiSearchKwBuiltIn": "内置插件,子智能体,子代理,网页搜索,联网搜索,Agent 循环,终端,命令执行",
+  "plugUiSearchKwSubagentAlias": "子智能体,子 Agent,模型选择,可选模型",
+  "plugUiSettingsReloadFailed": "主机重新加载插件时 {entry} 没能启动，这次修改没有生效。修好或关掉这个插件后再试。",
+  "@plugUiSettingsReloadFailed": {
+    "placeholders": {
+      "entry": {
+        "type": "String"
+      }
+    }
+  },
   "pluginsOperationHostChanged": "主机已切换，未执行",
   "pluginsReloadLocal": "重启内核以重载",
   "pluginsReloadInterrupts": "会中断正在运行的任务",

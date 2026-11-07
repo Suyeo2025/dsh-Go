@@ -15,5 +15,12 @@
   "laSettingsStatusOff": "已关闭",
   "laSettingsStatusSystemOff": "系统已关闭",
   "laSettingsStatusUnsupported": "不支持",
-  "searchKwIsland": "灵动岛,实时活动,锁屏,鲸游,Live Activity,Dynamic Island"
+  "searchKwIsland": "灵动岛,实时活动,锁屏,鲸游,Live Activity,Dynamic Island",
+  "laScheduleSection": "定时任务提醒",
+  "laScheduleDefault": "所有定时任务",
+  "laScheduleAlways": "总是",
+  "laScheduleFailures": "仅失败",
+  "laScheduleNever": "从不",
+  "laScheduleFooter": "定时任务在你不在时跑完后要不要提醒：仅失败（默认）只在出错时响；总是会把每次结果安静地放进通知中心的「自动化」组；从不则什么都不发。需要你确认或回答的事总会提醒。需要配对推送。",
+  "laScheduleFollowDefault": "跟随默认"
 }

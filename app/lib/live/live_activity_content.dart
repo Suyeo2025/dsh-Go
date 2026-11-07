@@ -3,7 +3,9 @@
 // plus the revision in plan/ios-wave2-design.md «la-dart › 契约修订»
 // (`pending.approvalExpiresAt`, `pending.expired`) and the v2 additions in
 // plan/design/live-activity-v2-contract.md §1 (question options, todo buoys,
-// the conclusion's first sentence, the stop button). The bridge
+// the conclusion's first sentence, the stop button), and v3 in
+// plan/design/notify-v3-contract.md §2 (the work tree: `background`, calves,
+// bubbles, workflow segments, team board, goal, tree-wide pending). The bridge
 // (dsh-watch-bridge src/push/liveactivity.ts) sends the same shape while the
 // app is away, so the labels here follow its table.
 //
@@ -14,12 +16,14 @@
 
 import 'dart:ui' show Locale;
 
-import 'package:dsh_client/dsh_client.dart' show ApprovalRequest, TodoItem, UserQuestionRequest;
+import 'package:dsh_client/dsh_client.dart'
+    show ApprovalRequest, GoalProjection, JobInfo, TodoItem, UserQuestionRequest;
 
 import '../l10n/l10n.dart';
 import '../state/hosts_state.dart';
 import '../ui/chat/run_info.dart' show ActivityKind, RunActivity;
 import '../ui/chat/secret_mask.dart';
+import 'work_tree.dart';
 
 /// Title ≤ 24 characters, pending text ≤ 48, tool label ≤ 12; at most two
 /// other conversations are listed.
@@ -36,13 +40,23 @@ const islandBuoysMax = 8;
 const islandTodoLabelMax = 12;
 const islandSummaryLineMax = 60;
 
+/// v3: three calves of ≤ 6, two bubbles of ≤ 12, six workflow segments,
+/// a workflow name of ≤ 16 and a requester name of ≤ 8.
+const islandCalvesMax = 3;
+const islandCalfLabelMax = 6;
+const islandBubblesMax = 2;
+const islandBubbleLabelMax = 12;
+const islandSegmentsMax = 6;
+const islandWorkflowNameMax = 16;
+const islandFromMax = 8;
+
 /// The ContentState version this app writes.
-const islandContentVersion = 2;
+const islandContentVersion = 3;
 
 /// How long an approval / question keeps its buttons on the island.
 const islandApprovalWindow = Duration(seconds: 120);
 
-enum IslandPhase { running, approval, question, done, failed }
+enum IslandPhase { running, background, approval, question, done, failed }
 
 /// The thing waiting on the person.
 class IslandPending {
@@ -55,6 +69,7 @@ class IslandPending {
     required this.approvalExpiresAt,
     this.expired = false,
     this.options = const [],
+    this.from,
   });
 
   final String eventId;
@@ -75,6 +90,9 @@ class IslandPending {
   /// the original question, the bridge answers with that option's own label.
   final List<({String id, String label})> options;
 
+  /// v3: the descendant conversation that asks (null: the root itself).
+  final String? from;
+
   Map<String, Object?> toMap() => {
     'eventId': eventId,
     'kind': kind,
@@ -83,6 +101,7 @@ class IslandPending {
     'askedAt': unixSeconds(askedAt),
     'approvalExpiresAt': unixSeconds(approvalExpiresAt),
     'expired': expired,
+    'from': ?from,
     if (options.isNotEmpty)
       'options': [
         for (final o in options) {'id': o.id, 'label': o.label},
@@ -117,6 +136,10 @@ class IslandFinish {
     required this.steps,
     this.reason,
     this.reply,
+    this.agents = 0,
+    this.jobs = 0,
+    this.failures = 0,
+    this.goalRounds,
   });
   final bool failed;
   final DateTime start;
@@ -130,6 +153,15 @@ class IslandFinish {
 
   /// The turn's last reply (its first statement becomes `summaryLine`).
   final String? reply;
+
+  /// v3: descendant conversations and background jobs the tree ran, and how
+  /// many of them failed (told in the summary, never on their own).
+  final int agents;
+  final int jobs;
+  final int failures;
+
+  /// A goal reached in this many rounds (done) or stuck (failed).
+  final int? goalRounds;
 }
 
 class IslandContent {
@@ -155,6 +187,7 @@ class IslandContent {
     this.summaryLine,
     this.showStop = false,
     this.stepStartedAt,
+    this.tree = const {},
   });
 
   /// The Activity's title (an attribute, not part of ContentState).
@@ -188,6 +221,10 @@ class IslandContent {
   /// When the tool at work started (device clock).
   final DateTime? stepStartedAt;
 
+  /// v3 keys, already in wire shape (`calves`, `calvesMore`, `bubbles`, `wf`,
+  /// `team`, `goal`, `pendingCount`); see [islandContentOf].
+  final Map<String, Object?> tree;
+
   bool get finished => phase == IslandPhase.done || phase == IslandPhase.failed;
 
   IslandContent copyWith({IslandPhase? phase, int? breachTick, bool? expired}) => IslandContent(
@@ -210,6 +247,7 @@ class IslandContent {
             approvalExpiresAt: pending!.approvalExpiresAt,
             expired: expired,
             options: pending!.options,
+            from: pending!.from,
           ),
     others: others,
     othersCount: othersCount,
@@ -223,6 +261,7 @@ class IslandContent {
     summaryLine: summaryLine,
     showStop: showStop,
     stepStartedAt: stepStartedAt,
+    tree: tree,
   );
 
   /// The channel / bridge payload (`ContentStateMap`).
@@ -252,6 +291,7 @@ class IslandContent {
     'summaryLine': ?summaryLine,
     'showStop': showStop,
     if (stepStartedAt case final at?) 'stepStartedAt': unixSeconds(at),
+    ...tree,
   };
 
   /// Same payload (what the Activity would show is the same).
@@ -400,14 +440,17 @@ String? islandSummaryLine(String? reply) {
   return line.isEmpty ? null : line;
 }
 
-/// The ContentState for one conversation.
+/// The ContentState for one conversation's work tree.
 ///
-/// [activity] is `runActivityOf` of the conversation (null when it isn't
-/// running); [approvals] are the ones waiting on the person; [commands] maps
-/// an approval's event id to its shell command when known; [askedAt] the
-/// device time each request was first seen (else [now]). [finish] turns it
-/// into the done / failed state. [turnStart] (Host time) stands in when
-/// [activity] has none.
+/// [activity] is `runActivityOf` of the root (null when it isn't running);
+/// [approvals] / [questions] are the root's own; [tree] adds its descendants'
+/// requests, agents and jobs, [workflow] / [goal] the root's foreground
+/// workflow run and goal. [background]: the root is idle while the tree still
+/// works. [since] (Host time) is when this run of the tree began: finished
+/// agents and failed jobs before it are not shown. [commands] maps an
+/// approval's event id to its shell command when known; [askedAt] the device
+/// time each request was first seen (else [now]). [finish] turns it into the
+/// done / failed state.
 IslandContent islandContentOf({
   required HostRef host,
   required String sessionId,
@@ -428,6 +471,11 @@ IslandContent islandContentOf({
   IslandFinish? finish,
   DateTime? turnStart,
   int breachTick = 0,
+  WorkTree? tree,
+  WorkflowRun? workflow,
+  GoalProjection? goal,
+  bool background = false,
+  DateTime? since,
 }) {
   final l = islandL10n(lang);
   final trimmed = rawTitle.trim();
@@ -439,15 +487,6 @@ IslandContent islandContentOf({
   final expectMs = (last.inMilliseconds * 1.5).round();
   final expect = Duration(milliseconds: expectMs < 60000 ? 60000 : expectMs);
 
-  final list = todos ?? const <TodoItem>[];
-  final done = list.where((t) => t.status == 'completed').length;
-  final double? progress = list.isEmpty ? null : done / list.length;
-  final buoys = islandBuoys(list);
-  final current =
-      list.where((t) => t.status == 'in_progress').firstOrNull ??
-      list.where((t) => t.status != 'completed').firstOrNull;
-  final todoLabel = current == null ? null : islandLine(current.content, islandTodoLabelMax);
-
   final sorted = [...others]..sort((a, b) => b.startedAt.compareTo(a.startedAt));
   final listed = [
     for (final o in sorted.take(islandOthersMax))
@@ -458,9 +497,124 @@ IslandContent islandContentOf({
       ),
   ];
 
+  // ── Requests of the whole tree (§2.3): the root's own as its chat has them,
+  // the descendants' from the Host's open requests.
+  final allApprovals = [
+    ...approvals,
+    if (tree != null)
+      for (final a in tree.approvals)
+        if (a.sessionId != sessionId && !approvals.any((x) => x.eventId == a.eventId)) a,
+  ];
+  final allQuestions = [
+    ...questions,
+    if (tree != null)
+      for (final q in tree.questions)
+        if (q.sessionId != sessionId && !questions.any((x) => x.eventId == q.eventId)) q,
+  ];
+  final waiting = {for (final a in allApprovals) a.sessionId, for (final q in allQuestions) q.sessionId};
+  DateTime asked(String eventId) => askedAt[eventId] ?? now;
+  int byAsked(String a, String b) => asked(a).compareTo(asked(b));
+  final firstApproval = ([...allApprovals]..sort((a, b) => byAsked(a.eventId, b.eventId))).firstOrNull;
+  final firstQuestion = ([...allQuestions]..sort((a, b) => byAsked(a.eventId, b.eventId))).firstOrNull;
+  final pendingTotal = allApprovals.length + allQuestions.length;
+
+  // ── v3 keys (§2.2).
+  final keys = <String, Object?>{};
+  bool recent(DateTime? at) => since != null && at != null && !at.isBefore(since);
+  if (tree != null) {
+    String state(TreeAgent a) => waiting.contains(a.sessionId)
+        ? 'wait'
+        : a.running
+        ? 'run'
+        : a.failed
+        ? 'err'
+        : 'done';
+    const rank = {'wait': 0, 'run': 1, 'err': 2, 'done': 3};
+    final shown = [
+      for (final a in tree.agents)
+        if (a.running || waiting.contains(a.sessionId) || recent(a.updatedAt)) (a: a, s: state(a)),
+    ]..sort((x, y) => rank[x.s]!.compareTo(rank[y.s]!));
+    if (shown.isNotEmpty) {
+      keys['calves'] = [
+        for (final c in shown.take(islandCalvesMax)) {'s': c.s, 'l': islandLine(c.a.label, islandCalfLabelMax)},
+      ];
+      final more = shown.skip(islandCalvesMax).where((c) => c.s != 'done').length;
+      if (more > 0) keys['calvesMore'] = more;
+    }
+    final live = [...tree.liveJobs]..sort((a, b) => (a.startedAt ?? now).compareTo(b.startedAt ?? now));
+    final failedJobs = tree.jobs.where((j) => j.status == 'failed' && recent(j.finishedAt)).length;
+    if (live.isNotEmpty || failedJobs > 0) {
+      keys['bubbles'] = {
+        'run': live.length,
+        'fail': failedJobs,
+        'top': [
+          for (final JobInfo j in live.take(islandBubblesMax))
+            {
+              'l': islandLine(j.progress?.trim().isNotEmpty == true ? j.progress! : j.label, islandBubbleLabelMax),
+              'since': unixSeconds((j.startedAt ?? now).add(clockSkew)),
+            },
+        ],
+      };
+    }
+  }
+  if (pendingTotal >= 2) keys['pendingCount'] = pendingTotal;
+  // Only the goal the caller says belongs to this run (an old one says nothing).
+  final g = goal;
+  if (g != null) {
+    keys['goal'] = {'round': g.roundsStarted, if (g.goal.maxGoalRounds > 0) 'max': g.goal.maxGoalRounds};
+  }
+
+  // ── The lane: workflow > team board > todos > estimate (§2.2).
+  double? progress;
+  var useTodos = false;
+  final team = tree?.team;
+  final teamTasks = team?.tasks ?? const [];
+  if (workflow != null && workflow.memberCount > 0) {
+    keys['wf'] = islandWorkflowKeys(workflow);
+    progress = workflow.endedCount / workflow.memberCount;
+  } else if (teamTasks.isNotEmpty) {
+    final done = teamTasks.where((t) => t.status == 'completed').length;
+    keys['team'] = {'done': done, 'total': teamTasks.length};
+    progress = done / teamTasks.length;
+  } else {
+    useTodos = true;
+  }
+  final list = useTodos ? (todos ?? const <TodoItem>[]) : const <TodoItem>[];
+  final done = list.where((t) => t.status == 'completed').length;
+  if (useTodos && list.isNotEmpty) progress = done / list.length;
+  final buoys = islandBuoys(list);
+  final current =
+      list.where((t) => t.status == 'in_progress').firstOrNull ??
+      list.where((t) => t.status != 'completed').firstOrNull;
+  final todoLabel = current == null ? null : islandLine(current.content, islandTodoLabelMax);
+
   if (finish != null) {
     final endAt = finish.end.add(clockSkew);
     final reason = finish.reason?.trim();
+    final String summary;
+    if (finish.failed) {
+      final base = finish.goalRounds != null ? l.islandGoalStuck : l.islandFailed;
+      summary = reason == null || reason.isEmpty
+          ? base
+          : islandLine(finish.goalRounds != null ? '$base：$reason' : reason, islandTextMax);
+    } else {
+      final parts = [
+        if (finish.goalRounds case final rounds?)
+          l.islandGoalDone(rounds)
+        else
+          l.islandSummaryDone(finish.steps, islandDuration(finish.end.difference(finish.start))),
+        if (finish.agents > 0) l.islandTreeAgents(finish.agents),
+        if (finish.jobs > 0) l.islandTreeJobs(finish.jobs),
+        if (finish.failures > 0) l.islandTreeFailed(finish.failures),
+      ];
+      summary = islandClip(parts.join(' · '), islandTextMax);
+    }
+    // A finished tree: nothing runs any more, only the board / goal stays.
+    keys
+      ..remove('calves')
+      ..remove('calvesMore')
+      ..remove('bubbles')
+      ..remove('pendingCount');
     return IslandContent(
       title: title,
       phase: finish.failed ? IslandPhase.failed : IslandPhase.done,
@@ -473,26 +627,39 @@ IslandContent islandContentOf({
       others: listed,
       othersCount: others.length,
       othersPending: othersPending,
-      summary: finish.failed
-          ? (reason == null || reason.isEmpty ? l.islandFailed : islandLine(reason, islandTextMax))
-          : islandClip(
-              l.islandSummaryDone(finish.steps, islandDuration(finish.end.difference(finish.start))),
-              islandTextMax,
-            ),
+      summary: summary,
       breachTick: breachTick,
       buoys: buoys,
       todoDone: list.isEmpty ? null : done,
       todoTotal: list.isEmpty ? null : list.length,
       todoLabel: finish.failed ? todoLabel : null,
       summaryLine: islandSummaryLine(finish.reply),
+      tree: keys,
     );
   }
 
   IslandPending? pending;
-  var phase = IslandPhase.running;
-  DateTime asked(String eventId) => askedAt[eventId] ?? now;
-  if (questions.isNotEmpty) {
-    final q = questions.first;
+  var phase = background ? IslandPhase.background : IslandPhase.running;
+  String? toolName = activity?.toolName;
+  if (firstApproval != null) {
+    final a = firstApproval;
+    final command = commands[a.eventId];
+    final at = asked(a.eventId);
+    final expires = at.add(islandApprovalWindow);
+    phase = IslandPhase.approval;
+    toolName ??= a.toolName;
+    pending = IslandPending(
+      eventId: a.eventId,
+      kind: 'approval',
+      text: islandLine(command ?? a.describe(lang), islandTextMax),
+      risk: islandRiskOf(command),
+      askedAt: at,
+      approvalExpiresAt: expires,
+      expired: !now.isBefore(expires),
+      from: _fromOf(tree, a.sessionId, sessionId),
+    );
+  } else if (firstQuestion != null) {
+    final q = firstQuestion;
     final at = asked(q.eventId);
     final expires = at.add(islandApprovalWindow);
     phase = IslandPhase.question;
@@ -505,31 +672,19 @@ IslandContent islandContentOf({
       approvalExpiresAt: expires,
       expired: !now.isBefore(expires),
       options: islandOptionsOf(q),
-    );
-  } else if (approvals.isNotEmpty) {
-    final a = approvals.first;
-    final command = commands[a.eventId];
-    final at = asked(a.eventId);
-    final expires = at.add(islandApprovalWindow);
-    phase = IslandPhase.approval;
-    pending = IslandPending(
-      eventId: a.eventId,
-      kind: 'approval',
-      text: islandLine(command ?? a.describe(lang), islandTextMax),
-      risk: islandRiskOf(command),
-      askedAt: at,
-      approvalExpiresAt: expires,
-      expired: !now.isBefore(expires),
+      from: _fromOf(tree, q.sessionId, sessionId),
     );
   }
 
-  final toolName = activity?.toolName ?? (approvals.isNotEmpty && questions.isEmpty ? approvals.first.toolName : null);
-  final toolLabel = switch (activity?.kind) {
-    ActivityKind.tool || ActivityKind.approval when toolName != null => islandToolLabel(toolName, l),
-    ActivityKind.writing => l.islandWriting,
-    _ when toolName != null && phase == IslandPhase.approval => islandToolLabel(toolName, l),
-    _ => l.islandThinking,
-  };
+  final toolLabel = phase == IslandPhase.background
+      ? l.islandBackground
+      : switch (activity?.kind) {
+          ActivityKind.tool || ActivityKind.approval when toolName != null => islandToolLabel(toolName, l),
+          ActivityKind.writing => l.islandWriting,
+          _ when toolName != null && phase == IslandPhase.approval => islandToolLabel(toolName, l),
+          _ when activity == null && background => l.islandBackground,
+          _ => l.islandThinking,
+        };
 
   return IslandContent(
     title: title,
@@ -551,5 +706,50 @@ IslandContent islandContentOf({
     todoLabel: todoLabel,
     showStop: true,
     stepStartedAt: activity?.kind == ActivityKind.tool ? activity?.since?.add(clockSkew) : null,
+    tree: keys,
   );
+}
+
+String? _fromOf(WorkTree? tree, String requester, String rootId) {
+  if (tree == null || requester == rootId) return null;
+  final name = tree.nameOf(requester);
+  return name == null ? null : islandLine(name, islandFromMax);
+}
+
+/// The `wf` key of [run] (§2.2): ≤ 6 segments in first-seen phase order (more
+/// phases merge into 6 even slices), each with its share of ended members.
+Map<String, Object?> islandWorkflowKeys(WorkflowRun run) {
+  final phases = run.phases;
+  final n = phases.length;
+  List<List<WorkflowPhase>> groups;
+  if (n <= islandSegmentsMax) {
+    groups = [
+      for (final p in phases) [p],
+    ];
+  } else {
+    groups = [
+      for (var i = 0; i < islandSegmentsMax; i++)
+        phases.sublist(i * n ~/ islandSegmentsMax, (i + 1) * n ~/ islandSegmentsMax),
+    ];
+  }
+  Map<String, Object?> seg(List<WorkflowPhase> g) {
+    final members = g.fold(0, (s, p) => s + p.members);
+    final ended = g.fold(0, (s, p) => s + p.ended);
+    final failed = g.fold(0, (s, p) => s + p.failed);
+    final f = members == 0 ? 0.0 : ended / members;
+    final s = failed > 0
+        ? 'err'
+        : members > 0 && ended >= members
+        ? 'done'
+        : members > 0
+        ? 'active'
+        : 'todo';
+    return {'s': s, 'f': double.parse(f.toStringAsFixed(3))};
+  }
+
+  return {
+    'name': islandLine(run.name, islandWorkflowNameMax),
+    'seg': [for (final g in groups) seg(g)],
+    'label': islandLine(run.current ?? '', islandLabelMax),
+  };
 }

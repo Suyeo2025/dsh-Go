@@ -331,6 +331,12 @@ class BridgeClient {
     await _request('DELETE', '/v1/device/live-activity/start-token', token: token);
   }
 
+  /// 定时任务提醒 (notify-v3 §3.3): `{default, tasks: {scheduleId: always |
+  /// failures | never}}`, replacing what the bridge had. Idempotent.
+  Future<void> putScheduleNotify(String token, Map<String, Object?> prefs) async {
+    await _request('PUT', '/v1/device/schedule-notify', token: token, body: prefs);
+  }
+
   Future<BridgeDevice> device(String token) async {
     final d = BridgeDevice.fromJson(await _request('GET', '/v1/device', token: token));
     if (d == null) throw const BridgeException('bad-response');

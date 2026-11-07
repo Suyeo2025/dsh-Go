@@ -13,10 +13,13 @@ import 'package:dsh_app/push/bridge_client.dart';
 import 'package:dsh_app/push/push_channel.dart';
 import 'package:dsh_app/push/push_settings_page.dart';
 import 'package:dsh_app/push/push_state.dart';
+import 'package:dsh_app/push/schedule_notify_state.dart';
 import 'package:dsh_app/remote/secret_store.dart';
+import 'package:dsh_app/state/features_state.dart' show schedulesProvider;
 import 'package:dsh_app/state/hosts_state.dart';
 import 'package:dsh_app/ui/settings/notification_settings.dart';
 import 'package:dsh_app/ui/settings/settings_widgets.dart';
+import 'package:dsh_client/dsh_client.dart' show ScheduleTask;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -54,7 +57,10 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(pushMethodChannel, null);
   });
 
+  var schedules = const <ScheduleTask>[];
+
   List<Override> overrides(LiveSupport support) => [
+    schedulesProvider.overrideWith((ref) async => schedules),
     secretStoreProvider.overrideWithValue(secrets),
     bridgeClientFactoryProvider.overrideWithValue(
       (base, {pin}) => BridgeClient(base, pinSha256: pin, transport: bridge.send),
@@ -72,6 +78,29 @@ void main() {
     }
     return ProviderScope.containerOf(tester.element(find.byType(MaterialApp)));
   }
+
+  testWidgets('定时任务提醒: failures for all by default; one task set apart', (tester) async {
+    schedules = const [
+      ScheduleTask(id: 'sch-1', sessionId: 's1', kind: 'every', title: '每日汇总', prompt: '汇总', active: true, record: {}),
+      ScheduleTask(id: 'sch-2', sessionId: 's1', kind: 'once', title: '旧的', prompt: 'x', active: false, record: {}),
+    ];
+    addTearDown(() => schedules = const []);
+    final c = await pump(tester, const PushSettingsPage());
+    final l10n = appL10n;
+    await tester.scrollUntilVisible(find.text(l10n.laScheduleSection), 300);
+    expect(find.text(l10n.laScheduleFooter), findsOneWidget);
+    SettingsSegmentTile<ScheduleNotify> tile(String key) =>
+        tester.widget<SettingsSegmentTile<ScheduleNotify>>(find.byKey(ValueKey(key), skipOffstage: false));
+    expect(tile('schedule-notify-default').selected, ScheduleNotify.failures);
+    expect(tile('schedule-notify-sch-1').selected, ScheduleNotify.failures);
+    expect(find.byKey(const ValueKey('schedule-notify-sch-2'), skipOffstage: false), findsNothing, reason: 'inactive');
+    tile('schedule-notify-sch-1').onChanged!(ScheduleNotify.never);
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 60));
+    }
+    expect(c.read(scheduleNotifyProvider).tasks, {'sch-1': ScheduleNotify.never});
+    expect(tile('schedule-notify-sch-1').selected, ScheduleNotify.never);
+  });
 
   SettingsSegmentTile<IslandMode> modeTile(WidgetTester tester) =>
       tester.widget<SettingsSegmentTile<IslandMode>>(find.byKey(const ValueKey('island-mode')));

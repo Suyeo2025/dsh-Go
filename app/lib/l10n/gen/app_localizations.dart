@@ -14294,6 +14294,42 @@ abstract class L10n {
   /// **'等你回答 · {text}'**
   String islandNeedsAnswer(String text);
 
+  /// No description provided for @islandBackground.
+  ///
+  /// In zh, this message translates to:
+  /// **'后台进行中'**
+  String get islandBackground;
+
+  /// No description provided for @islandGoalDone.
+  ///
+  /// In zh, this message translates to:
+  /// **'目标达成 · {rounds} 轮'**
+  String islandGoalDone(int rounds);
+
+  /// No description provided for @islandGoalStuck.
+  ///
+  /// In zh, this message translates to:
+  /// **'目标卡住了'**
+  String get islandGoalStuck;
+
+  /// No description provided for @islandTreeAgents.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 个子代理'**
+  String islandTreeAgents(int count);
+
+  /// No description provided for @islandTreeJobs.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 个后台任务'**
+  String islandTreeJobs(int count);
+
+  /// No description provided for @islandTreeFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'其中 {count} 个失败'**
+  String islandTreeFailed(int count);
+
   /// No description provided for @laSettingsSection.
   ///
   /// In zh, this message translates to:
@@ -14395,6 +14431,48 @@ abstract class L10n {
   /// In zh, this message translates to:
   /// **'灵动岛,实时活动,锁屏,鲸游,Live Activity,Dynamic Island'**
   String get searchKwIsland;
+
+  /// No description provided for @laScheduleSection.
+  ///
+  /// In zh, this message translates to:
+  /// **'定时任务提醒'**
+  String get laScheduleSection;
+
+  /// No description provided for @laScheduleDefault.
+  ///
+  /// In zh, this message translates to:
+  /// **'所有定时任务'**
+  String get laScheduleDefault;
+
+  /// No description provided for @laScheduleAlways.
+  ///
+  /// In zh, this message translates to:
+  /// **'总是'**
+  String get laScheduleAlways;
+
+  /// No description provided for @laScheduleFailures.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅失败'**
+  String get laScheduleFailures;
+
+  /// No description provided for @laScheduleNever.
+  ///
+  /// In zh, this message translates to:
+  /// **'从不'**
+  String get laScheduleNever;
+
+  /// No description provided for @laScheduleFooter.
+  ///
+  /// In zh, this message translates to:
+  /// **'定时任务在你不在时跑完后要不要提醒：仅失败（默认）只在出错时响；总是会把每次结果安静地放进通知中心的「自动化」组；从不则什么都不发。需要你确认或回答的事总会提醒。需要配对推送。'**
+  String get laScheduleFooter;
+
+  /// No description provided for @laScheduleFollowDefault.
+  ///
+  /// In zh, this message translates to:
+  /// **'跟随默认'**
+  String get laScheduleFollowDefault;
 
   /// No description provided for @launchScreenTitle.
   ///
@@ -19975,6 +20053,60 @@ abstract class L10n {
   /// In zh, this message translates to:
   /// **'该效果需要用户点按'**
   String get plugInputGestureRequired;
+
+  /// No description provided for @plugUiBuiltInTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'内置插件'**
+  String get plugUiBuiltInTitle;
+
+  /// No description provided for @plugUiBuiltInSubagent.
+  ///
+  /// In zh, this message translates to:
+  /// **'子智能体'**
+  String get plugUiBuiltInSubagent;
+
+  /// No description provided for @plugUiBuiltInWebSearch.
+  ///
+  /// In zh, this message translates to:
+  /// **'网页搜索'**
+  String get plugUiBuiltInWebSearch;
+
+  /// No description provided for @plugUiBuiltInAgentLoop.
+  ///
+  /// In zh, this message translates to:
+  /// **'Agent 循环'**
+  String get plugUiBuiltInAgentLoop;
+
+  /// No description provided for @plugUiBuiltInShell.
+  ///
+  /// In zh, this message translates to:
+  /// **'终端'**
+  String get plugUiBuiltInShell;
+
+  /// No description provided for @plugUiBuiltInFootnote.
+  ///
+  /// In zh, this message translates to:
+  /// **'DSH 自带的功能，名称同网页版插件页；点进去是 App 里对应的设置页。'**
+  String get plugUiBuiltInFootnote;
+
+  /// No description provided for @plugUiSearchKwBuiltIn.
+  ///
+  /// In zh, this message translates to:
+  /// **'内置插件,子智能体,子代理,网页搜索,联网搜索,Agent 循环,终端,命令执行'**
+  String get plugUiSearchKwBuiltIn;
+
+  /// No description provided for @plugUiSearchKwSubagentAlias.
+  ///
+  /// In zh, this message translates to:
+  /// **'子智能体,子 Agent,模型选择,可选模型'**
+  String get plugUiSearchKwSubagentAlias;
+
+  /// No description provided for @plugUiSettingsReloadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'主机重新加载插件时 {entry} 没能启动，这次修改没有生效。修好或关掉这个插件后再试。'**
+  String plugUiSettingsReloadFailed(String entry);
 
   /// No description provided for @pluginsOperationHostChanged.
   ///

@@ -13,6 +13,7 @@ import '../l10n/l10n.dart';
 import '../live/island_prefs_state.dart';
 import '../live/live_activity_channel.dart';
 import '../live/live_activity_state.dart';
+import '../state/features_state.dart' show schedulesProvider;
 import '../state/hosts_state.dart';
 import '../ui/common/app_dialog.dart';
 import '../ui/common/status_chip.dart';
@@ -23,6 +24,7 @@ import '../ui/shell/page_frame.dart';
 import '../ui/theme/app_icons.dart';
 import '../ui/theme/theme.dart';
 import 'push_state.dart';
+import 'schedule_notify_state.dart';
 
 String pushHealthLabel(L10n l10n, PushHealth health) => switch (health) {
   PushHealth.off => l10n.pushStatusOff,
@@ -202,6 +204,7 @@ class _PushSettingsPageState extends ConsumerState<PushSettingsPage> {
       children: [
         ...state.pairing == null ? _unpaired(l10n, state, hosts) : _paired(l10n, state, hosts),
         const IslandSettingsSection(),
+        const ScheduleNotifySection(),
       ],
     );
   }
@@ -424,6 +427,52 @@ class IslandSettingsSection extends ConsumerWidget {
             icon: AppIcons.info,
             text: l10n.laSettingsNeedsPairing,
             margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          ),
+      ],
+    );
+  }
+}
+
+/// 定时任务提醒 (notify-v3 §3.3): one choice for all automations, and one per
+/// task of the active host that differs from it.
+class ScheduleNotifySection extends ConsumerWidget {
+  const ScheduleNotifySection({super.key});
+
+  /// Rows for tasks past this many would make the page a list of its own.
+  static const shownMax = 20;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final prefs = ref.watch(scheduleNotifyProvider);
+    final notifier = ref.read(scheduleNotifyProvider.notifier);
+    final tasks = [
+      for (final t in ref.watch(schedulesProvider).value ?? const [])
+        if (t.active) t,
+    ].take(shownMax);
+    List<PillSegment<ScheduleNotify>> segments() => [
+      PillSegment(ScheduleNotify.always, l10n.laScheduleAlways),
+      PillSegment(ScheduleNotify.failures, l10n.laScheduleFailures),
+      PillSegment(ScheduleNotify.never, l10n.laScheduleNever),
+    ];
+    return SettingsSection(
+      title: l10n.laScheduleSection,
+      footer: Text(l10n.laScheduleFooter),
+      children: [
+        SettingsSegmentTile<ScheduleNotify>(
+          key: const ValueKey('schedule-notify-default'),
+          title: l10n.laScheduleDefault,
+          segments: segments(),
+          selected: prefs.fallback,
+          onChanged: prefs.loaded ? (v) => unawaited(notifier.setDefault(v)) : null,
+        ),
+        for (final t in tasks)
+          SettingsSegmentTile<ScheduleNotify>(
+            key: ValueKey('schedule-notify-${t.id}'),
+            title: t.title.trim().isEmpty ? t.prompt.trim() : t.title.trim(),
+            segments: segments(),
+            selected: prefs.of(t.id),
+            onChanged: prefs.loaded ? (v) => unawaited(notifier.setTask(t.id, v)) : null,
           ),
       ],
     );

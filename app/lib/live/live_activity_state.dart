@@ -17,9 +17,14 @@
 // * Update: while the app is in front, from the conversation's chat state
 //   (every 2 s at most; a request appearing or going away, done and failed at
 //   once). In the background the bridge takes over (live_activity_bridge_sync).
+// * Follow the work tree (plan/design/notify-v3-contract.md §1, work_tree.dart):
+//   the root idle while descendants, jobs, a goal or a request still go on is
+//   `background`, not done. The Activity ends once the whole tree has been
+//   quiet for [islandSettleWindowProvider]; a root that failed with nothing
+//   else going on, or was stopped, ends at once.
 // * End: done → a last update (breachTick + 1) and an end whose card stays on
-//   the lock screen 20 min; failed → 15 min; stopped / forked → at once;
-//   finished while looking at it, or opened later in the app → at once. The system's own end or dismissal
+//   the lock screen 20 min; failed → 15 min; stopped / forked / a paused goal
+//   → at once; finished while looking at it, or opened later in the app → at once. The system's own end or dismissal
 //   clears it here and tells the bridge.
 // * After a relaunch the Activity the system still runs is taken over.
 // * 灵动岛 switched off, or Live Activities off in Settings: everything ends.
@@ -28,6 +33,8 @@ import 'dart:async';
 
 import 'package:dsh_client/dsh_client.dart'
     show
+        GoalPhase,
+        GoalProjection,
         ApprovalRequest,
         ApprovalRequestedEvent,
         AssistantChatItem,
@@ -60,6 +67,7 @@ import 'island_prefs_state.dart';
 import 'live_activity_bridge_sync.dart';
 import 'live_activity_channel.dart';
 import 'live_activity_content.dart';
+import 'work_tree.dart';
 
 /// A turn that starts this long after a message sent from here counts as
 /// started by it.
@@ -116,9 +124,12 @@ class IslandSessionView {
     this.localSend = false,
     this.commands = const {},
     this.reply,
+    this.workflow,
+    this.wake = false,
+    this.goal,
   });
 
-  factory IslandSessionView.of(ChatState s) {
+  factory IslandSessionView.of(ChatState s, [RootLogFacts facts = const RootLogFacts()]) {
     final approvals = [
       for (final a in s.approvals)
         if (!s.autoAnswered.contains(a.eventId)) a,
@@ -161,6 +172,9 @@ class IslandSessionView {
       commands: commands,
       // Read once the turn is over only: streamed text doesn't change the view.
       reply: s.running ? null : _lastReply(s),
+      workflow: facts.workflow,
+      wake: facts.wake,
+      goal: s.goal,
     );
   }
 
@@ -197,6 +211,12 @@ class IslandSessionView {
   /// The finished turn's last reply (null while running).
   final String? reply;
 
+  /// v3: the last turn's foreground workflow run, whether nobody started that
+  /// turn (a job, a goal, a schedule woke the root), the root's goal.
+  final WorkflowRun? workflow;
+  final bool wake;
+  final GoalProjection? goal;
+
   static String _todoKey(List<TodoItem>? t) =>
       t == null ? '-' : '${t.length}/${t.where((x) => x.status == 'completed').length}';
 
@@ -222,6 +242,16 @@ class IslandSessionView {
     localSend,
     for (final e in commands.entries) '${e.key}=${e.value}',
     reply,
+    workflow?.runId,
+    workflow?.ended,
+    workflow?.current,
+    workflow?.memberCount,
+    workflow?.endedCount,
+    workflow?.failedCount,
+    wake,
+    goal?.goal.phase,
+    goal?.roundsStarted,
+    goal?.goal.maxGoalRounds,
   ];
 
   @override
@@ -240,9 +270,14 @@ class IslandSessionView {
 }
 
 /// One conversation's [IslandSessionView] (tests override it).
-final islandSessionViewProvider = Provider.autoDispose.family<IslandSessionView, String>(
-  (ref, sessionId) => IslandSessionView.of(ref.watch(chatProvider(sessionId))),
-);
+final islandSessionViewProvider = Provider.autoDispose.family<IslandSessionView, String>((ref, sessionId) {
+  final s = ref.watch(chatProvider(sessionId));
+  // The log is folded again only when it changed (turns are rebuilt with it).
+  final facts = _logFacts[s.turns] ??= foldRootLog(ref.read(chatProvider(sessionId).notifier).events);
+  return IslandSessionView.of(s, facts);
+});
+
+final _logFacts = Expando<RootLogFacts>();
 
 /// The other running top-level conversations of the active host, and which
 /// conversations wait on the person (tests override it).
@@ -354,6 +389,20 @@ class IslandController extends Notifier<IslandState> {
   ProviderSubscription<IslandSessionView>? _currentSub;
   ProviderSubscription<IslandSessionView>? _activeSub;
   ProviderSubscription<IslandOthers>? _othersSub;
+  ProviderSubscription<WorkTree>? _treeSub;
+
+  /// The active Activity's work tree.
+  WorkTree? _tree;
+
+  /// Counts the tree quiet before it is settled.
+  Timer? _settle;
+
+  /// When this run of the tree began (Host time): agents done and jobs failed
+  /// before it aren't shown.
+  DateTime? _since;
+
+  /// The root's goal was active while this Activity followed it.
+  bool _goalSeenActive = false;
   String? _currentId;
   IslandSessionView? _currentView;
   IslandSessionView? _activeView;
@@ -435,6 +484,8 @@ class IslandController extends Notifier<IslandState> {
     _expiry?.cancel();
     _dwell?.cancel();
     _qualify?.cancel();
+    _settle?.cancel();
+    _treeSub?.close();
     _currentSub?.close();
     _activeSub?.close();
     _othersSub?.close();
@@ -608,6 +659,8 @@ class IslandController extends Notifier<IslandState> {
   /// The Activity on screen waits on the person: it isn't traded for another.
   bool get _activeWaits {
     if (state.activeSessionId == null || state.ended) return false;
+    final tree = _tree;
+    if (tree != null && (tree.approvals.isNotEmpty || tree.questions.isNotEmpty)) return true;
     final view = _activeView;
     if (view != null && view.synced) return view.approvals.isNotEmpty || view.questions.isNotEmpty;
     return state.lastContent?.pending != null;
@@ -617,8 +670,17 @@ class IslandController extends Notifier<IslandState> {
     _activeSub?.close();
     _othersSub?.close();
     _activeView = null;
+    _treeSub?.close();
+    _tree = null;
+    _since = null;
+    _goalSeenActive = false;
     _sawRunning = false;
     _askedAt.clear();
+    // The tree first: the root's view is judged with it.
+    _treeSub = ref.listen<WorkTree>(workTreeProvider(id), (_, next) {
+      _tree = next;
+      _evaluate(id);
+    }, fireImmediately: true);
     _activeSub = ref.listen<IslandSessionView>(
       islandSessionViewProvider(id),
       (_, next) => _onActive(id, next),
@@ -632,6 +694,11 @@ class IslandController extends Notifier<IslandState> {
     _activeSub = null;
     _othersSub?.close();
     _othersSub = null;
+    _treeSub?.close();
+    _treeSub = null;
+    _tree = null;
+    _settle?.cancel();
+    _settle = null;
     _activeView = null;
     _sawRunning = false;
     _throttle?.cancel();
@@ -644,20 +711,73 @@ class IslandController extends Notifier<IslandState> {
   void _onActive(String id, IslandSessionView view) {
     if (id != state.activeSessionId) return;
     _activeView = view;
+    if (view.running && _since == null) _since = view.activity?.turnStart;
+    _evaluate(id);
+  }
+
+  /// The root's view and its tree, together (§1.2): busy → update; quiet →
+  /// wait out the settle window, then finish; stopped, or failed with nothing
+  /// else going on → finish now.
+  void _evaluate(String id) {
+    if (id != state.activeSessionId) return;
+    final view = _activeView;
+    if (view == null) return;
+    _goalFor(view); // notes a goal that is active now
     final now = _now();
-    final live = {for (final a in view.approvals) a.eventId, for (final q in view.questions) q.eventId};
+    final tree = _tree;
+    final live = {
+      for (final a in view.approvals) a.eventId,
+      for (final q in view.questions) q.eventId,
+      for (final a in tree?.approvals ?? const <ApprovalRequest>[]) a.eventId,
+      for (final q in tree?.questions ?? const <UserQuestionRequest>[]) q.eventId,
+    };
     _askedAt.removeWhere((k, _) => !live.contains(k));
     for (final e in live) {
       _askedAt.putIfAbsent(e, () => now);
     }
     if (!view.synced) return;
-    if (view.running) {
+    if (_busy(view)) {
       _sawRunning = true;
-    } else if (_sawRunning || state.source == IslandSource.bridge) {
+      _settle?.cancel();
+      _settle = null;
+      _schedule();
+      return;
+    }
+    if (!(_sawRunning || state.source == IslandSource.bridge)) return;
+    final kind = view.lastTurn?.endReason?.kind;
+    final stopped = kind == 'aborted' || kind == 'forked' || _goalFor(view)?.goal.phase == GoalPhase.paused;
+    final failed = kind != null && kind != 'completed';
+    if (stopped || failed) {
+      _settle?.cancel();
+      _settle = null;
       if (_canLocal) scheduleMicrotask(() => unawaited(_finish(id)));
       return;
     }
-    _schedule();
+    _settle ??= Timer(ref.read(islandSettleWindowProvider), () {
+      _settle = null;
+      final v = _activeView;
+      if (state.activeSessionId != id || v == null || _busy(v) || !_canLocal) return;
+      unawaited(_finish(id));
+    });
+  }
+
+  /// The tree works on: the root's turn, or anything else in it (§1.1).
+  bool _busy(IslandSessionView view) => view.running || (_tree?.busyWith(goal: view.goal) ?? false);
+
+  /// The root's goal when it belongs to this run: active, or settled after
+  /// the run began (contract §1.2). A goal reached or paused long ago says
+  /// nothing about this turn.
+  GoalProjection? _goalFor(IslandSessionView view) {
+    final g = view.goal ?? _tree?.goal;
+    if (g == null) return null;
+    if (g.goal.phase == GoalPhase.active) {
+      _goalSeenActive = true;
+      return g;
+    }
+    if (_goalSeenActive) return g;
+    final since = _since ?? view.activity?.turnStart ?? view.lastTurn?.start;
+    final at = g.updatedAt;
+    return since != null && at != null && !at.isBefore(since) ? g : null;
   }
 
   bool get _canLocal {
@@ -675,8 +795,8 @@ class IslandController extends Notifier<IslandState> {
       return;
     }
     final view = _activeView;
-    if (view != null && view.synced && !view.running && (_sawRunning || state.source == IslandSource.bridge)) {
-      unawaited(_finish(id));
+    if (view != null && view.synced && !_busy(view) && (_sawRunning || state.source == IslandSource.bridge)) {
+      _evaluate(id);
       return;
     }
     _schedule(urgent: true);
@@ -710,6 +830,11 @@ class IslandController extends Notifier<IslandState> {
       finish: finish,
       turnStart: view.lastTurn?.start,
       breachTick: breachTick ?? state.lastContent?.breachTick ?? 0,
+      tree: _tree,
+      workflow: view.workflow,
+      goal: _goalFor(view),
+      background: !view.running && _busy(view),
+      since: _since ?? view.activity?.turnStart ?? view.lastTurn?.start,
     );
   }
 
@@ -824,7 +949,7 @@ class IslandController extends Notifier<IslandState> {
   void _schedule({bool urgent = false}) {
     final id = state.activeSessionId;
     final view = _activeView;
-    if (id == null || view == null || !view.synced || !view.running || !_canLocal || _finishing) return;
+    if (id == null || view == null || !view.synced || !_busy(view) || !_canLocal || _finishing) return;
     final content = _contentFor(id, view);
     final last = state.lastContent;
     _armExpiry(content);
@@ -888,12 +1013,29 @@ class IslandController extends Notifier<IslandState> {
     try {
       final turn = view.lastTurn;
       final kind = turn?.endReason?.kind ?? 'completed';
-      if (kind == 'aborted' || kind == 'forked') {
+      final goal = _goalFor(view);
+      final goalPhase = goal?.goal.phase;
+      if (kind == 'aborted' || kind == 'forked' || goalPhase == GoalPhase.paused) {
         await _channel.end(sessionId: id, dismissal: LiveDismissal.immediate);
         _clear(id);
         return;
       }
-      final failed = kind != 'completed';
+      // A goal's own end decides (§1.2): reached, or stuck / out of rounds.
+      final goalOver =
+          goal != null &&
+          (goalPhase == GoalPhase.complete ||
+              goalPhase == GoalPhase.blocked ||
+              (goalPhase == GoalPhase.active && !goalContinues(goal)));
+      final failed = goalOver ? goalPhase != GoalPhase.complete : kind != 'completed';
+      final tree = _tree;
+      final since = _since ?? turn?.start;
+      bool recent(DateTime? at) => since == null || (at != null && !at.isBefore(since));
+      final agents = tree?.agents.where((a) => recent(a.updatedAt)).toList() ?? const <TreeAgent>[];
+      final jobs = tree?.jobs.where((j) => recent(j.startedAt)).toList() ?? const [];
+      final failures =
+          agents.where((a) => a.failed).length +
+          jobs.where((j) => j.status == 'failed').length +
+          (view.workflow?.failedCount ?? 0);
       // Finished while looking at it: nothing to come back to on the lock screen.
       final viewing = _currentId == id && ref.read(appForegroundProvider);
       final end = turn?.end ?? _now().subtract(view.clockSkew);
@@ -902,8 +1044,12 @@ class IslandController extends Notifier<IslandState> {
         start: turn?.start ?? end,
         end: end,
         steps: view.lastTurnTools,
-        reason: failed ? turn?.endReason?.error?.message : null,
+        reason: failed ? (goalOver ? goal.goal.blockedReason?.message : turn?.endReason?.error?.message) : null,
         reply: view.reply,
+        agents: agents.length,
+        jobs: jobs.length,
+        failures: failures,
+        goalRounds: goalOver ? goal.roundsStarted : null,
       );
       final breach = (state.lastContent?.breachTick ?? 0) + (failed ? 0 : 1);
       final content = _contentFor(id, view, finish: finish, breachTick: breach);

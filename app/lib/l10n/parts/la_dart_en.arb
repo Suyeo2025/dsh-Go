@@ -11,5 +11,39 @@
   "islandFailed": "Failed",
   "islandFailedLine": "Failed · {reason}",
   "islandNeedsApproval": "Needs approval · {text}",
-  "islandNeedsAnswer": "Needs an answer · {text}"
+  "islandNeedsAnswer": "Needs an answer · {text}",
+  "islandBackground": "In background",
+  "islandGoalDone": "Goal reached · {rounds, plural, =1{1 round} other{{rounds} rounds}}",
+  "@islandGoalDone": {
+    "placeholders": {
+      "rounds": {
+        "type": "int"
+      }
+    }
+  },
+  "islandGoalStuck": "Goal stuck",
+  "islandTreeAgents": "{count, plural, =1{1 subagent} other{{count} subagents}}",
+  "@islandTreeAgents": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "islandTreeJobs": "{count, plural, =1{1 background task} other{{count} background tasks}}",
+  "@islandTreeJobs": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "islandTreeFailed": "{count} failed",
+  "@islandTreeFailed": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }
