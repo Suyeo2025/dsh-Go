@@ -3,6 +3,7 @@
 // to logs/live-activity/). The rendered boards compose the island regions the way the system lays
 // them out, approximately: the system's own island chrome and region sizes are not available here.
 
+import ActivityKit
 import SwiftUI
 import XCTest
 
@@ -554,6 +555,141 @@ final class WhaleWakeTests: XCTestCase {
       try attach("v3-lock-dark-\(lang)", grid(lockDark, columns: 2))
       try attach("v3-lock-light-\(lang)", grid(lockLight, columns: 2))
       try attach("v3-compact-minimal-\(lang)", grid(small, columns: 2))
+    }
+  }
+
+  // MARK: Sync (plan/design/sync-contract.md): finished cards nobody ends
+
+  func testFinishedRetentionAndEffectiveStale() throws {
+    let now = Date()
+    let fresh = try XCTUnwrap(WhaleWakeSamples.state("sync-failed-fresh", now: now))
+    XCTAssertFalse(fresh.expired(now: now))
+    XCTAssertFalse(fresh.effectivelyStale(false, now: now))
+    XCTAssertEqual(fresh.finishedUntil?.timeIntervalSince(fresh.madeAt), 15 * 60)
+    // 15 minutes after a failure / 20 after done: out of date without any stale date.
+    XCTAssertTrue(fresh.expired(now: fresh.madeAt.addingTimeInterval(15 * 60)))
+    let failed = try XCTUnwrap(WhaleWakeSamples.state("sync-failed-stale", now: now))
+    XCTAssertTrue(failed.expired(now: now))
+    XCTAssertTrue(failed.effectivelyStale(false, now: now))
+    let done = try XCTUnwrap(WhaleWakeSamples.state("sync-done-stale", now: now))
+    XCTAssertTrue(done.expired(now: now))
+    XCTAssertFalse(done.expired(now: done.madeAt.addingTimeInterval(19 * 60)))
+    // Running / waiting never expire on their own (the system's stale date covers them).
+    for n in ["running", "approval", "question", "v3-background"] {
+      let s = try XCTUnwrap(WhaleWakeSamples.state(n, now: now))
+      XCTAssertNil(s.finishedUntil, n)
+      XCTAssertFalse(s.expired(now: now.addingTimeInterval(86_400)), n)
+      XCTAssertTrue(s.effectivelyStale(true, now: now), n)
+    }
+    // An older payload without updatedAt: the later of its times.
+    var old = failed
+    old.updatedAt = nil
+    XCTAssertEqual(old.madeAt, max(old.expectedEndAt, old.startedAt))
+  }
+
+  func testListSummaryShape() throws {
+    let now = Date()
+    let s = try XCTUnwrap(WhaleWakeSamples.state("sync-failed-stale", now: now))
+    let m = WhaleWakeActivityStore.summary(
+      sessionId: "s1", activityId: "a1", activityState: "active", state: s, staleDate: nil, pushToken: "ab", local: false,
+      hostId: "h1", now: now)
+    XCTAssertEqual(m["hostId"] as? String, "h1")
+    XCTAssertEqual(m["phase"] as? String, "failed")
+    XCTAssertEqual(m["updatedAt"] as? Int, Int(s.updatedAt!.timeIntervalSince1970))
+    XCTAssertNil(m["staleDate"])  // absent, not null
+    XCTAssertEqual(m["expired"] as? Bool, true)
+    XCTAssertEqual(m["local"] as? Bool, false)
+    XCTAssertEqual(m["pushToken"] as? String, "ab")
+    var bare = s
+    bare.updatedAt = nil
+    let b = WhaleWakeActivityStore.summary(
+      sessionId: "s1", activityId: "a1", activityState: "ended", state: bare, staleDate: now, pushToken: nil, local: true,
+      hostId: "", now: now)
+    XCTAssertNil(b["updatedAt"])
+    XCTAssertNil(b["pushToken"])
+    XCTAssertEqual(b["staleDate"] as? Int, Int(now.timeIntervalSince1970))
+    XCTAssertFalse(b.values.contains { $0 is NSNull })
+    XCTAssertTrue(WhaleWakeActivityStore.needsStaleDate(nil, until: now))
+    XCTAssertTrue(WhaleWakeActivityStore.needsStaleDate(now.addingTimeInterval(300), until: now))
+    XCTAssertFalse(WhaleWakeActivityStore.needsStaleDate(now.addingTimeInterval(0.5), until: now))
+    XCTAssertFalse(WhaleWakeActivityStore.needsStaleDate(now.addingTimeInterval(-60), until: now))
+  }
+
+  /// Real ActivityKit (simulator): an Activity that ended and lingers on the lock screen is still
+  /// in `activities` / `list`, and `end(activityId, immediate)` takes it away.
+  @MainActor
+  func testEndReachesEndedActivity() async throws {
+    try XCTSkipUnless(ActivityAuthorizationInfo().areActivitiesEnabled, "Live Activities off")
+    let store = WhaleWakeActivityStore { _, _ in }
+    let a = WhaleWakeAttributes(sessionId: "session-test-ended", title: "t", hostId: "h", lang: "zh")
+    let s = try XCTUnwrap(WhaleWakeSamples.state("sync-failed-fresh"))
+    let act = try Activity.request(attributes: a, content: ActivityContent(state: s, staleDate: nil), pushType: nil)
+    defer { Task { await act.end(nil, dismissalPolicy: .immediate) } }
+    await act.end(ActivityContent(state: s, staleDate: nil), dismissalPolicy: .after(Date().addingTimeInterval(600)))
+    try await Task.sleep(nanoseconds: 700_000_000)
+    let listed = store.list().first { $0["activityId"] as? String == act.id }
+    XCTAssertEqual(listed?["state"] as? String, "ended")
+    XCTAssertEqual(listed?["phase"] as? String, "failed")
+    await store.end(["activityId": act.id, "dismissal": "immediate"])
+    try await Task.sleep(nanoseconds: 1_000_000_000)
+    let after = Activity<WhaleWakeAttributes>.activities.first { $0.id == act.id }
+    XCTAssertTrue(after == nil || after?.activityState == .dismissed, "still \(String(describing: after?.activityState))")
+  }
+
+  /// The sweep: a failed card past its 15 minutes is ended; a fresh one gets updatedAt + 15 min as
+  /// its stale date.
+  @MainActor
+  func testSweepEndsExpiredAndDatesFresh() async throws {
+    try XCTSkipUnless(ActivityAuthorizationInfo().areActivitiesEnabled, "Live Activities off")
+    let store = WhaleWakeActivityStore { _, _ in }
+    func start(_ id: String, _ name: String) throws -> Activity<WhaleWakeAttributes> {
+      let s = try XCTUnwrap(WhaleWakeSamples.state(name))
+      return try Activity.request(
+        attributes: WhaleWakeAttributes(sessionId: id, title: "t", hostId: "h", lang: "zh"),
+        content: ActivityContent(state: s, staleDate: nil), pushType: nil)
+    }
+    let old = try start("session-test-old", "sync-failed-stale")
+    let fresh = try start("session-test-fresh", "sync-failed-fresh")
+    defer {
+      Task {
+        await old.end(nil, dismissalPolicy: .immediate)
+        await fresh.end(nil, dismissalPolicy: .immediate)
+      }
+    }
+    await store.sweep()
+    try await Task.sleep(nanoseconds: 700_000_000)
+    XCTAssertNotEqual(old.activityState, .active)
+    XCTAssertEqual(fresh.activityState, .active)
+    let until = try XCTUnwrap(fresh.content.state.finishedUntil)
+    XCTAssertEqual(try XCTUnwrap(fresh.content.staleDate).timeIntervalSince1970, until.timeIntervalSince1970, accuracy: 1.5)
+  }
+
+  @MainActor
+  func testRenderBoardsSync() throws {
+    let now = Date()
+    for lang in ["zh", "en"] {
+      let a = WhaleWakeSamples.attributes(lang: lang)
+      var expanded: [AnyView] = []
+      var lockDark: [AnyView] = []
+      var lockLight: [AnyView] = []
+      var small: [AnyView] = []
+      for name in WhaleWakeSamples.syncNames {
+        let s = try XCTUnwrap(WhaleWakeSamples.state(name, lang: lang, now: now))
+        // approval / question: the system's own stale flag (their data is 11 minutes old).
+        let stale = s.effectivelyStale(name.hasSuffix("-stale") && s.finishedUntil == nil, now: now)
+        let label = "\(name)\(stale ? " · stale" : "")"
+        expanded.append(AnyView(labelled(label, IslandExpanded(attributes: a, state: s, isStale: stale))))
+        lockDark.append(AnyView(labelled(label, LockOnWallpaper(attributes: a, state: s, isStale: stale, dark: true))))
+        lockLight.append(AnyView(labelled(label, LockOnWallpaper(attributes: a, state: s, isStale: stale, dark: false))))
+        small.append(AnyView(labelled(label, HStack(spacing: 14) {
+          IslandCompact(attributes: a, state: s, isStale: stale)
+          IslandMinimal(state: s)
+        })))
+      }
+      try attach("sync-expanded-\(lang)", grid(expanded, columns: 2))
+      try attach("sync-lock-dark-\(lang)", grid(lockDark, columns: 2))
+      try attach("sync-lock-light-\(lang)", grid(lockLight, columns: 2))
+      try attach("sync-compact-minimal-\(lang)", grid(small, columns: 2))
     }
   }
 

@@ -9,7 +9,15 @@ import UIKit
 /// Native → Dart (main thread): onPushToken, onPushToStartToken, onActivityState, onDecision.
 ///
 /// Dates in the `state` maps are Unix seconds. A token Dart doesn't take (no handler yet, an error)
-/// is kept in UserDefaults `dshgo.la.pendingTokens` for takePendingTokens. Everything ActivityKit
+/// is kept in UserDefaults `dshgo.la.pendingTokens` for takePendingTokens, which also returns every
+/// live Activity's current token and the push-to-start token (a token Dart took but couldn't
+/// register with the bridge is not lost).
+///
+/// Reconciling (plan/design/sync-contract.md): `list` gives each Activity's summary (phase, times,
+/// stale date, its token, whether this App started it); `end` takes a sessionId or an activityId;
+/// `endAll` can `keep` some sessions. Push-started Activities Dart never heard of are in all three.
+/// Independently of Dart, a finished card gets a stale date (updatedAt + retention) and is ended once
+/// past it, whenever the App sees it (launch, foreground, an update arriving). Everything ActivityKit
 /// lives in WhaleWakeActivityStore (iOS 16.2+); below that `status.supported` is false and every
 /// call answers `unsupported`.
 final class LiveActivityChannel: NSObject {
@@ -81,7 +89,12 @@ final class LiveActivityChannel: NSObject {
   private func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     let args = call.arguments as? [String: Any] ?? [:]
     if call.method == "takePendingTokens" {
-      result(takePendingTokens())
+      let kept = takePendingTokens()
+      guard #available(iOS 16.2, *), let store else {
+        result(kept)
+        return
+      }
+      Task { @MainActor in result(store.withLiveTokens(kept)) }
       return
     }
     guard #available(iOS 16.2, *), let store else {
@@ -107,7 +120,7 @@ final class LiveActivityChannel: NSObject {
           result(nil)
         case "list": result(store.list())
         case "endAll":
-          await store.endAll(dismissal: args["dismissal"] as? String)
+          await store.endAll(dismissal: args["dismissal"] as? String, keep: Set(args["keep"] as? [String] ?? []))
           result(nil)
         default: result(FlutterMethodNotImplemented)
         }
@@ -194,9 +207,32 @@ final class WhaleWakeActivityStore {
     let info = ActivityAuthorizationInfo()
     var pushToStart = false
     if #available(iOS 17.2, *) { pushToStart = true }
-    return [
+    var out: [String: Any] = [
       "supported": LiveActivityChannel.supported, "enabled": info.areActivitiesEnabled,
       "pushToStart": pushToStart, "frequentUpdates": info.frequentPushesEnabled,
+    ]
+    out["pushToStartToken"] = currentPushToStartToken() ?? NSNull()
+    return out
+  }
+
+  private func currentPushToStartToken() -> String? {
+    if #available(iOS 17.2, *) { return Activity<WhaleWakeAttributes>.pushToStartToken.map(Self.hex) }
+    return nil
+  }
+
+  /// The stash plus what is live now: each running Activity's token (it wins over a stashed one)
+  /// and the push-to-start token.
+  func withLiveTokens(_ kept: [String: Any]) -> [String: Any] {
+    var tokens: [String: String] = [:]
+    for e in kept["activities"] as? [[String: String]] ?? [] {
+      if let s = e["sessionId"], let t = e["token"] { tokens[s] = t }
+    }
+    for a in Activity<WhaleWakeAttributes>.activities where a.activityState == .active || a.activityState == .stale {
+      if let t = a.pushToken { tokens[a.attributes.sessionId] = Self.hex(t) }
+    }
+    return [
+      "activities": tokens.sorted { $0.key < $1.key }.map { ["sessionId": $0.key, "token": $0.value] },
+      "pushToStart": (kept["pushToStart"] as? String) ?? currentPushToStartToken() ?? NSNull(),
     ]
   }
 
@@ -204,7 +240,16 @@ final class WhaleWakeActivityStore {
   nonisolated func adoptExisting() {
     Task { @MainActor in
       for a in Activity<WhaleWakeAttributes>.activities { watch(a) }
-      for await a in Activity<WhaleWakeAttributes>.activityUpdates { watch(a) }
+      await sweep()
+      for await a in Activity<WhaleWakeAttributes>.activityUpdates {
+        watch(a)
+        await sweep()
+      }
+    }
+    Task { @MainActor in
+      for await _ in NotificationCenter.default.notifications(named: UIApplication.didBecomeActiveNotification) {
+        await sweep()
+      }
     }
     if #available(iOS 17.2, *) {
       Task { @MainActor in
@@ -246,6 +291,7 @@ final class WhaleWakeActivityStore {
       }
     }
     watch(activity)
+    Self.markLocal(activity.id)
     return ["activityId": activity.id]
   }
 
@@ -265,19 +311,24 @@ final class WhaleWakeActivityStore {
       alertConfiguration: alert)
   }
 
+  /// By sessionId (every Activity of it) or activityId (that one), or both.
   func end(_ args: [String: Any]) async {
-    guard let session = args["sessionId"] as? String else { return }
+    let session = args["sessionId"] as? String
+    let id = args["activityId"] as? String
+    guard session != nil || id != nil else { return }
     let policy = Self.dismissal(args["dismissal"] as? String)
-    for activity in Activity<WhaleWakeAttributes>.activities where activity.attributes.sessionId == session {
+    for activity in Activity<WhaleWakeAttributes>.activities
+    where (session == nil || activity.attributes.sessionId == session) && (id == nil || activity.id == id) {
       var state = (try? Self.state(args["state"])) ?? activity.content.state
       state.ended = true
       await activity.end(ActivityContent(state: state, staleDate: nil, relevanceScore: state.relevance), dismissalPolicy: policy)
     }
   }
 
-  func endAll(dismissal: String?) async {
+  /// Every Activity but those of the sessions in [keep].
+  func endAll(dismissal: String?, keep: Set<String> = []) async {
     let policy = Self.dismissal(dismissal)
-    for activity in Activity<WhaleWakeAttributes>.activities {
+    for activity in Activity<WhaleWakeAttributes>.activities where !keep.contains(activity.attributes.sessionId) {
       var state = activity.content.state
       state.ended = true
       await activity.end(ActivityContent(state: state, staleDate: nil), dismissalPolicy: policy)
@@ -285,9 +336,70 @@ final class WhaleWakeActivityStore {
   }
 
   func list() -> [[String: Any]] {
-    Activity<WhaleWakeAttributes>.activities.map {
-      ["sessionId": $0.attributes.sessionId, "activityId": $0.id, "state": Self.name($0.activityState) ?? "ended"]
+    let local = Self.localIds()
+    return Activity<WhaleWakeAttributes>.activities.map {
+      Self.summary(
+        sessionId: $0.attributes.sessionId, activityId: $0.id, activityState: Self.name($0.activityState) ?? "ended",
+        state: $0.content.state, staleDate: $0.content.staleDate, pushToken: $0.pushToken.map(Self.hex),
+        local: local.contains($0.id), hostId: $0.attributes.hostId)
     }
+  }
+
+  /// One `list` entry (sync-contract §5: sessionId, activityId, state, then hostId, phase,
+  /// updatedAt, staleDate; extras for diagnostics). Dates in Unix seconds; an absent value is left
+  /// out, not null.
+  nonisolated static func summary(
+    sessionId: String, activityId: String, activityState: String, state: WhaleWakeAttributes.ContentState, staleDate: Date?,
+    pushToken: String?, local: Bool, hostId: String, now: Date = Date()
+  ) -> [String: Any] {
+    func secs(_ d: Date) -> Int { Int(d.timeIntervalSince1970) }
+    var out: [String: Any] = [
+      "sessionId": sessionId, "activityId": activityId, "state": activityState, "hostId": hostId,
+      "phase": state.phase.rawValue, "startedAt": secs(state.startedAt), "expired": state.expired(now: now),
+      "ended": state.ended ?? false,
+      // false: started by a push (or by an older build); Dart may never have heard of it.
+      "local": local,
+    ]
+    if let d = state.updatedAt { out["updatedAt"] = secs(d) }
+    if let d = staleDate { out["staleDate"] = secs(d) }
+    if let d = state.finishedUntil { out["finishedUntil"] = secs(d) }
+    if let e = state.pending?.eventId { out["pendingEventId"] = e }
+    if let t = pushToken { out["pushToken"] = t }
+    return out
+  }
+
+  // MARK: Finished cards nobody ends
+
+  /// A finished card (done / failed) that is still up: a stale date of updatedAt + retention so the
+  /// system greys it on its own, and ended at once when past it. Running / waiting ones and the
+  /// ones already ended (they have their own dismissal) are left alone.
+  func sweep(now: Date = Date()) async {
+    for a in Activity<WhaleWakeAttributes>.activities where a.activityState == .active || a.activityState == .stale {
+      var state = a.content.state
+      guard let until = state.finishedUntil else { continue }
+      if now >= until {
+        state.ended = true
+        await a.end(ActivityContent(state: state, staleDate: until, relevanceScore: 0), dismissalPolicy: .immediate)
+      } else if Self.needsStaleDate(a.content.staleDate, until: until) {
+        await a.update(ActivityContent(state: state, staleDate: until, relevanceScore: state.relevance))
+      }
+    }
+  }
+
+  /// No stale date, or one later than the retention allows (a second's slack: no update loop).
+  nonisolated static func needsStaleDate(_ staleDate: Date?, until: Date) -> Bool {
+    guard let staleDate else { return true }
+    return staleDate.timeIntervalSince(until) > 1
+  }
+
+  // The Activities this App requested (UserDefaults; pruned to the ones that still exist).
+  private static let localKey = "dshgo.la.localIds"
+
+  static func localIds() -> Set<String> { Set(UserDefaults.standard.stringArray(forKey: localKey) ?? []) }
+
+  static func markLocal(_ id: String) {
+    let live = Set(Activity<WhaleWakeAttributes>.activities.map(\.id))
+    UserDefaults.standard.set(Array(localIds().union([id]).intersection(live.union([id]))), forKey: localKey)
   }
 
   /// After an Allow / Deny the bridge took: nothing pending any more, the turn goes on.
@@ -353,6 +465,12 @@ final class WhaleWakeActivityStore {
     Task { @MainActor [weak self] in
       for await data in activity.pushTokenUpdates {
         self?.emit("onPushToken", ["sessionId": session, "token": Self.hex(data)])
+      }
+    }
+    Task { @MainActor [weak self] in
+      // A pushed update that finishes the turn: the stale date, at once.
+      for await content in activity.contentUpdates where content.state.finishedUntil != nil {
+        await self?.sweep()
       }
     }
     Task { @MainActor [weak self] in

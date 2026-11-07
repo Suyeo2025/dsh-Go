@@ -188,8 +188,12 @@ struct WhaleWakeSubtitle: View {
 
   var body: some View {
     Group {
-      if isStale && state.phase == .running {
+      if isStale && (state.phase == .running || state.phase == .background) {
         staleLine
+      } else if isStale && (state.phase == .done || state.phase == .failed) {
+        // 「出错了 · 已过时 · 20 分钟前」: not a live failure any more.
+        Text("\(state.phase == .failed ? strings.failed : strings.done) · \(strings.outdated) · ")
+          + Text(state.madeAt, style: .relative)
       } else if redaction.contains(.privacy) {
         Text(state.bareSubtitle(strings))
       } else {
@@ -198,6 +202,7 @@ struct WhaleWakeSubtitle: View {
     }
     .font(font)
     .foregroundColor(color)
+    .opacity(isStale && (state.phase == .done || state.phase == .failed) ? 0.75 : 1)
     .lineLimit(state.phase == .background ? 2 : 1)
     .truncationMode(.tail)
     .contentTransition(.opacity)
@@ -718,7 +723,10 @@ struct WhaleWakeApprovalKeys: View {
     let pending = state.pending
     let url = WhaleWakeAttributes.sessionURL(attributes.sessionId, eventId: pending?.eventId)
     VStack(alignment: .leading, spacing: 6) {
-      if Self.folded(state, isStale: isStale, now: now) {
+      if isStale {
+        // Out of date: no keys at all (the card itself still opens the App).
+        EmptyView()
+      } else if Self.folded(state, isStale: isStale, now: now) {
         WhaleWakeLinkKey(title: s.open, url: url, background: palette.amber, foreground: palette.allowText, height: 36)
           .frame(maxWidth: .infinity, alignment: .leading)
       } else if let pending {
@@ -963,10 +971,10 @@ struct WhaleWakeExpandedTrailing: View {
       if state.hasAnswerRow(isStale: isStale) {
         if state.stopShown && !isStale { WhaleWakeStopKey(attributes: attributes, state: state, palette: p) }
       } else {
-        WhaleWakeLinkKey(title: s.answer, url: url, background: p.amber, foreground: p.allowText)
+        if !isStale { WhaleWakeLinkKey(title: s.answer, url: url, background: p.amber, foreground: p.allowText) }
       }
     case .done, .failed:
-      WhaleWakeLinkKey(title: s.view, url: url, background: p.neutralBg, foreground: .white)
+      if !isStale { WhaleWakeLinkKey(title: s.view, url: url, background: p.neutralBg, foreground: .white) }
     case .approval:
       if state.stopShown && !isStale { WhaleWakeStopKey(attributes: attributes, state: state, palette: p) }
     }
@@ -1143,10 +1151,10 @@ struct WhaleWakeLockView: View {
       if state.hasAnswerRow(isStale: isStale) {
         if state.stopShown && !isStale { WhaleWakeStopKey(attributes: attributes, state: state, palette: p) }
       } else {
-        WhaleWakeLinkKey(title: s.answer, url: url, background: p.amber, foreground: p.allowText)
+        if !isStale { WhaleWakeLinkKey(title: s.answer, url: url, background: p.amber, foreground: p.allowText) }
       }
     case .done, .failed:
-      WhaleWakeLinkKey(title: s.view, url: url, background: p.neutralBg, foreground: p.neutralText)
+      if !isStale { WhaleWakeLinkKey(title: s.view, url: url, background: p.neutralBg, foreground: p.neutralText) }
     case .approval:
       if state.stopShown && !isStale { WhaleWakeStopKey(attributes: attributes, state: state, palette: p) }
     }

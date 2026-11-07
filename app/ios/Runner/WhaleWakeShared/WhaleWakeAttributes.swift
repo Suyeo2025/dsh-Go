@@ -497,6 +497,34 @@ struct WhaleWakeAttributes: ActivityAttributes {
       return nil
     }
 
+    // MARK: Finished cards (plan/design/sync-contract.md: a card nobody ends must not stay 「出错了」)
+
+    /// How long a finished card may say so: the bridge's dismissal windows (DONE_DISMISS_S 1200,
+    /// FAILED_DISMISS_S 900). nil while the turn isn't finished.
+    static func retention(_ phase: Phase) -> TimeInterval? {
+      switch phase {
+      case .done: return 20 * 60
+      case .failed: return 15 * 60
+      default: return nil
+      }
+    }
+
+    /// When this snapshot was made: updatedAt, else (older payloads) the later of its two times.
+    var madeAt: Date { updatedAt ?? max(expectedEndAt, startedAt) }
+
+    /// The latest a finished card stays current (nil while running / waiting).
+    var finishedUntil: Date? { Self.retention(phase).map { madeAt.addingTimeInterval($0) } }
+
+    /// A finished card past its retention: drawn out of date, ended by the App when it sees it.
+    func expired(now: Date = Date()) -> Bool {
+      guard let until = finishedUntil else { return false }
+      return now >= until
+    }
+
+    /// What the views treat as stale: the system's flag, or a finished card past its retention
+    /// (a push-started Activity whose end never came has no stale date of its own).
+    func effectivelyStale(_ systemStale: Bool, now: Date = Date()) -> Bool { systemStale || expired(now: now) }
+
     // MARK: v3 derived
 
     /// What the lane draws, one source only (v3 contract §2.2): workflow > team board > todos > clock.

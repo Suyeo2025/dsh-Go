@@ -22,6 +22,9 @@ enum WhaleWakeSamples {
     "v3-goal-clock",
   ]
 
+  /// Out-of-date cards (plan/design/sync-contract.md): finished long ago and never ended, or stale.
+  static let syncNames = ["sync-failed-fresh", "sync-failed-stale", "sync-done-stale", "sync-approval-stale", "sync-question-stale"]
+
   static func attributes(lang: String = "zh") -> WhaleWakeAttributes {
     WhaleWakeAttributes(
       sessionId: "session-demo-whale-wake", title: lang.hasPrefix("zh") ? "重构登录模块" : "Refactor the login module",
@@ -100,6 +103,26 @@ enum WhaleWakeSamples {
       return S(phase: .failed, startedAt: started, expectedEndAt: now, step: 9, tokens: 21_000, summary: zh ? "测试未通过" : "tests failed",
         updatedAt: now, v: 2,
         summaryLine: zh ? "迁移脚本在第 3 步报错：users 表缺少 email 列。" : "The migration failed at step 3: users has no email column.")
+    // sync: finished long ago, nobody ended it (made-up text).
+    case "sync-failed-fresh", "sync-failed-stale":
+      let at = now.addingTimeInterval(name == "sync-failed-fresh" ? -120 : -40 * 60)
+      return S(phase: .failed, startedAt: at.addingTimeInterval(-9 * 60), expectedEndAt: at, step: 9, tokens: 21_000,
+        summary: zh ? "测试未通过" : "tests failed", updatedAt: at, v: 3,
+        summaryLine: zh ? "迁移脚本在第 3 步报错：users 表缺少 email 列。" : "The migration failed at step 3: users has no email column.")
+    case "sync-done-stale":
+      let at = now.addingTimeInterval(-90 * 60)
+      return S(phase: .done, startedAt: at.addingTimeInterval(-14 * 60), expectedEndAt: at, progress: 1, step: 14, tokens: 34_000,
+        summary: zh ? "14 步 · 14:02" : "14 steps · 14:02", updatedAt: at, v: 3,
+        summaryLine: zh ? "登录模块已拆成三层，42 个测试全部通过。" : "Login split into three layers; all 42 tests pass.")
+    case "sync-approval-stale":
+      return S(phase: .approval, startedAt: started, expectedEndAt: end, step: 14, toolLabel: bash, tokens: 34_000,
+        pending: pending(.approval, zh ? "运行 npm run migrate" : "npm run migrate"), updatedAt: now.addingTimeInterval(-11 * 60), v: 3,
+        showStop: true)
+    case "sync-question-stale":
+      return S(phase: .question, startedAt: started, expectedEndAt: end, step: 9, toolLabel: zh ? "思考中" : "Thinking",
+        pending: .init(eventId: "ev_demo_02", kind: .question, text: zh ? "先改哪个模块？" : "Which module first?", risk: "unknown",
+          askedAt: now.addingTimeInterval(-11 * 60), options: [.init(id: "0", label: zh ? "登录" : "Login")]),
+        updatedAt: now.addingTimeInterval(-11 * 60), v: 3, showStop: true)
     // v3: made-up text throughout.
     case "v3-background":
       return S(phase: .background, startedAt: started, expectedEndAt: end, step: 14, toolLabel: zh ? "后台进行中" : "In background",

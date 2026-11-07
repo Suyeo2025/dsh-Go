@@ -16,11 +16,14 @@ struct WhaleWakeBundle: WidgetBundle {
 struct WhaleWakeLiveActivity: Widget {
   var body: some WidgetConfiguration {
     ActivityConfiguration(for: WhaleWakeAttributes.self) { context in
-      WhaleWakeLockView(attributes: context.attributes, state: context.state, isStale: context.isStale)
+      // A finished card past its retention counts as stale even without a stale date (a push-started
+      // Activity whose end never came): 「已过时」, no keys.
+      WhaleWakeLockView(
+        attributes: context.attributes, state: context.state, isStale: context.state.effectivelyStale(context.isStale))
     } dynamicIsland: { context in
       let a = context.attributes
       let s = context.state
-      let stale = context.isStale
+      let stale = s.effectivelyStale(context.isStale)
       return DynamicIsland {
         DynamicIslandExpandedRegion(.leading) {
           WhaleWakeExpandedLeading(state: s).padding(.leading, 4)

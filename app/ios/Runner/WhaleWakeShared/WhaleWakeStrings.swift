@@ -60,6 +60,9 @@ struct WhaleWakeStrings {
     return "\(head) · \(label)"
   }
 
+  /// A finished card past its retention.
+  var outdated: String { zh ? "已过时" : "Out of date" }
+
   // v3 (notify-v3-contract §2.1)
   /// 「主线已回复 · 后台 2 个任务在跑」 and its variants.
   func background(jobs: Int, subagents: Int) -> String {

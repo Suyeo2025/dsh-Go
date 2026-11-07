@@ -77,6 +77,8 @@ PY
     for f in $OUT/boards/la-v2-*.png(N); do mv $f $OUT/v2/${${f:t}#la-v2-}; done
     mkdir -p $OUT/v3
     for f in $OUT/boards/la-v3-*.png(N); do mv $f $OUT/v3/${${f:t}#la-v3-}; done
+    mkdir -p $OUT/sync
+    for f in $OUT/boards/la-sync-*.png(N); do mv $f $OUT/sync/${${f:t}#la-sync-}; done
     echo "boards: $(ls $OUT/boards | tr '\n' ' ')"
   fi
 fi
@@ -96,7 +98,8 @@ PY
 SAMPLES=(running running-todo approval approval-high approval-expired question done failed multi stale
   v2-running-buoys v2-running-stop-armed v2-running-many v2-question-options v2-question-stop v2-approval-stop
   v2-done-summary v2-failed-summary
-  v3-background v3-background-calves v3-calves v3-workflow v3-team-goal v3-approval-from v3-question-from v3-goal-clock)
+  v3-background v3-background-calves v3-calves v3-workflow v3-team-goal v3-approval-from v3-question-from v3-goal-clock
+  sync-failed-stale)
 for sample in $SAMPLES; do
   xcrun simctl terminate $UDID $DG_BUNDLE_ID 2>/dev/null
   xcrun simctl launch --terminate-running-process $UDID $DG_BUNDLE_ID -DSHGOLADemo $sample -DSHGOLADemoLang $LANG_ARG > /dev/null || RC=1
