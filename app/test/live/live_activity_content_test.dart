@@ -342,6 +342,20 @@ void main() {
       expect(islandSummaryLine('好的。'), '好的。', reason: 'only a greeting: it is still the line');
       expect(islandSummaryLine('长' * 100)!.runes.length, 60);
       expect(islandSummaryLine(null), isNull);
+      // The bridge's cases (dsh-watch-bridge test/unit-la-v2.mjs), so both write the same line.
+      expect(islandSummaryLine('好的，我来看看。\n\n## 结论\n测试全部通过，修好了登录超时。顺便清理了日志。'), '测试全部通过，修好了登录超时。');
+      expect(
+        islandSummaryLine('Let me check.\n```js\nconsole.log(1)\n```\nThe `v1.2` release builds fine now.'),
+        'The v1.2 release builds fine now.',
+      );
+      expect(
+        islandSummaryLine('Nowhere to be found: the flag was renamed.'),
+        'Nowhere to be found: the flag was renamed.',
+      );
+      expect(islandSummaryLine('Fixed foo.ts! Also bar.'), 'Fixed foo.ts!');
+      expect(islandSummaryLine('Done!Really now'), 'Done!Really now', reason: 'no white space after !: one piece');
+      expect(islandSummaryLine('部署密钥是 ghp_abcdefghijklmnopqrstuvwxyz0123456789AB，已写入。'), contains('ghp_abcd*'));
+      expect(islandSummaryLine(''), isNull);
       expect(islandSummaryLine('   '), isNull);
     });
 

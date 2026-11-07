@@ -365,30 +365,35 @@ List<({String id, String label})> islandOptionsOf(UserQuestionRequest request) {
   ];
 }
 
-/// Openers that announce rather than conclude (v2 §1.3).
-final _pleasantry = RegExp(
-  r'^(好的|好|ok|okay|sure|当然|我来|我将|让我|接下来|首先|let me|i.ll|i will|now)(?![a-z])',
+/// Openers that announce rather than conclude (v2 §1.3): Chinese ones as a
+/// prefix, English ones as whole words ("Nowhere" is not "Now"). The same
+/// table as dsh-watch-bridge `src/push/liveactivity.ts` `SMALL_TALK`.
+final _smallTalk = RegExp(
+  r"^(?:好的|好|当然|我来|我将|让我|接下来|首先)|^(?:Okay|OK|Sure|Let me|I'll|I will|Now)\b",
   caseSensitive: false,
 );
 
-/// The first statement of a reply (v2 §1.3): Markdown dropped (code blocks
-/// whole), cut at the first sentence end, greetings and announcements
-/// skipped; masked, one line, ≤ [islandSummaryLineMax]. Null for nothing.
+/// The first statement of a reply (v2 §1.3): code blocks dropped whole,
+/// inline code, headings, quotes, list markers and bold / strike marks
+/// stripped; cut after 。！？, after an ASCII . ! ? followed by white space
+/// (so `v1.2` and `foo.ts` stay whole), and at line breaks; small talk and
+/// pieces of ≤ 4 characters skipped (all of them: the first); masked, one
+/// line, ≤ [islandSummaryLineMax]. Null for nothing. Kept in step with the
+/// bridge's `summaryLineOf` (its cases are in test/unit-la-v2.mjs).
 String? islandSummaryLine(String? reply) {
-  if (reply == null) return null;
-  final text = reply
+  if (reply == null || reply.isEmpty) return null;
+  final plain = reply
       .replaceAll(RegExp(r'```[\s\S]*?(```|$)'), '\n')
       .replaceAllMapped(RegExp(r'`([^`\n]*)`'), (m) => m.group(1)!)
-      .replaceAllMapped(RegExp(r'!?\[([^\]\n]*)\]\([^)\n]*\)'), (m) => m.group(1)!)
-      .replaceAll(RegExp(r'^[ \t]{0,3}(#{1,6}[ \t]+|[-*+][ \t]+|\d+[.)][ \t]+|>[ \t]*)', multiLine: true), '')
-      .replaceAll(RegExp(r'\*{1,3}|_{2,3}|~~'), '');
+      .replaceAll(RegExp(r'^\s{0,3}(#{1,6}|>|[-*+]|\d+[.)])\s+', multiLine: true), '')
+      .replaceAll(RegExp(r'\*\*|__|~~'), '');
   final sentences = [
-    for (final m in RegExp(r'[^。！？!?\n]*?(?:[。！？!?]|\.(?=\s|$)|(?=\n)|$)').allMatches(text))
-      if (m.group(0)!.trim() case final s when s.isNotEmpty) s,
+    for (final piece in plain.split(RegExp(r'(?<=[。！？])|(?<=[.!?])(?=\s)|\n+')))
+      if (piece.replaceAll(RegExp(r'\s+'), ' ').trim() case final s when s.isNotEmpty) s,
   ];
   if (sentences.isEmpty) return null;
   final chosen = sentences.firstWhere(
-    (s) => !_pleasantry.hasMatch(s) && s.runes.length > 4,
+    (s) => !_smallTalk.hasMatch(s) && s.runes.length > 4,
     orElse: () => sentences.first,
   );
   final line = islandLine(chosen, islandSummaryLineMax);
