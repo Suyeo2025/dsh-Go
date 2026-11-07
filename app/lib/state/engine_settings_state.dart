@@ -282,6 +282,15 @@ class EngineSettings {
 
   String? errorOf(FieldRef field) => errors[field.key];
 
+  /// What the Host said when it turned the last write of [field] down
+  /// (`settings/rejected`'s message), for a page to show under [errorOf]:
+  /// the words only name the kind of refusal. Kept in [errors] under
+  /// [detailKey].
+  String? errorDetailOf(FieldRef field) => errors[detailKey(field.key)];
+
+  /// Where [errors] keeps the Host's message for the field [key].
+  static String detailKey(String key) => '$key\u0000host';
+
   /// The credential a secret field is read from: the value of a sibling
   /// `role('credential-ref')` field (or its default). Null when the secret is
   /// stored in the settings document itself.
@@ -394,6 +403,17 @@ String _bound(String raw) {
   return n == n.roundToDouble() ? n.round().toString() : n.toString();
 }
 
+/// The Host's own message for a refused write, as a page may show it: no
+/// more than [maxLength] characters, blank lines dropped. Null for nothing.
+String? hostRejectionDetail(String message, {int maxLength = 2000}) {
+  final text = [
+    for (final line in message.split('\n'))
+      if (line.trim().isNotEmpty) line.trimRight(),
+  ].join('\n');
+  if (text.isEmpty) return null;
+  return text.length <= maxLength ? text : '${text.substring(0, maxLength)}…';
+}
+
 /// One short Chinese sentence for a failed settings or credentials call.
 String describeSettingsError(Object error) {
   if (error is EngineSettingsFailure) return error.message;
@@ -406,6 +426,14 @@ String describeSettingsError(Object error) {
         return appL10n.stateCredentialFromEnvironment;
     }
     if (message.contains('overridden by a home patch')) return appL10n.stateSettingsFromFile;
+    // Every write reloads the profile first (dsh-config-editor →
+    // reconcileProfilePatches); a plugin that fails to start in that reload
+    // turns the write down: `dsh: warning: 1 entry did not activate\n<id> (<name>): …`.
+    // DSH Web says only 「本部署没有接受这些值」; this names the plugin.
+    if (message.contains('did not activate')) {
+      final entry = RegExp(r'^\s*(\S+) \(', multiLine: true).allMatches(message).map((m) => m[1]!).firstOrNull;
+      return appL10n.plugUiSettingsReloadFailed(entry ?? '?');
+    }
     if (RegExp(r'expected number >= (\S+)').firstMatch(message) case final m?) {
       return appL10n.stateSettingsMinimum(_bound(m[1]!));
     }
@@ -789,7 +817,10 @@ class EngineSettingsController extends AsyncNotifier<EngineSettings?> {
     final origin = _origin;
     final write = _Write(ops, fields, {for (final f in fields) f.key: current.valueOf(f)});
     (_pending[ns] ??= []).add(write);
-    _publish(errors: {...current.errors}..removeWhere((key, _) => fields.any((f) => f.key == key)));
+    _publish(
+      errors: {...current.errors}
+        ..removeWhere((key, _) => fields.any((f) => f.key == key || EngineSettings.detailKey(f.key) == key)),
+    );
     final completer = Completer<bool>();
     final previous = _queues[ns] ?? Future<void>.value();
     _queues[ns] = previous.then((_) async {
@@ -835,7 +866,12 @@ class EngineSettingsController extends AsyncNotifier<EngineSettings?> {
         } else {
           final message = describeSettingsError(error);
           if (error.message.contains('overridden by a home patch')) locked = {ns};
-          errors = {for (final f in write.fields) f.key: message};
+          final detail = error.code == 'settings/rejected' ? hostRejectionDetail(error.message) : null;
+          errors = {
+            for (final f in write.fields) f.key: message,
+            if (detail != null)
+              for (final f in write.fields) EngineSettings.detailKey(f.key): detail,
+          };
         }
       } catch (error) {
         errors = {for (final f in write.fields) f.key: describeSettingsError(error)};
@@ -844,8 +880,12 @@ class EngineSettingsController extends AsyncNotifier<EngineSettings?> {
     if (!_accepts(origin)) return false;
     _pending[ns]?.remove(write);
     final current = _current;
+    // A field's new failure replaces its old one, the Host's words included.
+    final merged = {...?current?.errors}
+      ..removeWhere((key, _) => write.fields.any((f) => EngineSettings.detailKey(f.key) == key))
+      ..addAll(errors);
     _publish(
-      errors: errors.isEmpty ? null : {...?current?.errors, ...errors},
+      errors: errors.isEmpty ? null : merged,
       locked: locked.isEmpty ? null : {...?current?.locked, ...locked},
     );
     return ok;
@@ -877,7 +917,11 @@ class EngineSettingsController extends AsyncNotifier<EngineSettings?> {
   void clearError(FieldRef field) {
     final current = _current;
     if (current == null || !current.errors.containsKey(field.key)) return;
-    _publish(errors: {...current.errors}..remove(field.key));
+    _publish(
+      errors: {...current.errors}
+        ..remove(field.key)
+        ..remove(EngineSettings.detailKey(field.key)),
+    );
   }
 
   /// Stores a secret: in the credential store when the field names a

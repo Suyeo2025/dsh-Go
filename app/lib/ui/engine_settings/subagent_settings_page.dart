@@ -182,6 +182,7 @@ class _SubagentSettingsPageState extends ConsumerState<SubagentSettingsPage> {
         title: enabledCopy.label!,
         subtitle: error ?? (layer == FieldLayer.locked ? lockedHint : null),
         subtitleColor: error != null ? colors.danger : null,
+        detail: error == null ? null : settings.errorDetailOf(_enabled) ?? settings.errorDetailOf(_allowed),
         badge: layer == FieldLayer.user && canWrite ? modifiedBadge : null,
         enabled: canWrite && !saving,
         onTap: canWrite && !saving ? () => _toggle(settings, !on) : null,

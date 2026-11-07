@@ -48,6 +48,7 @@ class FieldHeading extends StatelessWidget {
     this.badge,
     this.subtitleColor,
     this.enabled = true,
+    this.detail,
   });
 
   final String title;
@@ -55,6 +56,9 @@ class FieldHeading extends StatelessWidget {
   final Widget? badge;
   final Color? subtitleColor;
   final bool enabled;
+
+  /// The Host's own words for a refused write, under [subtitle] ([HostDetail]).
+  final String? detail;
 
   @override
   Widget build(BuildContext context) {
@@ -83,7 +87,50 @@ class FieldHeading extends StatelessWidget {
           const SizedBox(height: 1),
           Text(sub, style: theme.textTheme.bodySmall?.copyWith(color: subtitleColor ?? colors.textTertiary)),
         ],
+        if (detail case final detail? when detail.isNotEmpty) HostDetail(detail),
       ],
+    );
+  }
+}
+
+/// What the Host said when it turned a write down (`settings/rejected`):
+/// two lines, a tap shows all of it. Its words are how a refusal names the
+/// entry behind it (「1 entry did not activate」 and which one).
+class HostDetail extends StatefulWidget {
+  const HostDetail(this.text, {super.key});
+
+  final String text;
+
+  static const collapsedLines = 2;
+
+  @override
+  State<HostDetail> createState() => _HostDetailState();
+}
+
+class _HostDetailState extends State<HostDetail> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DshColors.of(context);
+    final style = AppType.mono(size: 11.5, color: colors.textTertiary, height: 1.45);
+    return Semantics(
+      button: true,
+      expanded: _open,
+      child: GestureDetector(
+        key: const ValueKey('host-detail'),
+        behavior: HitTestBehavior.opaque,
+        onTap: () => setState(() => _open = !_open),
+        child: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(
+            widget.text,
+            maxLines: _open ? null : HostDetail.collapsedLines,
+            overflow: _open ? TextOverflow.visible : TextOverflow.ellipsis,
+            style: style,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -114,12 +161,16 @@ class EngineFieldRow extends StatelessWidget {
     this.semanticsLabel,
     this.expanded,
     this.opensExternally = false,
+    this.detail,
   });
 
   final String title;
   final IconData? icon;
   final String? subtitle;
   final Color? subtitleColor;
+
+  /// See [FieldHeading.detail].
+  final String? detail;
   final Widget? badge;
 
   /// Right-aligned current value (secondary colour, tabular figures).
@@ -204,6 +255,7 @@ class EngineFieldRow extends StatelessWidget {
       subtitleColor: subtitleColor,
       badge: badge,
       enabled: enabled,
+      detail: detail,
     );
     final row = InkWell(
       onTap: enabled ? onTap : null,

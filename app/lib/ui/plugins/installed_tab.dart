@@ -6,12 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
 import '../../plugins/native/native_state.dart';
+import '../../state/engine_settings_state.dart';
 import '../../state/plugins_state.dart';
 import '../common/feature_tile.dart';
 import '../common/list_page_row.dart';
 import '../common/read_list_status.dart';
 import '../features/feature_kit.dart';
 import '../theme/theme.dart';
+import 'builtin_plugin_pages.dart';
 import 'plugin_actions.dart';
 import 'plugin_detail_sheet.dart';
 import 'plugin_widgets.dart';
@@ -98,6 +100,8 @@ class InstalledPluginsSliver extends ConsumerWidget {
                 ),
             ],
           ),
+        // DSH Web lists its built-in settings pages as plugins too.
+        const _BuiltIn(),
         if (official.isNotEmpty) ...[
           const SizedBox(height: 24),
           ListPageCard(
@@ -117,6 +121,27 @@ class InstalledPluginsSliver extends ConsumerWidget {
           ),
           _Footnote(l10n.pluginsOfficialToggleOnly),
         ],
+      ],
+    );
+  }
+}
+
+/// 内置插件 with its note; nothing when the host serves none of them.
+class _BuiltIn extends ConsumerWidget {
+  const _BuiltIn();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (servedBuiltInPages(ref.watch(engineSettingsProvider.select((s) => s.value))).isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(height: 24),
+        const BuiltInPluginsCard(),
+        _Footnote(context.l10n.plugUiBuiltInFootnote),
       ],
     );
   }

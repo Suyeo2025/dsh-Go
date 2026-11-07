@@ -227,6 +227,7 @@ class SchemaFieldView extends ConsumerWidget {
     final hint = hintFor(node, copy);
     final subtitle = error ?? (layer == FieldLayer.locked ? lockedHint : hint);
     final subtitleColor = error != null ? colors.danger : null;
+    final detail = error == null ? null : settings.errorDetailOf(field);
     final badge = settings.isStaged(field)
         ? stagedBadge
         : layer == FieldLayer.user && enabled
@@ -261,6 +262,7 @@ class SchemaFieldView extends ConsumerWidget {
             title: title,
             subtitle: subtitle,
             subtitleColor: subtitleColor,
+            detail: detail,
             badge: badge,
             enabled: enabled,
             onTap: enabled ? () => unawaited(set(!on)) : null,
@@ -287,6 +289,7 @@ class SchemaFieldView extends ConsumerWidget {
           title: title,
           subtitle: subtitle,
           subtitleColor: subtitleColor,
+          detail: detail,
           badge: badge,
           value: valueLabel(current, copy, node: node),
           enabled: enabled,
@@ -310,6 +313,7 @@ class SchemaFieldView extends ConsumerWidget {
           title: title,
           subtitle: subtitle,
           subtitleColor: subtitleColor,
+          detail: detail,
           badge: badge,
           value: compactJson(shown),
           enabled: enabled,
@@ -338,6 +342,7 @@ class SchemaFieldView extends ConsumerWidget {
           title: title,
           subtitle: subtitle,
           subtitleColor: subtitleColor,
+          detail: detail,
           badge: badge,
           value: shown == null ? l10n.commonNotSet : formatFieldNumber(shown, unit, copy),
           enabled: enabled,
@@ -366,6 +371,7 @@ class SchemaFieldView extends ConsumerWidget {
           title: title,
           subtitle: subtitle,
           subtitleColor: subtitleColor,
+          detail: detail,
           badge: badge,
           value: bitsetSummary(edited.bits, selected),
           enabled: enabled,
@@ -392,6 +398,7 @@ class SchemaFieldView extends ConsumerWidget {
           title: title,
           subtitle: subtitle,
           subtitleColor: subtitleColor,
+          detail: detail,
           badge: badge,
           value: text == null || text.isEmpty ? (copy.placeholder ?? l10n.commonNotSet) : (copy.shown[text] ?? text),
           valueColor: text == null || text.isEmpty ? colors.textTertiary : null,
@@ -425,6 +432,7 @@ class SchemaFieldView extends ConsumerWidget {
           title: title,
           subtitle: subtitle,
           subtitleColor: subtitleColor,
+          detail: detail,
           badge: badge,
           value: items.isEmpty ? l10n.engineFieldNone : l10n.commonItemCount(items.length),
           enabled: enabled,
@@ -453,6 +461,7 @@ class SchemaFieldView extends ConsumerWidget {
           title: title,
           subtitle: subtitle,
           subtitleColor: subtitleColor,
+          detail: detail,
           badge: badge,
           value: items.isEmpty ? l10n.engineFieldNone : l10n.commonItemCount(items.length),
           enabled: enabled,
@@ -477,6 +486,7 @@ class SchemaFieldView extends ConsumerWidget {
           title: title,
           subtitle: subtitle,
           subtitleColor: subtitleColor,
+          detail: detail,
           badge: badge,
           value: entries.isEmpty ? l10n.engineFieldNone : l10n.commonItemCount(entries.length),
           enabled: enabled,
@@ -498,6 +508,7 @@ class SchemaFieldView extends ConsumerWidget {
           title: title,
           subtitle: subtitle,
           subtitleColor: subtitleColor,
+          detail: detail,
           value: compactJson(shown),
           onTap: shown is Map || shown is List
               ? () => unawaited(showValueSheet(context, title: title, value: shown))
@@ -553,6 +564,7 @@ class SecretFieldTile extends ConsumerWidget {
         icon: spec.icon,
         title: title,
         subtitle: error,
+        detail: error == null ? null : settings.errorDetailOf(field),
         subtitleColor: error != null ? colors.danger : null,
         value: hasKey || configured ? l10n.engineFieldSharedWithModel : l10n.engineFieldNotConfigured,
         valueColor: hasKey || configured ? null : colors.warning,

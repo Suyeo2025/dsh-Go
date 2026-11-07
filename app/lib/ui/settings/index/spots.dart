@@ -548,7 +548,8 @@ final _pages = <SettingsPageMeta>[
     SettingsPageId.subagent,
     title: (l) => l.engineSubagentTitle,
     parent: SettingsPageId.engineParams,
-    keywords: (l) => l.searchKwSubagent,
+    // DSH Web calls it 子智能体 (插件 › 内置插件).
+    keywords: (l) => '${l.searchKwSubagent},${l.plugUiSearchKwSubagentAlias}',
     links: const ['subagent-settings'],
   ),
   SettingsPageMeta(
@@ -740,6 +741,15 @@ abstract final class Spots {
     page: SettingsPageId.plugins,
     title: (l) => l.pluginsMarketTitle,
     keywords: (l) => l.searchKwPluginsMarket,
+  );
+
+  // 插件 › 已安装 › 内置插件: DSH Web's built-in plugin pages, under its
+  // names (子智能体, 网页搜索, Agent 循环, 终端).
+  static final pluginsBuiltIn = SettingSpot(
+    'plugins-builtin',
+    page: SettingsPageId.plugins,
+    title: (l) => l.plugUiBuiltInTitle,
+    keywords: (l) => l.plugUiSearchKwBuiltIn,
   );
 
   // 联网搜索 (drawn from the engine's schema).
@@ -1140,6 +1150,7 @@ final _rows = <SettingSpot>[
   Spots.phoneReturn,
   Spots.phoneBackgroundGuide,
   Spots.pluginsMarket,
+  Spots.pluginsBuiltIn,
   Spots.webSearchKey,
   Spots.darkMode,
   Spots.accent,
