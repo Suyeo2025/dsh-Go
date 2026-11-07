@@ -17,7 +17,8 @@
  * - Layout containers only (shell grid, drawer, settings sheet, dialog size,
  *   safe areas, touch targets). Never restyle a component's look (colours,
  *   type, spacing inside cards) and never hide anything but the grid's
- *   resize handle, which the drawer's own width replaces.
+ *   resize handle, which the drawer's own width replaces, and rc.5's own
+ *   drawer mask, which the drawer's own scrim replaces.
  * - No DOM changes: nothing official is inserted, moved or removed, so every
  *   data-slot (where plugins mount) stays where DSH put it. The app's one
  *   attribute on the frame (data-dsh-app-drawer) is all it adds.
@@ -98,6 +99,16 @@ body > [class*="_overlay"] {
    in this layout is the middle of the conversation: the drawer has a width
    of its own. */
 :root[data-dsh-app-layout="drawer"] [data-slot="root"] > [class*="_frame"] > [class*="_handle"] {
+  display: none !important;
+}
+/* DSH 0.2.1-rc.5 folds narrow frames into an official drawer of its own
+   (frame[data-sidebar-drawer]) and, while its sidebar is expanded — which
+   is how the app's drawer keeps it — lays a full-frame mask over the page at
+   z-index 70, above this drawer's column (60). Every touch on the drawer
+   then landed on that mask: the conversation list didn't scroll and a tap
+   folded the official sidebar. The app's drawer has its own scrim (below),
+   so the official mask stays out of this layout. */
+:root[data-dsh-app-layout="drawer"] [data-slot="root"] > [class*="_frame"] > [class*="_drawerMask"] {
   display: none !important;
 }
 /* Edge to edge like a native drawer: its own background runs under the
