@@ -67,6 +67,8 @@ import 'island_prefs_state.dart';
 import 'live_activity_bridge_sync.dart';
 import 'live_activity_channel.dart';
 import 'live_activity_content.dart';
+import 'session_open.dart';
+import 'session_presence.dart';
 import 'work_tree.dart';
 
 /// A turn that starts this long after a message sent from here counts as
@@ -80,6 +82,14 @@ const islandShortRun = Duration(seconds: 8);
 /// Leaving the app, a running conversation this phone sent to this recently
 /// is the last choice for an Activity (S3 ③).
 const islandRecentSend = Duration(minutes: 30);
+
+/// After a failure / a finish, how long the system's Activity may stay before
+/// a reconcile puts it away (plan/design/sync-contract.md §3).
+const islandFailedKeep = Duration(minutes: 15);
+const islandDoneKeep = Duration(minutes: 20);
+
+/// Reconcile requests closer than this run once.
+final islandReconcileDelayProvider = Provider<Duration>((ref) => const Duration(milliseconds: 400));
 
 /// Device clock (tests pin it).
 final islandClockProvider = Provider<DateTime Function()>((ref) => DateTime.now);
@@ -466,7 +476,18 @@ class IslandController extends Notifier<IslandState> {
       if (previous?.value?.enabled == true || state.activeSessionId != null) unawaited(_shutDown());
     });
     ref.listen<bool>(appForegroundProvider, (previous, next) {
-      if (next && previous == false) _onForeground();
+      if (next && previous == false) {
+        _onForeground();
+        unawaited(_bridge.resume());
+        _requestReconcile();
+      } else if (!next) {
+        _bridge.pause();
+      }
+    });
+    // The host's list (connected, reconnected, another host, a conversation
+    // archived or deleted anywhere): what the Activities show is checked.
+    ref.listen<Object?>(hostSessionsSignalProvider, (_, next) {
+      if (next != null) _requestReconcile();
     });
     // Conversations are watched for a message sent from here only while an
     // Activity could start (not on an iPad, not with 灵动岛 off).
@@ -485,6 +506,7 @@ class IslandController extends Notifier<IslandState> {
     _dwell?.cancel();
     _qualify?.cancel();
     _settle?.cancel();
+    _reconcileTimer?.cancel();
     _treeSub?.close();
     _currentSub?.close();
     _activeSub?.close();
@@ -860,6 +882,8 @@ class IslandController extends Notifier<IslandState> {
       if (!ref.mounted || !support.usable) return;
       final view = viewFor ?? (_currentId == id ? _currentView : _activeView);
       if (view == null || !view.running || _declined.contains(id)) return;
+      // Archived or deleted on the host: nothing new for it (sync-contract §1).
+      if (_presence(id).over) return;
       if (state.activeSessionId == id && !state.ended) {
         _schedule(urgent: true);
         return;
@@ -910,9 +934,11 @@ class IslandController extends Notifier<IslandState> {
       for (final a in list)
         if (a.state == LiveActivityPhase.active) a,
     ];
+    final ended = <String>{};
     if (active.isNotEmpty && state.activeSessionId == null) {
       final first = active.first;
       for (final rest in active.skip(1)) {
+        ended.add(rest.sessionId);
         await _channel.end(sessionId: rest.sessionId, dismissal: LiveDismissal.immediate);
       }
       await ref.read(activeHostProvider.notifier).ready;
@@ -924,22 +950,21 @@ class IslandController extends Notifier<IslandState> {
         await _shutDown();
         return;
       }
-      final paired = ref.read(pushProvider).pairing?.hostId;
+      final paired = first.hostId ?? ref.read(pushProvider).pairing?.hostId;
+      final current = ref.read(activeHostProvider);
       state = IslandState(
         activeSessionId: first.sessionId,
         activityId: first.activityId,
         source: IslandSource.bridge,
-        host: paired == null ? ref.read(activeHostProvider) : HostRef.direct(paired),
+        host: paired == null ? current : (paired == current.id ? current : HostRef.direct(paired)),
         lang: islandLangOf(AppLocale.current),
       );
       _watchActive(first.sessionId);
     }
-    final pending = await _channel.takePendingTokens();
-    if (!ref.mounted) return;
-    for (final t in pending.activities) {
-      await _onPushToken(t.sessionId, t.token);
-    }
-    if (pending.pushToStart case final token?) await _bridge.onPushToStartToken(token);
+    await _takeTokens({
+      for (final a in active)
+        if (!ended.contains(a.sessionId)) a.sessionId,
+    });
   }
 
   // ── Update ──────────────────────────────────────────────────────────────
@@ -1111,6 +1136,11 @@ class IslandController extends Notifier<IslandState> {
 
   Future<void> _onPushToken(String sessionId, String token) async {
     if (!ref.mounted) return;
+    // One the bridge started for a conversation archived or deleted since.
+    if (_presence(sessionId).over) {
+      await retire(sessionId);
+      return;
+    }
     if (state.activeSessionId == null) {
       // Started by the bridge (push-to-start) while the app was away.
       final paired = ref.read(pushProvider).pairing?.hostId;
@@ -1136,6 +1166,141 @@ class IslandController extends Notifier<IslandState> {
     );
   }
 
+  // ── Reconcile (plan/design/sync-contract.md §3) ───────────────────────────
+
+  Timer? _reconcileTimer;
+  bool _reconciling = false;
+  bool _reconcileAgain = false;
+
+  void _requestReconcile() {
+    if (!isRemoteOnlyPlatform || !ref.mounted) return;
+    _reconcileTimer?.cancel();
+    _reconcileTimer = Timer(ref.read(islandReconcileDelayProvider), () {
+      _reconcileTimer = null;
+      unawaited(reconcile());
+    });
+  }
+
+  SessionPresence _presence(String id) => ref.read(sessionPresenceProvider(id));
+
+  /// Puts away every Activity the host's state no longer backs: its
+  /// conversation archived or deleted, one of a host this phone no longer
+  /// follows, a finished or failed one past its keep, one nobody will end
+  /// (idle, nothing in its tree goes on); and hands the bridge the tokens it
+  /// never got. Runs on coming back to the screen and on every list of the
+  /// host (connected, archived anywhere, …).
+  Future<void> reconcile() async {
+    if (!isRemoteOnlyPlatform || !ref.mounted) return;
+    if (_reconciling) {
+      _reconcileAgain = true;
+      return;
+    }
+    _reconciling = true;
+    try {
+      do {
+        _reconcileAgain = false;
+        await _reconcileOnce();
+      } while (_reconcileAgain && ref.mounted);
+    } finally {
+      _reconciling = false;
+    }
+  }
+
+  Future<void> _reconcileOnce() async {
+    final support = await ref.read(liveActivityStatusProvider.future);
+    if (!ref.mounted || !support.supported) return;
+    // Which host is paired decides whose Activity is the bridge's.
+    await ref.read(pushProvider.notifier).ready;
+    if (!ref.mounted) return;
+    final listed = await _channel.list();
+    if (!ref.mounted) return;
+    final followed = state.activeSessionId;
+    final infos = {for (final a in listed) a.sessionId: a};
+    final ids = {...infos.keys, ?followed};
+    final active = ref.read(activeHostProvider).id;
+    final paired = ref.read(pushProvider).pairing?.hostId;
+    final now = _now();
+    final retired = <String>{};
+    for (final id in ids) {
+      if (!ref.mounted) return;
+      final info = infos[id];
+      final hostId = info?.hostId ?? (id == followed ? state.host?.id : null) ?? paired ?? active;
+      final String? why;
+      if (hostId != active && hostId != paired) {
+        why = 'foreign';
+      } else if (hostId != active) {
+        why = null; // The paired host isn't the one open here: the bridge's.
+      } else {
+        why = _staleReason(id, info, followed: id == followed && !state.ended, now: now);
+      }
+      if (why != null) {
+        retired.add(id);
+        await retire(id);
+      } else if (info?.pushToken case final token?
+          when info!.state == LiveActivityPhase.active && !_bridge.registered.contains(id)) {
+        // Started by the bridge, its token never reached it (a 500): again.
+        await _onPushToken(id, token);
+      }
+    }
+    // Tokens the native side kept (it sends every current one): only those of
+    // Activities still running, not the ones just put away.
+    await _takeTokens({
+      for (final a in listed)
+        if (a.state == LiveActivityPhase.active && !retired.contains(a.sessionId)) a.sessionId,
+    });
+  }
+
+  /// Registers the native side's tokens of the Activities in [alive] (one
+  /// already ended, or not listed any more, isn't taken over again).
+  Future<void> _takeTokens(Set<String> alive) async {
+    final pending = await _channel.takePendingTokens();
+    if (!ref.mounted) return;
+    for (final t in pending.activities) {
+      if (!alive.contains(t.sessionId)) continue;
+      await _onPushToken(t.sessionId, t.token);
+      if (!ref.mounted) return;
+    }
+    if (pending.pushToStart case final token?) await _bridge.onPushToStartToken(token);
+  }
+
+  /// Why the Activity of [id] (on the open host) should go; null: it stays.
+  String? _staleReason(String id, LiveActivityInfo? info, {required bool followed, required DateTime now}) {
+    switch (_presence(id)) {
+      case SessionPresence.gone:
+        return 'gone';
+      case SessionPresence.archived:
+        return 'archived';
+      case SessionPresence.unknown:
+        return null;
+      case SessionPresence.live:
+    }
+    if (info?.updatedAt case final at?) {
+      final age = now.difference(at);
+      if (info!.phase == 'failed' && age > islandFailedKeep) return 'failed';
+      if (info.phase == 'done' && age > islandDoneKeep) return 'done';
+    }
+    // The one followed here ends by the work tree's own settle (v3 §1).
+    if (followed || info == null || info.state != LiveActivityPhase.active) return null;
+    final sessions = ref.read(workTreeSessionsProvider);
+    final root = sessions.where((s) => s.sessionId == id).firstOrNull;
+    if (root == null || root.running) return null;
+    final tree = buildWorkTree(rootId: id, sessions: sessions, pending: ref.read(workTreePendingProvider));
+    // Jobs aren't followed for it here; a goal or anyone else going on keeps it.
+    return tree.busyWith() ? null : 'idle';
+  }
+
+  /// Ends the Activity of [sessionId] at once and tells the bridge to stop
+  /// following it, whether or not a token of it was ever sent from here.
+  Future<void> retire(String sessionId) async {
+    if (!ref.mounted) return;
+    if (state.activeSessionId == sessionId) {
+      _unwatchActive();
+      state = const IslandState();
+    }
+    await _channel.end(sessionId: sessionId, dismissal: LiveDismissal.immediate);
+    await _bridge.forget(sessionId, always: true);
+  }
+
   // ── Links ───────────────────────────────────────────────────────────────
 
   /// `dshgo://session/<id>[#event=<eventId>]`, the Activity's tap: opens that
@@ -1152,10 +1317,15 @@ class IslandController extends Notifier<IslandState> {
     final paired = ref.read(pushProvider).pairing?.hostId;
     final own = state.activeSessionId == id ? state.host : null;
     final HostRef host = own ?? (paired == null ? ref.read(activeHostProvider) : HostRef.direct(paired));
-    ref.read(activeHostProvider.notifier).select(host);
-    ref.read(currentSessionProvider.notifier).select(id);
-    // `#event=<id>`: the approval / question card the Activity showed.
-    if (linkFocusEventId(uri) case final eventId?) ref.read(chatFocusProvider.notifier).focus(id, eventId);
+    // Archived or deleted on the host meanwhile: said so, and the Activity goes.
+    await openSessionChecked(
+      read: ref.read,
+      context: () => ref.read(linkRouterProvider).context,
+      host: host,
+      sessionId: id,
+      eventId: linkFocusEventId(uri),
+      retire: retire,
+    );
     return true;
   }
 }

@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../live/session_presence.dart' show SessionPresence, sessionPresenceProvider;
 import '../../l10n/l10n.dart';
 import '../../notify/chat_alerts.dart' show approvalText, questionText;
 import '../../plugins/seams/seat_state.dart' show keepSeatInventory;
@@ -1454,10 +1455,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     );
     // Where a new conversation starts (the drawer's workspace).
     final workspace = ref.watch(selectedWorkspaceProvider);
-    // A one-shot subagent takes no messages: DSH Web shows it read-only.
+    // A one-shot subagent takes no messages: DSH Web shows it read-only. An
+    // archived conversation neither, until it is restored.
     final readOnly =
         sessionId != null &&
-        ref.watch(subagentParentProvider(sessionId).select((p) => p?.address.mode == SubagentMode.oneShot));
+        (ref.watch(subagentParentProvider(sessionId).select((p) => p?.address.mode == SubagentMode.oneShot)) ||
+            ref.watch(sessionPresenceProvider(sessionId).select((p) => p == SessionPresence.archived)));
     // A subagent conversation: 「‹ 上级对话」 takes the menu key's place, so
     // the 新对话 key would have nothing to mirror.
     final isChild = sessionId != null && ref.watch(subagentParentProvider(sessionId).select((p) => p != null));

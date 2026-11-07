@@ -84,6 +84,7 @@ void main() {
           ),
         ),
         liveBridgeRetryDelayProvider.overrideWithValue(const Duration(milliseconds: 20)),
+        liveBridgeBackoffBaseProvider.overrideWithValue(const Duration(milliseconds: 20)),
       ],
     );
     addTearDown(c.dispose);
@@ -165,7 +166,7 @@ void main() {
       expect(calls().where((c) => c.contains('start-token')), isEmpty);
     });
 
-    test('a network failure is tried again once', () async {
+    test('an Activity token that does not land is sent again, backing off, until it does', () async {
       final c = make();
       final sync = await ready(c);
       network = true;
@@ -176,6 +177,62 @@ void main() {
       await pumpEventQueue();
       expect(calls(), ['PUT /v1/device/live-activity']);
       expect(bridge.calls.single.json['lang'], 'en');
+    });
+
+    test('a bridge 500 backs off 2×, 4×…; off screen it waits; back on screen it goes at once', () async {
+      final c = make();
+      final sync = await ready(c);
+      bridge.routes['PUT /v1/device/live-activity'] = (
+        500,
+        {
+          'error': {'code': 'internal', 'message': 'x'},
+        },
+      );
+      await sync.onPushToken('s1', _laToken, content: _content, lang: 'zh', clockOffsetMs: 0);
+      expect(calls(), ['PUT /v1/device/live-activity']);
+      // 20 ms, then 40 ms.
+      await Future<void>.delayed(const Duration(milliseconds: 35));
+      await pumpEventQueue();
+      expect(calls(), hasLength(2));
+      await Future<void>.delayed(const Duration(milliseconds: 55));
+      await pumpEventQueue();
+      expect(calls(), hasLength(3));
+
+      // Off screen: no more tries.
+      sync.pause();
+      bridge.calls.clear();
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      expect(calls(), isEmpty);
+
+      // The bridge is fixed; back on screen: at once.
+      bridge.routes['PUT /v1/device/live-activity'] = (204, null);
+      await sync.resume();
+      expect(calls(), ['PUT /v1/device/live-activity']);
+      expect(sync.registered, ['s1']);
+      bridge.calls.clear();
+      await sync.resume();
+      expect(calls(), isEmpty, reason: 'landed: not sent again');
+    });
+
+    test('a 4xx is not tried again; forget(always) tells the bridge even with nothing sent from here', () async {
+      final c = make();
+      final sync = await ready(c);
+      bridge.routes['PUT /v1/device/live-activity'] = (
+        400,
+        {
+          'error': {'code': 'bad-request', 'message': 'x'},
+        },
+      );
+      await sync.onPushToken('s1', _laToken, content: _content, lang: 'zh', clockOffsetMs: 0);
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      expect(calls(), ['PUT /v1/device/live-activity']);
+
+      bridge.calls.clear();
+      bridge.routes['DELETE /v1/device/live-activity/s7'] = (204, null);
+      await sync.forget('s7');
+      expect(calls(), isEmpty);
+      await sync.forget('s7', always: true);
+      expect(calls(), ['DELETE /v1/device/live-activity/s7']);
     });
 
     test('resync sends everything again; clear tells the bridge, unpair does not', () async {

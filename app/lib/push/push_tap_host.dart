@@ -8,8 +8,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../live/live_activity_state.dart' show islandControllerProvider;
+import '../live/session_open.dart';
 import '../platform/platform_caps.dart';
-import '../state/chat_focus.dart';
 import '../state/hosts_state.dart';
 import '../state/notify_state.dart' show appForegroundProvider;
 import '../state/sessions_state.dart';
@@ -84,15 +85,19 @@ class _PushTapHostState extends ConsumerState<PushTapHost> {
     if (!await DiscardGuard.confirmLeave(context) || !mounted) return;
     widget.onReveal?.call(false);
     Navigator.of(context, rootNavigator: true).popUntil((r) => r.isFirst);
-    // As ChatAlertsController.open: selecting also stops a still-pending
-    // restore of the last host from switching away on a cold start.
-    ref.read(activeHostProvider.notifier).select(host);
-    ref.read(currentSessionProvider.notifier).select(sessionId);
-    // A request's push: show its card (the same as the Live Activity's tap).
+    // A request's push shows its card (the same as the Live Activity's tap);
+    // archived or deleted on the host meanwhile: said so (sync-contract §2).
     final eventId = route.eventId;
-    if (eventId != null && (route.kind == PushKind.approval || route.kind == PushKind.question)) {
-      ref.read(chatFocusProvider.notifier).focus(sessionId, eventId);
-    }
+    final request = route.kind == PushKind.approval || route.kind == PushKind.question;
+    await openSessionChecked(
+      read: ref.read,
+      context: () => mounted ? context : null,
+      host: host,
+      sessionId: sessionId,
+      eventId: request ? eventId : null,
+      // Read only when there is an Activity to put away.
+      retire: (id) => ref.read(islandControllerProvider.notifier).retire(id),
+    );
   }
 
   @override

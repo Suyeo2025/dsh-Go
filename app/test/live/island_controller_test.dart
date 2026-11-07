@@ -4,8 +4,11 @@ import 'package:dsh_app/live/island_prefs_state.dart';
 import 'package:dsh_app/live/live_activity_channel.dart';
 import 'package:dsh_app/live/live_activity_content.dart' show OtherRun;
 import 'package:dsh_app/live/live_activity_state.dart';
+import 'package:dsh_app/live/session_presence.dart';
 import 'package:dsh_app/live/work_tree.dart';
 import 'package:dsh_app/platform/platform_caps.dart';
+import 'package:dsh_app/live/live_activity_bridge_sync.dart' show liveActivityBridgeSyncProvider;
+import 'package:dsh_app/state/hosts_state.dart' show activeHostProvider;
 import 'package:dsh_app/state/notify_state.dart' show appForegroundProvider;
 import 'package:dsh_app/state/sessions_state.dart' show currentSessionProvider;
 import 'package:dsh_app/ui/chat/run_info.dart';
@@ -34,6 +37,25 @@ class FakeTrees extends Notifier<Map<String, WorkTree>> {
 }
 
 final fakeTreesProvider = NotifierProvider<FakeTrees, Map<String, WorkTree>>(FakeTrees.new);
+
+/// What the host says of each conversation, and its list (sync-contract §3).
+class FakeHost extends Notifier<({Map<String, SessionPresence> presence, List<SessionSummary> sessions, int lists})> {
+  @override
+  ({Map<String, SessionPresence> presence, List<SessionSummary> sessions, int lists}) build() =>
+      (presence: const {}, sessions: const [], lists: 0);
+
+  /// A new list of the host arrives with [presence] and [sessions].
+  void list(Map<String, SessionPresence> presence, [List<SessionSummary>? sessions]) =>
+      state = (presence: presence, sessions: sessions ?? state.sessions, lists: state.lists + 1);
+}
+
+final fakeHostProvider =
+    NotifierProvider<FakeHost, ({Map<String, SessionPresence> presence, List<SessionSummary> sessions, int lists})>(
+      FakeHost.new,
+    );
+
+SessionSummary _summary(String id, {bool running = false}) =>
+    SessionSummary(sessionId: id, updatedAt: _t0, running: running, blank: false, agentAvailable: true);
 
 extension on JobInfo {
   JobInfo copyWithStatus(String status) => JobInfo(id: id, kind: kind, label: label, status: status);
@@ -105,6 +127,8 @@ void main() {
   var others = (runs: const <OtherRun>[], pending: const <String>{});
   var waiting = const <String, IslandWaiting>{};
   var settleWindow = Duration.zero;
+  var reconcileDelay = const Duration(hours: 1);
+  var pendingTokens = <Map<String, Object?>>[];
 
   setUp(() {
     calls.clear();
@@ -116,6 +140,8 @@ void main() {
     others = (runs: const <OtherRun>[], pending: const <String>{});
     waiting = const {};
     settleWindow = Duration.zero;
+    reconcileDelay = const Duration(hours: 1);
+    pendingTokens = [];
     SharedPreferences.setMockInitialValues({});
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
       liveActivityMethodChannel,
@@ -125,7 +151,7 @@ void main() {
           'status' => {'supported': supported, 'enabled': supported, 'pushToStart': false, 'frequentUpdates': false},
           'start' => {'activityId': 'act-${(call.arguments as Map)['sessionId']}'},
           'list' => listed,
-          'takePendingTokens' => {'activities': <Object?>[]},
+          'takePendingTokens' => {'activities': pendingTokens},
           _ => null,
         };
       },
@@ -153,6 +179,16 @@ void main() {
         islandThrottleProvider.overrideWithValue(const Duration(milliseconds: 40)),
         islandDwellProvider.overrideWithValue(dwell),
         islandLeavingProvider.overrideWithValue(leaving.stream),
+        sessionPresenceProvider.overrideWith(
+          (ref, id) => ref.watch(fakeHostProvider).presence[id] ?? SessionPresence.unknown,
+        ),
+        hostSessionsSignalProvider.overrideWith((ref) {
+          final host = ref.watch(fakeHostProvider);
+          return host.lists == 0 ? null : host.lists;
+        }),
+        workTreeSessionsProvider.overrideWith((ref) => ref.watch(fakeHostProvider).sessions),
+        workTreePendingProvider.overrideWithValue(const []),
+        islandReconcileDelayProvider.overrideWithValue(reconcileDelay),
       ],
     );
     addTearDown(c.dispose);
@@ -490,6 +526,151 @@ void main() {
       await settle();
       expect(lastOf('end')['dismissal'], 'after20m');
       expect(c.read(islandControllerProvider).ended, isTrue);
+    });
+
+    // ── sync-contract §3: reconcile ──
+
+    Set<String> endedNow() => {
+      for (final c in calls)
+        if (c.method == 'end' && (c.arguments as Map)['dismissal'] == 'immediate')
+          (c.arguments as Map)['sessionId']! as String,
+    };
+    Map<String, Object?> activity(
+      String id, {
+      String state = 'active',
+      String? host,
+      String? phase,
+      DateTime? updatedAt,
+      String? token,
+    }) => {
+      'sessionId': id,
+      'activityId': 'act-$id',
+      'state': state,
+      'hostId': ?host,
+      'phase': ?phase,
+      if (updatedAt != null) 'updatedAt': updatedAt.millisecondsSinceEpoch ~/ 1000,
+      'pushToken': ?token,
+    };
+
+    test('reconcile: archived, deleted, another host, an old failure and an idle zombie go; the rest stays', () async {
+      final c = await ready();
+      final host = c.read(activeHostProvider).id;
+      listed = [
+        activity('s-arch', host: host),
+        activity('s-gone', host: host),
+        activity('s-foreign', host: 'some-other-host'),
+        activity(
+          's-failed',
+          state: 'ended',
+          host: host,
+          phase: 'failed',
+          updatedAt: _now.subtract(const Duration(minutes: 16)),
+        ),
+        activity(
+          's-fresh-fail',
+          state: 'ended',
+          host: host,
+          phase: 'failed',
+          updatedAt: _now.subtract(const Duration(minutes: 5)),
+        ),
+        activity('s-idle', host: host),
+        activity('s-run', host: host),
+        activity('s-unknown', host: host),
+      ];
+      c
+          .read(fakeHostProvider.notifier)
+          .list(
+            {
+              's-arch': SessionPresence.archived,
+              's-gone': SessionPresence.gone,
+              's-failed': SessionPresence.live,
+              's-fresh-fail': SessionPresence.live,
+              's-idle': SessionPresence.live,
+              's-run': SessionPresence.live,
+            },
+            [_summary('s-failed'), _summary('s-fresh-fail'), _summary('s-idle'), _summary('s-run', running: true)],
+          );
+      calls.clear();
+      await c.read(islandControllerProvider.notifier).reconcile();
+      expect(endedNow(), {'s-arch', 's-gone', 's-foreign', 's-failed', 's-idle'});
+    });
+
+    test("reconcile: the paired host's Activity is the bridge's while another host is open", () async {
+      SharedPreferences.setMockInitialValues({
+        'push_bridge_v1': '{"bridge":"https://watch.example.com","hostId":"paired-host","deviceId":"d-1"}',
+      });
+      final c = await ready();
+      listed = [activity('s9', host: 'paired-host')];
+      c.read(fakeHostProvider.notifier).list({'s9': SessionPresence.gone});
+      calls.clear();
+      await c.read(islandControllerProvider.notifier).reconcile();
+      expect(endedNow(), isEmpty, reason: 'the open host says nothing about the paired one');
+    });
+
+    test(
+      'reconcile takes over the token of a running bridge-started Activity, never of an ended or archived one',
+      () async {
+        final c = await ready();
+        final host = c.read(activeHostProvider).id;
+        c.read(fakeViewsProvider.notifier).set('s5', _running(done: 2));
+        listed = [
+          activity('s5', host: host, token: 'ab' * 40),
+          activity('s6', state: 'ended', host: host, phase: 'done', updatedAt: _now),
+          activity('s7', host: host),
+        ];
+        pendingTokens = [
+          {'sessionId': 's5', 'token': 'ab' * 40},
+          {'sessionId': 's6', 'token': 'cd' * 40},
+          {'sessionId': 's7', 'token': 'ef' * 40},
+        ];
+        c
+            .read(fakeHostProvider.notifier)
+            .list(
+              {'s5': SessionPresence.live, 's6': SessionPresence.live, 's7': SessionPresence.archived},
+              [_summary('s5', running: true), _summary('s6')],
+            );
+        await c.read(islandControllerProvider.notifier).reconcile();
+        await settle();
+        expect(c.read(liveActivityBridgeSyncProvider).registered, ['s5']);
+        expect(c.read(islandControllerProvider).activeSessionId, 's5');
+        expect(endedNow(), {'s7'});
+      },
+    );
+
+    test('archived elsewhere: the next list of the host ends it at once, and nothing starts for it again', () async {
+      reconcileDelay = const Duration(milliseconds: 20);
+      final c = await ready();
+      await sendIn(c, 's1');
+      final host = c.read(activeHostProvider).id;
+      expect(c.read(islandControllerProvider).activeSessionId, 's1');
+      listed = [activity('s1', host: host)];
+      calls.clear();
+      c.read(fakeHostProvider.notifier).list({'s1': SessionPresence.archived});
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      await settle();
+      expect(endedNow(), {'s1'});
+      expect(c.read(islandControllerProvider).activeSessionId, isNull);
+
+      // Still open and running on screen: leaving starts nothing for it.
+      listed = [];
+      calls.clear();
+      c.read(fakeViewsProvider.notifier).set('s1', _running(done: 4));
+      await settle();
+      leaving.add(null);
+      await settle();
+      expect(methods(), isNot(contains('start')));
+    });
+
+    test('back on screen: reconciled', () async {
+      reconcileDelay = const Duration(milliseconds: 20);
+      final c = await ready();
+      c.read(appForegroundProvider.notifier).set(false);
+      await settle();
+      calls.clear();
+      c.read(appForegroundProvider.notifier).set(true);
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      await settle();
+      expect(methods(), contains('list'));
     });
 
     // ── v3 work tree ──

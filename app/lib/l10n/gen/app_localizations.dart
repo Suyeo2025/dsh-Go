@@ -26846,6 +26846,18 @@ abstract class L10n {
   /// **'主机无法确认删除结果，请刷新后再决定是否重试。'**
   String get shellDeleteFailed;
 
+  /// No description provided for @sessionArchivedNotice.
+  ///
+  /// In zh, this message translates to:
+  /// **'这个对话已归档，可以在归档里恢复'**
+  String get sessionArchivedNotice;
+
+  /// No description provided for @sessionGoneNotice.
+  ///
+  /// In zh, this message translates to:
+  /// **'这个对话已不存在'**
+  String get sessionGoneNotice;
+
   /// No description provided for @settingsIosHostLacks.
   ///
   /// In zh, this message translates to:

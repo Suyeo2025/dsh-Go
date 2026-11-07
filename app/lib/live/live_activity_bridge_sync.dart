@@ -28,6 +28,12 @@ import 'live_activity_content.dart';
 /// How long before a failed call (network) is tried again, once.
 final liveBridgeRetryDelayProvider = Provider<Duration>((ref) => const Duration(seconds: 30));
 
+/// An Activity token the bridge didn't take (no network, a 5xx) is sent
+/// again after this, doubling up to [liveBridgeBackoffMax], until it lands,
+/// the Activity ends or the app leaves the screen (plan/design/sync-contract.md §4).
+final liveBridgeBackoffBaseProvider = Provider<Duration>((ref) => const Duration(seconds: 2));
+const liveBridgeBackoffMax = Duration(minutes: 5);
+
 class _Registration {
   _Registration({
     required this.token,
@@ -55,6 +61,8 @@ class LiveActivityBridgeSync {
   String? _startToken;
   bool _startSent = false;
   final _retries = <String, Timer>{};
+  final _attempts = <String, int>{};
+  bool _paused = false;
   bool _disposed = false;
 
   /// Sessions whose Activity token is known (tests, status).
@@ -83,18 +91,35 @@ class LiveActivityBridgeSync {
   }
 
   /// Runs [call]; false when it failed. A network failure tries [key] again
-  /// once after [liveBridgeRetryDelayProvider].
+  /// once after [liveBridgeRetryDelayProvider]; an Activity token ([backoff])
+  /// keeps trying, see [liveBridgeBackoffBaseProvider].
   Future<bool> _send(
     String key,
     Future<void> Function(BridgeClient client, String token) call, {
     bool retry = true,
+    bool backoff = false,
   }) async {
     final c = await _client();
     if (c == null) return false;
     try {
       await call(c.$1, c.$2);
+      if (backoff) _attempts.remove(key);
       return true;
     } on BridgeException catch (e) {
+      final transient = e.code == 'network' || (e.status ?? 0) >= 500 || e.status == 429;
+      if (backoff && transient && _active) {
+        _retries.remove(key)?.cancel();
+        if (_paused) return false;
+        final n = _attempts[key] = (_attempts[key] ?? 0) + 1;
+        final base = _ref.read(liveBridgeBackoffBaseProvider);
+        var wait = base * (1 << (n - 1).clamp(0, 20));
+        if (wait > liveBridgeBackoffMax) wait = liveBridgeBackoffMax;
+        _retries[key] = Timer(wait, () {
+          _retries.remove(key);
+          unawaited(_retry(key));
+        });
+        return false;
+      }
       if (e.code == 'network' && retry && _active) {
         _retries.remove(key)?.cancel();
         _retries[key] = Timer(_ref.read(liveBridgeRetryDelayProvider), () {
@@ -116,7 +141,7 @@ class LiveActivityBridgeSync {
         await _send(key, (c, t) => c.deleteLiveActivity(t, sessionId), retry: false);
       }
     } else if (_activities[key] case final r? when !r.sent) {
-      await _put(key, r, retry: false);
+      await _put(key, r);
     }
   }
 
@@ -137,6 +162,7 @@ class LiveActivityBridgeSync {
         startedAtMs: r.startedAtMs,
       ),
       retry: retry,
+      backoff: true,
     );
     if (ok && identical(_activities[sessionId], r) && r.token == token) r.sent = true;
   }
@@ -210,12 +236,36 @@ class LiveActivityBridgeSync {
   }
 
   /// The Activity of [sessionId] is over (ended, dismissed, switched off).
-  Future<void> forget(String sessionId) async {
+  /// [always]: tell the bridge even with no token sent from here (one the
+  /// bridge started, whose token never reached it: sync-contract §3).
+  Future<void> forget(String sessionId, {bool always = false}) async {
     if (!isRemoteOnlyPlatform) return;
     final r = _activities.remove(sessionId);
     _retries.remove(sessionId)?.cancel();
-    if (r == null) return;
+    _attempts.remove(sessionId);
+    if (r == null && !always) return;
     await _send('$_forgetPrefix$sessionId', (c, t) => c.deleteLiveActivity(t, sessionId));
+  }
+
+  /// The app left the screen: tokens that didn't land wait for [resume].
+  void pause() {
+    _paused = true;
+    for (final key in [..._attempts.keys]) {
+      _retries.remove(key)?.cancel();
+    }
+  }
+
+  /// The app is back: every token that didn't land goes again at once, and
+  /// the back-off starts over.
+  Future<void> resume() async {
+    _paused = false;
+    if (!isRemoteOnlyPlatform) return;
+    _attempts.clear();
+    for (final MapEntry(key: sessionId, value: r) in [..._activities.entries]) {
+      if (r.sent) continue;
+      _retries.remove(sessionId)?.cancel();
+      await _put(sessionId, r);
+    }
   }
 
   /// Forgets everything. [remote]: also tell the bridge (灵动岛 switched off);
@@ -231,6 +281,7 @@ class LiveActivityBridgeSync {
       t.cancel();
     }
     _retries.clear();
+    _attempts.clear();
     if (!remote) return;
     for (final s in sessions) {
       await _send('$_forgetPrefix$s', (c, t) => c.deleteLiveActivity(t, s), retry: false);

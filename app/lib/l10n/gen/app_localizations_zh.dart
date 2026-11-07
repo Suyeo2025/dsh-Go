@@ -14652,6 +14652,12 @@ class L10nZh extends L10n {
   String get shellDeleteFailed => '主机无法确认删除结果，请刷新后再决定是否重试。';
 
   @override
+  String get sessionArchivedNotice => '这个对话已归档，可以在归档里恢复';
+
+  @override
+  String get sessionGoneNotice => '这个对话已不存在';
+
+  @override
   String get settingsIosHostLacks => '主机未提供';
 
   @override

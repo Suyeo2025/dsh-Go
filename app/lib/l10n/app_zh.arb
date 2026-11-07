@@ -9148,6 +9148,8 @@
   "shellDeleteProtocolError": "删除结果未确认，请刷新对话列表后再操作。",
   "shellDeleteNotAttempted": "未执行，请核对对话列表后重试。",
   "shellDeleteFailed": "主机无法确认删除结果，请刷新后再决定是否重试。",
+  "sessionArchivedNotice": "这个对话已归档，可以在归档里恢复",
+  "sessionGoneNotice": "这个对话已不存在",
   "settingsIosHostLacks": "主机未提供",
   "settingsIosNotInstalled": "未安装",
   "setupAppearanceTitle": "选择外观",

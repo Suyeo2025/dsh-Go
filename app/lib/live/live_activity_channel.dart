@@ -101,10 +101,27 @@ enum LiveActivityPhase {
 
 /// One Activity the system still holds (`list`).
 class LiveActivityInfo {
-  const LiveActivityInfo({required this.sessionId, required this.activityId, required this.state});
+  const LiveActivityInfo({
+    required this.sessionId,
+    required this.activityId,
+    required this.state,
+    this.hostId,
+    this.phase,
+    this.updatedAt,
+    this.pushToken,
+  });
   final String sessionId;
   final String activityId;
   final LiveActivityPhase state;
+
+  /// plan/design/sync-contract.md §5, when the native side tells them: the
+  /// host it belongs to, what it shows (`running`, `failed`, …) and since when.
+  final String? hostId;
+  final String? phase;
+  final DateTime? updatedAt;
+
+  /// Its current push token (hex), when the native side has one.
+  final String? pushToken;
 }
 
 /// A token for one Activity (hex), or a state change of one.
@@ -288,7 +305,18 @@ class LiveActivityChannel {
         if (_str(m, 'sessionId', _id) case final session?)
           if (_str(m, 'activityId') case final id?)
             if (LiveActivityPhase.parse((m as Map)['state']) case final state?)
-              LiveActivityInfo(sessionId: session, activityId: id, state: state),
+              LiveActivityInfo(
+                sessionId: session,
+                activityId: id,
+                state: state,
+                hostId: _str(m, 'hostId'),
+                phase: _str(m, 'phase'),
+                updatedAt: switch (m['updatedAt']) {
+                  final num s => DateTime.fromMillisecondsSinceEpoch((s * 1000).round()),
+                  _ => null,
+                },
+                pushToken: _str(m, 'pushToken'),
+              ),
     ];
   }
 

@@ -4459,6 +4459,8 @@
   "shellDeleteProtocolError": "The deletion result is unconfirmed. Refresh the chat list before taking further action.",
   "shellDeleteNotAttempted": "Not attempted. Check the chat list before trying again.",
   "shellDeleteFailed": "The host could not confirm deletion. Refresh before retrying.",
+  "sessionArchivedNotice": "This chat is archived. You can restore it from Archived.",
+  "sessionGoneNotice": "This chat no longer exists.",
   "settingsIosHostLacks": "Not on this host",
   "settingsIosNotInstalled": "Not installed",
   "setupAppearanceTitle": "Choose a look",

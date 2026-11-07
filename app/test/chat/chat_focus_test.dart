@@ -5,6 +5,7 @@
 
 import 'dart:convert';
 
+import 'package:dsh_app/live/session_presence.dart';
 import 'package:dsh_app/platform/platform_caps.dart';
 import 'package:dsh_app/push/push_channel.dart';
 import 'package:dsh_app/push/push_state.dart';
@@ -168,6 +169,8 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           secretStoreProvider.overrideWithValue(MemorySecretStore({PushController.deviceTokenKey: 'device-secret'})),
+          // The host has these conversations (the check itself: test/live/session_open_test.dart).
+          sessionPresenceProvider.overrideWith((ref, id) => SessionPresence.live),
         ],
       );
       addTearDown(container.dispose);

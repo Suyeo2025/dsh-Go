@@ -15419,6 +15419,12 @@ class L10nEn extends L10n {
   String get shellDeleteFailed => 'The host could not confirm deletion. Refresh before retrying.';
 
   @override
+  String get sessionArchivedNotice => 'This chat is archived. You can restore it from Archived.';
+
+  @override
+  String get sessionGoneNotice => 'This chat no longer exists.';
+
+  @override
   String get settingsIosHostLacks => 'Not on this host';
 
   @override
