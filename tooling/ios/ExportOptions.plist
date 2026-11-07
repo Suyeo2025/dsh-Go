@@ -20,6 +20,8 @@
 		<string>dg com.colex.dshgo.share</string>
 		<key>com.colex.dshgo.activity</key>
 		<string>dg com.colex.dshgo.activity</string>
+		<key>com.colex.dshgo.notify</key>
+		<string>dg com.colex.dshgo.notify</string>
 	</dict>
 	<key>uploadSymbols</key>
 	<true/>

@@ -60,6 +60,41 @@ struct WhaleWakeStrings {
     return "\(head) · \(label)"
   }
 
+  // v3 (notify-v3-contract §2.1)
+  /// 「主线已回复 · 后台 2 个任务在跑」 and its variants.
+  func background(jobs: Int, subagents: Int) -> String {
+    switch (jobs > 0, subagents > 0) {
+    case (true, true):
+      return zh ? "主线已回复 · 后台 \(jobs) 个任务 · \(subagents) 个子代理" : "Replied · \(en(jobs, "task")) · \(en(subagents, "subagent"))"
+    case (false, true): return zh ? "主线已回复 · \(subagents) 个子代理在跑" : "Replied · \(en(subagents, "subagent")) running"
+    default:
+      let n = max(1, jobs)
+      return zh ? "主线已回复 · 后台 \(n) 个任务在跑" : "Replied · \(en(n, "background task")) running"
+    }
+  }
+  private func en(_ n: Int, _ noun: String) -> String { "\(n) \(noun)\(n == 1 ? "" : "s")" }
+  /// compact trailing: 「后台 2」.
+  func backgroundShort(_ n: Int) -> String { zh ? "后台 \(n)" : "\(n) bg" }
+  /// 「子代理 · 审查员」 before what a descendant asks.
+  func from(_ name: String) -> String { zh ? "子代理 · \(name)" : "Subagent · \(name)" }
+  /// 「还有 2 个等你」.
+  func moreWaiting(_ n: Int) -> String { zh ? "还有 \(n) 个等你" : "\(n) more waiting" }
+  /// compact trailing when several wait: 「3 个」.
+  func waitingShort(_ n: Int) -> String { zh ? "\(n) 个" : "×\(n)" }
+  /// 「阶段 2/4 · 审查」.
+  func phaseLine(_ i: Int, _ n: Int, _ label: String) -> String {
+    let head = zh ? "阶段 \(i)/\(n)" : "Phase \(i)/\(n)"
+    return label.isEmpty ? head : "\(head) · \(label)"
+  }
+  /// 「任务板 3/7」.
+  func board(_ done: Int, _ total: Int) -> String { zh ? "任务板 \(done)/\(total)" : "Board \(done)/\(total)" }
+  /// 「第 3/20 轮」 / 「第 3 轮」.
+  func round(_ r: Int, _ max: Int?) -> String {
+    if let max, max > 0 { return zh ? "第 \(r)/\(max) 轮" : "Round \(r)/\(max)" }
+    return zh ? "第 \(r) 轮" : "Round \(r)"
+  }
+  func plus(_ n: Int) -> String { "+\(n)" }
+
   func minutesLeft(_ m: Int) -> String { zh ? "预计还需约 \(m) 分钟" : "About \(m) min left" }
 
   /// 「3.4 万 tok」/「34k tok」.

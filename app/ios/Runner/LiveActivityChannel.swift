@@ -54,6 +54,17 @@ final class LiveActivityChannel: NSObject {
     self.channel = channel
   }
 
+  /// A notification action the bridge took (NotifyActions): the Activity drops the request and
+  /// Dart hears onDecision, as after the island's own buttons.
+  @available(iOS 16.2, *)
+  func settled(sessionId: String, eventId: String, decision: String) {
+    guard let store, !sessionId.isEmpty else { return }
+    Task { @MainActor in
+      await store.clearPending(sessionId: sessionId, eventId: eventId)
+      store.decided(["sessionId": sessionId, "eventId": eventId, "decision": decision, "result": "ok"])
+    }
+  }
+
   /// iOS 16.2+ on an iPhone (iPadOS shows no Live Activities).
   static var supported: Bool {
     guard #available(iOS 16.2, *) else { return false }

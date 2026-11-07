@@ -51,7 +51,7 @@ if (( TESTS )); then
   R=$DG_BUILD/la-tests.xcresult
   rm -rf $R
   (cd ios && xcodebuild test -workspace Runner.xcworkspace -scheme Runner -configuration Debug \
-    -destination "platform=iOS Simulator,id=$UDID" -only-testing:RunnerTests/WhaleWakeTests -parallel-testing-enabled NO \
+    -destination "platform=iOS Simulator,id=$UDID" -only-testing:RunnerTests/WhaleWakeTests -only-testing:RunnerTests/DgNotifyTests -parallel-testing-enabled NO \
     -clonedSourcePackagesDirPath $DG_APP/build/ios/SourcePackages -resultBundlePath $R) > $OUT/tests.log 2>&1
   TRC=$?
   grep -E "Test [Cc]ase .* (passed|failed)|error:|TEST (SUCCEEDED|FAILED)" $OUT/tests.log | sed -E "s/ on '.*'//" | sort -u
@@ -75,6 +75,8 @@ PY
     # v2 boards (plan/design/live-activity-v2-contract.md) on their own: logs/live-activity/v2/.
     mkdir -p $OUT/v2
     for f in $OUT/boards/la-v2-*.png(N); do mv $f $OUT/v2/${${f:t}#la-v2-}; done
+    mkdir -p $OUT/v3
+    for f in $OUT/boards/la-v3-*.png(N); do mv $f $OUT/v3/${${f:t}#la-v3-}; done
     echo "boards: $(ls $OUT/boards | tr '\n' ' ')"
   fi
 fi
@@ -93,7 +95,8 @@ PY
 : > $OUT/demo.log
 SAMPLES=(running running-todo approval approval-high approval-expired question done failed multi stale
   v2-running-buoys v2-running-stop-armed v2-running-many v2-question-options v2-question-stop v2-approval-stop
-  v2-done-summary v2-failed-summary)
+  v2-done-summary v2-failed-summary
+  v3-background v3-background-calves v3-calves v3-workflow v3-team-goal v3-approval-from v3-question-from v3-goal-clock)
 for sample in $SAMPLES; do
   xcrun simctl terminate $UDID $DG_BUNDLE_ID 2>/dev/null
   xcrun simctl launch --terminate-running-process $UDID $DG_BUNDLE_ID -DSHGOLADemo $sample -DSHGOLADemoLang $LANG_ARG > /dev/null || RC=1

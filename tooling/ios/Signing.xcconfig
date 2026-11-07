@@ -9,4 +9,6 @@ DG_PROFILE_Runner = dg com.colex.dshgo
 DG_PROFILE_ShareExtension = dg com.colex.dshgo.share
 // The 「鲸游」Live Activity extension (app/ios/WhaleWakeActivity): its own App ID, no capability.
 DG_PROFILE_WhaleWakeActivity = dg com.colex.dshgo.activity
+// The Notification Service Extension (app/ios/NotificationService): decrypts dg pushes.
+DG_PROFILE_NotificationService = dg com.colex.dshgo.notify
 PROVISIONING_PROFILE_SPECIFIER = $(DG_PROFILE_$(TARGET_NAME))

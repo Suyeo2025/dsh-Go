@@ -74,7 +74,8 @@ extension WhaleWakeAttributes.ContentState {
   func frame(compact: Bool) -> String {
     if isMulti { return "multi" }
     switch phase {
-    case .running: return "swim"
+    // background: the whale floats where it stopped (the swim frame; no hover frame in the set yet).
+    case .running, .background: return "swim"
     case .approval: return "approval"
     case .question: return "question"
     case .failed: return "failed"
@@ -86,7 +87,7 @@ extension WhaleWakeAttributes.ContentState {
 
   func color(_ p: WhaleWakePalette) -> Color {
     switch phase {
-    case .running: return p.blue
+    case .running, .background: return p.blue
     case .approval, .question: return p.amber
     case .done: return p.green
     case .failed: return p.red
@@ -97,10 +98,11 @@ extension WhaleWakeAttributes.ContentState {
   func subtitle(_ s: WhaleWakeStrings, now: Date = Date()) -> String {
     switch phase {
     case .running: return s.running(step: step, tool: toolLabel)
+    case .background: return s.background(jobs: jobsRunning, subagents: calvesActive)
     case .approval:
       let text = pending?.text ?? ""
-      return approvalFolded(now: now) ? s.stillWaiting(text) : s.needsApproval(text)
-    case .question: return s.needsAnswer(pending?.text ?? "")
+      return fromPrefix(s) + (approvalFolded(now: now) ? s.stillWaiting(text) : s.needsApproval(text))
+    case .question: return fromPrefix(s) + s.needsAnswer(pending?.text ?? "")
     case .done: return s.doneLine(summary)
     case .failed: return s.failedLine(summary)
     }
@@ -109,11 +111,20 @@ extension WhaleWakeAttributes.ContentState {
   /// Same, without the command / question text (locked phone, redacted).
   func bareSubtitle(_ s: WhaleWakeStrings) -> String {
     switch phase {
-    case .approval: return s.needsApprovalBare
-    case .question: return s.needsAnswerBare
+    case .approval: return fromPrefix(s) + s.needsApprovalBare
+    case .question: return fromPrefix(s) + s.needsAnswerBare
     default: return subtitle(s)
     }
   }
+
+  /// v3: 「子代理 · 审查员 」 when a descendant asks.
+  func fromPrefix(_ s: WhaleWakeStrings) -> String {
+    guard let from = pending?.from, !from.isEmpty else { return "" }
+    return s.from(from) + " "
+  }
+
+  /// v3: requests waiting in the tree beyond the one shown.
+  var moreWaiting: Int { max(0, (pendingCount ?? 0) - 1) }
 }
 
 enum WhaleWakeClock {
@@ -187,7 +198,7 @@ struct WhaleWakeSubtitle: View {
     }
     .font(font)
     .foregroundColor(color)
-    .lineLimit(1)
+    .lineLimit(state.phase == .background ? 2 : 1)
     .truncationMode(.tail)
     .contentTransition(.opacity)
   }
@@ -278,10 +289,14 @@ struct WhaleWakeLane: View {
   private let height: CGFloat = 10
 
   var body: some View {
-    if !state.buoys.isEmpty && state.phase != .done {
-      WhaleWakeBuoyLane(state: state, isStale: isStale, palette: palette)
-    } else {
+    if state.phase == .done {
       clockLane
+    } else {
+      switch state.laneSource {
+      case .workflow: WhaleWakeSegmentLane(wf: state.wf!, isStale: isStale, palette: palette)
+      case .team, .todos: WhaleWakeBuoyLane(state: state, isStale: isStale, palette: palette)
+      case .clock: clockLane
+      }
     }
   }
 
@@ -335,13 +350,13 @@ struct WhaleWakeBuoyLane: View {
   var body: some View {
     GeometryReader { geo in
       let w = geo.size.width
-      let n = CGFloat(state.buoys.count)
+      let n = CGFloat(state.laneBuoys.count)
       let y = geo.size.height / 2 + 4
       ZStack(alignment: .topLeading) {
         WhaleWakeWave().stroke(palette.fillEnd.opacity(isStale ? 0.25 : 0.55), lineWidth: 1.2)
           .frame(width: w, height: 8)
           .offset(y: y - 4)
-        ForEach(Array(state.buoys.enumerated()), id: \.offset) { i, todo in
+        ForEach(Array(state.laneBuoys.enumerated()), id: \.offset) { i, todo in
           buoy(todo.s)
             .position(x: w * (CGFloat(i) + 0.5) / n, y: y)
         }
@@ -353,7 +368,7 @@ struct WhaleWakeBuoyLane: View {
     .frame(height: 30)
     .opacity(isStale ? 0.8 : 1)
     .accessibilityElement()
-    .accessibilityLabel(Text("\(state.todoDone ?? 0)/\(state.todoTotal ?? state.buoys.count)"))
+    .accessibilityLabel(Text("\(state.team?.done ?? state.todoDone ?? 0)/\(state.team?.total ?? state.todoTotal ?? state.laneBuoys.count)"))
   }
 
   @ViewBuilder private func buoy(_ s: WhaleWakeState.Todo.State) -> some View {
@@ -485,10 +500,191 @@ struct WhaleWakeSummaryLine: View {
 extension WhaleWakeAttributes.ContentState {
   /// The running line under the lane when there are todos: 「3/8 · 跑测试 · 运行 Bash」.
   func laneCaption(_ s: WhaleWakeStrings) -> String? {
-    guard let total = todoTotal ?? (buoys.isEmpty ? nil : buoys.count), total > 0 else { return nil }
-    let done = todoDone ?? buoys.filter { $0.s == .done }.count
-    let head = s.todoLine(done: done, total: total, label: todoLabel)
-    return toolLabel.isEmpty || toolLabel == todoLabel ? head : "\(head) · \(toolLabel)"
+    var parts: [String] = []
+    switch laneSource {
+    case .workflow:
+      guard let wf else { return nil }
+      let c = wf.current
+      if !wf.name.isEmpty { parts.append(wf.name) }
+      parts.append(s.phaseLine(c.index, c.of, wf.label))
+    case .team:
+      guard let team else { return nil }
+      parts.append(s.board(team.done, team.total))
+    case .todos:
+      guard let total = todoTotal ?? (buoys.isEmpty ? nil : buoys.count), total > 0 else { return nil }
+      let done = todoDone ?? buoys.filter { $0.s == .done }.count
+      parts.append(s.todoLine(done: done, total: total, label: todoLabel))
+      if !toolLabel.isEmpty, toolLabel != todoLabel, phase == .running { parts.append(toolLabel) }
+    case .clock:
+      guard goal != nil else { return nil }
+      if phase == .running, !toolLabel.isEmpty { parts.append(s.running(step: step, tool: toolLabel)) }
+    }
+    if let goal { parts.append(s.round(goal.round, goal.max)) }
+    return parts.isEmpty ? nil : parts.joined(separator: " · ")
+  }
+}
+
+// MARK: - v3 pieces (notify-v3-contract §2)
+
+/// v3: a workflow run's phases as segments of the lane, each filled with its finished members;
+/// the whale on the active one.
+@available(iOS 16.1, *)
+struct WhaleWakeSegmentLane: View {
+  let wf: WhaleWakeState.Workflow
+  let isStale: Bool
+  let palette: WhaleWakePalette
+
+  var body: some View {
+    GeometryReader { geo in
+      let n = CGFloat(max(1, wf.seg.count))
+      let gap: CGFloat = 4
+      let w = (geo.size.width - gap * (n - 1)) / n
+      let y = geo.size.height - 7
+      let at = CGFloat(wf.current.index - 1)
+      ZStack(alignment: .topLeading) {
+        ForEach(Array(wf.seg.enumerated()), id: \.offset) { i, seg in
+          let x = CGFloat(i) * (w + gap)
+          ZStack(alignment: .leading) {
+            Capsule().fill(palette.track)
+            Capsule().fill(fill(seg)).frame(width: max(seg.f > 0 || seg.s == .done ? 8 : 0, w * CGFloat(seg.s == .done ? 1 : seg.f)))
+          }
+          .frame(width: w, height: 8)
+          .overlay(alignment: .trailing) {
+            if seg.s == .err { Circle().fill(palette.red).frame(width: 7, height: 7).offset(x: 2) }
+          }
+          .offset(x: x, y: y - 4)
+        }
+        WhaleWakeFrame(name: "compact-swim", width: 24, height: 16)
+          .position(x: min(geo.size.width - 12, max(12, at * (w + gap) + w / 2)), y: y - 13)
+      }
+    }
+    .frame(height: 30)
+    .opacity(isStale ? 0.8 : 1)
+    .accessibilityElement()
+    .accessibilityLabel(Text("\(wf.name) \(wf.current.index)/\(wf.current.of)"))
+  }
+
+  private func fill(_ seg: WhaleWakeState.Workflow.Segment) -> Color {
+    switch seg.s {
+    case .done: return palette.green
+    case .err: return palette.red.opacity(0.85)
+    case .active: return palette.fillEnd
+    case .todo: return palette.status.opacity(0.5)
+    }
+  }
+}
+
+/// v3: calves — the tree's parallel descendants (≤ 3) as small whales with a status dot and a
+/// six-character label, then 「+N」.
+@available(iOS 16.1, *)
+struct WhaleWakeCalvesRow: View {
+  let state: WhaleWakeState
+  let strings: WhaleWakeStrings
+  let palette: WhaleWakePalette
+
+  var body: some View {
+    HStack(spacing: 10) {
+      ForEach(Array((state.calves ?? []).enumerated()), id: \.offset) { _, calf in
+        HStack(spacing: 3) {
+          WhaleWakeFrame(name: "compact-swim", width: 24, height: 16)
+            .scaleEffect(0.6)
+            .frame(width: 15, height: 10)
+          Circle().fill(color(calf.s)).frame(width: 5, height: 5)
+          Text(calf.l).font(.caption2).foregroundColor(palette.status).lineLimit(1)
+        }
+      }
+      if let more = state.calvesMore, more > 0 {
+        Text(strings.plus(more)).font(.caption2.weight(.semibold)).monospacedDigit().foregroundColor(palette.status)
+      }
+      Spacer(minLength: 0)
+    }
+  }
+
+  private func color(_ s: WhaleWakeState.Calf.State) -> Color {
+    switch s {
+    case .run: return palette.blue
+    case .wait: return palette.amber
+    case .err: return palette.red
+    case .done: return palette.green
+    }
+  }
+}
+
+/// v3: the tree's background jobs — the first two with their running time, failures counted.
+@available(iOS 16.1, *)
+struct WhaleWakeBubblesList: View {
+  let state: WhaleWakeState
+  let strings: WhaleWakeStrings
+  let isStale: Bool
+  let palette: WhaleWakePalette
+
+  var body: some View {
+    if let b = state.bubbles, b.run > 0 || b.fail > 0 {
+      VStack(alignment: .leading, spacing: 3) {
+        ForEach(Array(b.top.enumerated()), id: \.offset) { _, job in
+          HStack(spacing: 6) {
+            Image(systemName: "circle.dotted").font(.system(size: 9, weight: .bold)).foregroundColor(palette.blue)
+            Text(job.l).font(.caption).foregroundColor(palette.status).lineLimit(1)
+            Spacer(minLength: 4)
+            Group {
+              if isStale {
+                Text(WhaleWakeClock.format((state.updatedAt ?? Date()).timeIntervalSince(job.startedAt)))
+              } else {
+                Text(timerInterval: job.startedAt...Date.distantFuture, countsDown: false)
+              }
+            }
+            .font(.caption).monospacedDigit().foregroundColor(palette.title)
+            .multilineTextAlignment(.trailing).frame(width: 56, alignment: .trailing)
+          }
+        }
+        if b.fail > 0 {
+          Text(strings.zh ? "\(b.fail) 个后台任务失败" : "\(b.fail) background task\(b.fail == 1 ? "" : "s") failed")
+            .font(.caption2).foregroundColor(palette.red)
+        }
+      }
+    }
+  }
+}
+
+/// v3: the bubble count at the lane's end while the root still runs.
+@available(iOS 16.1, *)
+struct WhaleWakeBubbleChip: View {
+  let count: Int
+  let palette: WhaleWakePalette
+
+  var body: some View {
+    HStack(spacing: 3) {
+      Image(systemName: "circle.dotted").font(.system(size: 9, weight: .bold))
+      Text("\(count)").monospacedDigit()
+    }
+    .font(.caption.weight(.semibold))
+    .foregroundColor(palette.blue)
+  }
+}
+
+/// v3: what sits under a running / background head — calves, jobs, the stop key.
+@available(iOS 16.1, *)
+struct WhaleWakeTreeBlock: View {
+  let attributes: WhaleWakeAttributes
+  let state: WhaleWakeState
+  let isStale: Bool
+  let palette: WhaleWakePalette
+
+  var body: some View {
+    let s = WhaleWakeStrings(lang: attributes.lang)
+    VStack(alignment: .leading, spacing: 5) {
+      if state.laneSource != .clock {
+        WhaleWakeLane(state: state, isStale: isStale, palette: palette)
+        if let caption = state.laneCaption(s) {
+          Text(caption).font(.caption).foregroundColor(palette.status).lineLimit(1)
+        }
+      }
+      WhaleWakeBubblesList(state: state, strings: s, isStale: isStale, palette: palette)
+      HStack(spacing: 8) {
+        if state.calves != nil { WhaleWakeCalvesRow(state: state, strings: s, palette: palette) } else { Spacer(minLength: 0) }
+        if state.stopShown && !isStale { WhaleWakeStopKey(attributes: attributes, state: state, palette: palette) }
+      }
+    }
   }
 }
 
@@ -626,8 +822,9 @@ struct WhaleWakeCompactTrailing: View {
       } else {
         switch state.phase {
         case .running: WhaleWakeTimer(state: state, isStale: isStale, font: .footnote.weight(.medium)).frame(maxWidth: 52)
-        case .approval: word(s.review, p.amber)
-        case .question: word(s.reply, p.amber)
+        case .background: word(s.backgroundShort(max(1, state.jobsRunning + state.calvesActive)), p.blue)
+        case .approval: word(state.moreWaiting > 0 ? s.waitingShort(state.pendingCount ?? 2) : s.review, p.amber)
+        case .question: word(state.moreWaiting > 0 ? s.waitingShort(state.pendingCount ?? 2) : s.reply, p.amber)
         case .done: word(s.done, p.green)
         case .failed: word(s.failed, p.red)
         }
@@ -666,10 +863,17 @@ struct WhaleWakeMinimal: View {
         Circle().fill(p.amber).frame(width: 6, height: 6).offset(x: 1, y: -1)
       }
     }
+    .overlay(alignment: .bottomTrailing) {
+      // v3 background: the jobs still running, as a bubble number.
+      if state.phase == .background, state.jobsRunning > 0 {
+        Text("\(min(9, state.jobsRunning))").font(.system(size: 8, weight: .bold)).monospacedDigit()
+          .foregroundColor(.black).frame(width: 11, height: 11).background(Circle().fill(p.blue)).offset(x: 2, y: 2)
+      }
+    }
   }
 
   @ViewBuilder private func ring(_ color: Color, _ line: CGFloat) -> some View {
-    let whole = state.phase != .running || state.isMulti
+    let whole = (state.phase != .running && state.phase != .background) || state.isMulti
     if let f = whole ? 1 : (state.ringFraction ?? (staticLane ? state.laneFraction() : nil)) {
       Circle().trim(from: 0, to: max(0.02, f))
         .stroke(color, style: StrokeStyle(lineWidth: line, lineCap: .round))
@@ -730,7 +934,12 @@ struct WhaleWakeExpandedCenter: View {
         .lineLimit(1)
         .truncationMode(.tail)
       if state.phase != .running {
-        WhaleWakeSubtitle(state: state, strings: s, isStale: isStale, color: state.color(p), font: .subheadline)
+        WhaleWakeSubtitle(
+          state: state, strings: s, isStale: isStale, color: state.phase == .background ? p.status : state.color(p),
+          font: .subheadline)
+      }
+      if state.moreWaiting > 0, state.phase == .approval || state.phase == .question {
+        Text(s.moreWaiting(state.moreWaiting)).font(.caption2.weight(.semibold)).foregroundColor(p.amber)
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -748,7 +957,7 @@ struct WhaleWakeExpandedTrailing: View {
     let p = WhaleWakePalette.dark
     let url = WhaleWakeAttributes.sessionURL(attributes.sessionId, eventId: state.pending?.eventId)
     switch state.phase {
-    case .running:
+    case .running, .background:
       WhaleWakeTimer(state: state, isStale: isStale).frame(maxWidth: 76, alignment: .trailing)
     case .question:
       if state.hasAnswerRow(isStale: isStale) {
@@ -797,10 +1006,14 @@ struct WhaleWakeExpandedBottom: View {
                 WhaleWakeSubtitle(state: state, strings: s, isStale: isStale, color: p.status, font: .caption)
               }
               Spacer(minLength: 6)
+              if let b = state.bubbles, b.run > 0, !state.stopArmed() { WhaleWakeBubbleChip(count: b.run, palette: p) }
               if let t = state.tokens, !state.stopArmed() { Text(s.tokens(t)).font(.caption).monospacedDigit().foregroundColor(p.status) }
               if state.stopShown && !isStale { WhaleWakeStopKey(attributes: attributes, state: state, palette: p) }
             }
+            if state.calves != nil { WhaleWakeCalvesRow(state: state, strings: s, palette: p) }
           }
+        case .background:
+          WhaleWakeTreeBlock(attributes: attributes, state: state, isStale: isStale, palette: p)
         case .approval:
           WhaleWakeApprovalKeys(attributes: attributes, state: state, isStale: isStale, palette: p)
         case .question:
@@ -892,7 +1105,11 @@ struct WhaleWakeLockView: View {
           } else {
             WhaleWakeSubtitle(
               state: state, strings: s, isStale: isStale,
-              color: state.phase == .running ? p.status : state.color(p), font: .subheadline.weight(.medium))
+              color: state.phase == .running || state.phase == .background ? p.status : state.color(p),
+              font: .subheadline.weight(.medium))
+            if state.moreWaiting > 0, state.phase == .approval || state.phase == .question {
+              Text(s.moreWaiting(state.moreWaiting)).font(.caption.weight(.semibold)).foregroundColor(p.amber)
+            }
           }
         }
         Spacer(minLength: 6)
@@ -919,7 +1136,7 @@ struct WhaleWakeLockView: View {
   @ViewBuilder private func trailing(_ s: WhaleWakeStrings, _ p: WhaleWakePalette) -> some View {
     let url = WhaleWakeAttributes.sessionURL(attributes.sessionId, eventId: state.pending?.eventId)
     switch state.phase {
-    case .running:
+    case .running, .background:
       WhaleWakeTimer(state: state, isStale: isStale, font: .title3.weight(.medium), color: p.title)
         .frame(maxWidth: 84, alignment: .trailing)
     case .question:
@@ -957,10 +1174,14 @@ struct WhaleWakeLockView: View {
             }
             .font(.caption).foregroundColor(p.status).lineLimit(1)
             Spacer(minLength: 6)
+            if let b = state.bubbles, b.run > 0, !state.stopArmed() { WhaleWakeBubbleChip(count: b.run, palette: p) }
             if let t = state.tokens, !state.stopArmed() { Text(s.tokens(t)).font(.caption).monospacedDigit().foregroundColor(p.status) }
             if state.stopShown && !isStale { WhaleWakeStopKey(attributes: attributes, state: state, palette: p) }
           }
+          if state.calves != nil { WhaleWakeCalvesRow(state: state, strings: s, palette: p) }
         }
+      case .background:
+        WhaleWakeTreeBlock(attributes: attributes, state: state, isStale: isStale, palette: p)
       case .approval:
         WhaleWakeApprovalKeys(attributes: attributes, state: state, isStale: isStale, palette: p)
       case .question:

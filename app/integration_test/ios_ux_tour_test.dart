@@ -1015,6 +1015,10 @@ class _Tour {
       final secret = await js('return /${_secret.pattern.replaceAll('/', r'\/')}/i.test(document.body.innerText);');
       final mayShoot = secret != true;
       Future<void> webShot(String name, String what) async {
+        // A programmatic click leaves the clicked key focused (:focus-visible shows its tooltip);
+        // a finger doesn't. Blur first so the picture is what a tap leaves.
+        await js('if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); return 1;');
+        await frames(300);
         if (mayShoot) {
           await shot(name, what);
         } else {
@@ -1114,6 +1118,10 @@ class _Tour {
 
     final secret = await js('return /${_secret.pattern.replaceAll('/', r'\\/')}/i.test(document.body.innerText);');
     Future<void> webShot(String name, String what) async {
+      // A programmatic click leaves the clicked key focused (:focus-visible shows its tooltip);
+      // a finger doesn't. Blur first so the picture is what a tap leaves.
+      await js('if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); return 1;');
+      await frames(300);
       if (secret != true) {
         await shot(name, what);
       } else {

@@ -12,6 +12,9 @@
 //   com.colex.dshgo.activity  the 「鲸游」Live Activity (app/ios/WhaleWakeActivity)   no capability
 //     "dg com.colex.dshgo.activity"     IOS_APP_STORE
 //     "dg dev com.colex.dshgo.activity" IOS_APP_DEVELOPMENT
+//   com.colex.dshgo.notify  the Notification Service Extension (app/ios/NotificationService)   no capability
+//     "dg com.colex.dshgo.notify"       IOS_APP_STORE   (the shared Keychain group needs no capability:
+//     "dg dev com.colex.dshgo.notify"   IOS_APP_DEVELOPMENT  profiles allow <team>.*)
 //   (optional: a failure there is printed as PROFILE_FAILED and the others still go through;
 //   tf-release.sh then archives without that extension)
 // (certificate ids from tooling/ios/local.env)
@@ -29,6 +32,7 @@ const BUNDLES = [
   { id: MAIN, name: 'DSH Go', caps: ['PUSH_NOTIFICATIONS', 'APP_GROUPS'] },
   { id: `${MAIN}.share`, name: 'DSH Go Share', caps: ['APP_GROUPS'] },
   { id: `${MAIN}.activity`, name: 'DSH Go Activity', caps: [], optional: true },
+  { id: `${MAIN}.notify`, name: 'DSH Go Notify', caps: [], optional: true },
 ];
 const renew = process.argv.includes('--renew');
 const storeOnly = process.argv.includes('--store');

@@ -62,6 +62,43 @@ struct BridgeCredentials: Equatable {
   }
 }
 
+/// One request to the bridge (bearer, idempotency key, pinned certificate, 8 s). Plain URLSession:
+/// shared by the Live Activity (iOS 16.2+) and the notification actions (NotifyActions, iOS 15+).
+enum BridgeRequest {
+  /// 2xx within 8 seconds.
+  static func post(_ c: BridgeCredentials, eventId: String, decision: WhaleWakeDecision) async -> Bool {
+    guard let url = c.decisionURL(eventId: eventId) else { return false }
+    return (await send(c, url, ["decision": decision.wire]))?.ok == true
+  }
+
+  /// One bridge request: the HTTP status and the JSON body's `status`, or nil (no answer in 8 s).
+  static func send(_ c: BridgeCredentials, _ url: URL, _ body: [String: Any]) async -> (ok: Bool, status: String?)? {
+    var request = URLRequest(url: url, timeoutInterval: 8)
+    request.httpMethod = "POST"
+    request.setValue("Bearer \(c.token)", forHTTPHeaderField: "authorization")
+    request.setValue(UUID().uuidString.lowercased(), forHTTPHeaderField: "idempotency-key")
+    request.setValue("application/json", forHTTPHeaderField: "content-type")
+    request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+    let config = URLSessionConfiguration.ephemeral
+    config.timeoutIntervalForRequest = 8
+    config.timeoutIntervalForResource = 8
+    let session = URLSession(configuration: config, delegate: PinningDelegate(pin: c.pin), delegateQueue: nil)
+    defer { session.finishTasksAndInvalidate() }
+    guard let (data, response) = try? await session.data(for: request), let http = response as? HTTPURLResponse else {
+      return nil
+    }
+    let status = ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any])?["status"] as? String
+    return ((200..<300).contains(http.statusCode), status)
+  }
+
+  /// What a bridge reply to an answer / cancel means.
+  static func settled(_ reply: (ok: Bool, status: String?)?, accept: Set<String>) -> Bool {
+    guard let reply, reply.ok else { return false }
+    // A 2xx without a status (an older bridge) counts as done.
+    return reply.status.map(accept.contains) ?? true
+  }
+}
+
 /// Allow / Deny from the Live Activity, in the App's process (WhaleWakeIntentHost.decide).
 @available(iOS 16.2, *)
 enum LiveActivityDecision {
@@ -103,39 +140,18 @@ enum LiveActivityDecision {
     return (try? await context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason)) ?? false
   }
 
-  /// 2xx within 8 seconds.
   static func post(_ c: BridgeCredentials, eventId: String, decision: WhaleWakeDecision) async -> Bool {
-    guard let url = c.decisionURL(eventId: eventId) else { return false }
-    return (await send(c, url, ["decision": decision.wire]))?.ok == true
+    await BridgeRequest.post(c, eventId: eventId, decision: decision)
   }
 
-  /// One bridge request: the HTTP status and the JSON body's `status`, or nil (no answer in 8 s).
   static func send(_ c: BridgeCredentials, _ url: URL, _ body: [String: Any]) async -> (ok: Bool, status: String?)? {
-    var request = URLRequest(url: url, timeoutInterval: 8)
-    request.httpMethod = "POST"
-    request.setValue("Bearer \(c.token)", forHTTPHeaderField: "authorization")
-    request.setValue(UUID().uuidString.lowercased(), forHTTPHeaderField: "idempotency-key")
-    request.setValue("application/json", forHTTPHeaderField: "content-type")
-    request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-    let config = URLSessionConfiguration.ephemeral
-    config.timeoutIntervalForRequest = 8
-    config.timeoutIntervalForResource = 8
-    let session = URLSession(configuration: config, delegate: PinningDelegate(pin: c.pin), delegateQueue: nil)
-    defer { session.finishTasksAndInvalidate() }
-    guard let (data, response) = try? await session.data(for: request), let http = response as? HTTPURLResponse else {
-      return nil
-    }
-    let status = ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any])?["status"] as? String
-    return ((200..<300).contains(http.statusCode), status)
+    await BridgeRequest.send(c, url, body)
   }
 
   // MARK: v2
 
-  /// What a bridge reply to an answer / cancel means for the Activity.
   static func settled(_ reply: (ok: Bool, status: String?)?, accept: Set<String>) -> Bool {
-    guard let reply, reply.ok else { return false }
-    // A 2xx without a status (an older bridge) counts as done.
-    return reply.status.map(accept.contains) ?? true
+    BridgeRequest.settled(reply, accept: accept)
   }
 
   /// One-tap answer (v2 §2.3 AnswerIntent).

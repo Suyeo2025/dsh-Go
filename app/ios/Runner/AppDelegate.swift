@@ -10,6 +10,8 @@ import UserNotifications
   ) -> Bool {
     // Before anything else, so the tap that cold-started the app reaches PushChannel.
     UNUserNotificationCenter.current().delegate = self
+    // Actionable dg notifications (allow / deny / reply…), before any can be answered.
+    NotifyActions.register()
     excludeFontsFromBackup()
     // Before the engine: an Allow tap on the Live Activity may be what launched the App.
     LiveActivityChannel.shared.prepare()
@@ -125,9 +127,7 @@ import UserNotifications
       super.userNotificationCenter(center, didReceive: response, withCompletionHandler: completionHandler)
       return
     }
-    if response.actionIdentifier == UNNotificationDefaultActionIdentifier {
-      PushChannel.shared.didTap(userInfo: userInfo)
-    }
-    completionHandler()
+    // A tap, or one of the category actions (NotifyActions: allow / deny / reply / open…).
+    NotifyActions.handle(response, completion: completionHandler)
   }
 }

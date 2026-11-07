@@ -423,6 +423,140 @@ final class WhaleWakeTests: XCTestCase {
     }
   }
 
+  // MARK: v3 (plan/design/notify-v3-contract.md §2)
+
+  /// A phase this build doesn't know (a newer bridge) draws as running; "background" is known.
+  func testUnknownPhaseReadsAsRunning() throws {
+    let base: [String: Any] = ["startedAt": 100, "expectedEndAt": 700, "step": 1, "toolLabel": ""]
+    var future = base
+    future["phase"] = "hibernating"
+    XCTAssertEqual(try State(channelMap: future).phase, .running)
+    var bg = base
+    bg["phase"] = "background"
+    XCTAssertEqual(try State(channelMap: bg).phase, .background)
+    var missing = base
+    missing["phase"] = NSNull()
+    XCTAssertEqual(try State(channelMap: missing).phase, .running)
+    // Same through ActivityKit's own decoding path (plain JSON).
+    XCTAssertEqual(try decode(#"{"phase":"zzz","startedAt":1,"expectedEndAt":2}"#).phase, .running)
+  }
+
+  func testV3PayloadDecodes() throws {
+    let json = """
+      {"v":3,"phase":"background","startedAt":1762399200,"expectedEndAt":1762400400,"step":14,"toolLabel":"后台进行中",
+       "others":[],"othersCount":0,"othersPending":0,"breachTick":0,"showStop":true,
+       "calves":[{"s":"run","l":"审查员"},{"s":"err","l":"文档"},{"s":"weird","l":"x"},{"s":"done","l":"y"}],"calvesMore":2,
+       "bubbles":{"run":2,"fail":1,"top":[{"l":"跑集成测试","since":1762400000},{"l":"build","since":1762400100},{"l":"z","since":1}]},
+       "wf":{"name":"审查流水线","seg":[{"s":"done","f":1},{"s":"active","f":0.6},{"s":"todo","f":0}],"label":"审查"},
+       "team":{"done":3,"total":7},"goal":{"round":3,"max":20},"pendingCount":2,
+       "pending":{"eventId":"e","kind":"approval","text":"npm publish","risk":"normal","askedAt":1762400000,"from":"审查员"}}
+      """
+    let s = try decode(json)
+    XCTAssertEqual(s.phase, .background)
+    XCTAssertEqual(s.calves?.count, 3)
+    XCTAssertEqual(s.calves?[2].s, .run)  // unknown calf state reads as run
+    XCTAssertEqual(s.calvesMore, 2)
+    XCTAssertEqual(s.bubbles?.top.count, 2)
+    XCTAssertEqual(s.bubbles?.fail, 1)
+    XCTAssertEqual(s.wf?.current.index, 2)
+    XCTAssertEqual(s.wf?.current.of, 3)
+    XCTAssertEqual(s.wf?.fraction ?? -1, 1.6 / 3, accuracy: 1e-9)
+    XCTAssertEqual(s.laneSource, .workflow)  // wf wins over team
+    XCTAssertEqual(s.goal?.round, 3)
+    XCTAssertEqual(s.pending?.from, "审查员")
+    XCTAssertEqual(s.moreWaiting, 1)
+    XCTAssertTrue(s.stopShown)  // background keeps 「停止」
+    XCTAssertEqual(s.relevance, 55)
+    XCTAssertEqual(try JSONDecoder().decode(State.self, from: JSONEncoder().encode(s)), s)
+    XCTAssertLessThan(s.encodedSize, 4096)
+  }
+
+  func testV1V2PayloadsHaveNoV3() throws {
+    for json in [contractUpdate, contractEnd, v2Extreme] {
+      let s = try decode(json)
+      XCTAssertNil(s.calves)
+      XCTAssertNil(s.bubbles)
+      XCTAssertNil(s.wf)
+      XCTAssertNil(s.team)
+      XCTAssertNil(s.goal)
+      XCTAssertNil(s.pendingCount)
+      XCTAssertNil(s.pending?.from)
+      XCTAssertEqual(s.moreWaiting, 0)
+    }
+    XCTAssertEqual(try decode(v2Extreme).laneSource, .todos)
+    XCTAssertEqual(try decode(contractUpdate).laneSource, .clock)
+  }
+
+  func testLaneSourcePriorityAndTeamBuoys() throws {
+    let team = try XCTUnwrap(WhaleWakeSamples.state("v3-team-goal"))
+    XCTAssertEqual(team.laneSource, .team)
+    XCTAssertEqual(team.laneBuoys.map(\.s), [.done, .done, .done, .active, .todo, .todo, .todo])
+    XCTAssertEqual(team.ringFraction ?? -1, 3.0 / 7, accuracy: 1e-9)
+    var big = team
+    big.team = .init(done: 10, total: 20)
+    XCTAssertEqual(big.laneBuoys.count, 8)
+    XCTAssertEqual(big.laneBuoys.filter { $0.s == .done }.count, 4)
+    // A team board beats todos; todos beat the clock.
+    var both = team
+    both.todos = [.init(.done), .init(.todo)]
+    XCTAssertEqual(both.laneSource, .team)
+    both.team = nil
+    XCTAssertEqual(both.laneSource, .todos)
+    // Empty containers are none.
+    let s = State(phase: .running, startedAt: Date(), expectedEndAt: Date(), wf: .init(name: "x", seg: []), team: .init(done: 0, total: 0))
+    XCTAssertEqual(s.laneSource, .clock)
+  }
+
+  func testV3Copy() throws {
+    let zh = WhaleWakeStrings(lang: "zh"), en = WhaleWakeStrings(lang: "en")
+    XCTAssertEqual(zh.background(jobs: 2, subagents: 0), "主线已回复 · 后台 2 个任务在跑")
+    XCTAssertEqual(zh.background(jobs: 0, subagents: 3), "主线已回复 · 3 个子代理在跑")
+    XCTAssertEqual(zh.background(jobs: 1, subagents: 2), "主线已回复 · 后台 1 个任务 · 2 个子代理")
+    XCTAssertEqual(en.background(jobs: 2, subagents: 0), "Replied · 2 background tasks running")
+    XCTAssertEqual(en.background(jobs: 1, subagents: 1), "Replied · 1 task · 1 subagent")
+    XCTAssertEqual(zh.backgroundShort(2), "后台 2")
+    XCTAssertEqual(en.backgroundShort(2), "2 bg")
+    let bg = try XCTUnwrap(WhaleWakeSamples.state("v3-background"))
+    XCTAssertEqual(bg.subtitle(zh), "主线已回复 · 后台 2 个任务在跑")
+    let from = try XCTUnwrap(WhaleWakeSamples.state("v3-approval-from"))
+    XCTAssertTrue(from.subtitle(zh).hasPrefix("子代理 · 审查员 等你确认"))
+    XCTAssertEqual(from.bareSubtitle(zh), "子代理 · 审查员 等你确认")
+    let wf = try XCTUnwrap(WhaleWakeSamples.state("v3-workflow"))
+    XCTAssertEqual(wf.laneCaption(zh), "代码审查流水线 · 阶段 2/4 · 审查")
+    XCTAssertEqual(try XCTUnwrap(WhaleWakeSamples.state("v3-team-goal")).laneCaption(zh), "任务板 3/7 · 第 3/20 轮")
+    XCTAssertEqual(try XCTUnwrap(WhaleWakeSamples.state("v3-goal-clock")).laneCaption(zh), "正在运行 · 第 5 步 · 读取文件 · 第 4 轮")
+    for n in WhaleWakeSamples.v3Names {
+      XCTAssertNotNil(WhaleWakeSamples.state(n), n)
+      XCTAssertLessThan(WhaleWakeSamples.state(n)!.encodedSize, 4096, n)
+    }
+  }
+
+  @MainActor
+  func testRenderBoardsV3() throws {
+    let now = Date()
+    for lang in ["zh", "en"] {
+      let a = WhaleWakeSamples.attributes(lang: lang)
+      var expanded: [AnyView] = []
+      var lockDark: [AnyView] = []
+      var lockLight: [AnyView] = []
+      var small: [AnyView] = []
+      for name in WhaleWakeSamples.v3Names {
+        let s = try XCTUnwrap(WhaleWakeSamples.state(name, lang: lang, now: now))
+        expanded.append(AnyView(labelled(name, IslandExpanded(attributes: a, state: s, isStale: false))))
+        lockDark.append(AnyView(labelled(name, LockOnWallpaper(attributes: a, state: s, isStale: false, dark: true))))
+        lockLight.append(AnyView(labelled(name, LockOnWallpaper(attributes: a, state: s, isStale: false, dark: false))))
+        small.append(AnyView(labelled(name, HStack(spacing: 14) {
+          IslandCompact(attributes: a, state: s, isStale: false)
+          IslandMinimal(state: s)
+        })))
+      }
+      try attach("v3-expanded-\(lang)", grid(expanded, columns: 2))
+      try attach("v3-lock-dark-\(lang)", grid(lockDark, columns: 2))
+      try attach("v3-lock-light-\(lang)", grid(lockLight, columns: 2))
+      try attach("v3-compact-minimal-\(lang)", grid(small, columns: 2))
+    }
+  }
+
   // MARK: Rendered boards
 
   @MainActor

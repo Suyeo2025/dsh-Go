@@ -16,6 +16,8 @@
 #          --activity / --no-activity: with or without the 「鲸游」Live Activity extension
 #          (WhaleWakeActivity, com.colex.dshgo.activity; default: with it when profile.mjs reports
 #          its App Store profile ACTIVE). Left out the same way: this archive only.
+#          --notify / --no-notify: the same for the Notification Service Extension
+#          (NotificationService, com.colex.dshgo.notify), which shows the decrypted dg text.
 # Steps: keychain -> profile.mjs -> flutter --config-only -> xcodebuild archive (manual signing via
 # Signing.xcconfig + --keychain) -> export -> altool upload -> testflight.mjs (wait for processing,
 # compliance, internal group, read back).
@@ -23,7 +25,7 @@ set -uo pipefail
 HERE=${0:A:h}
 source $HERE/env.sh
 
-UPLOAD=1; VALIDATE=0; SHARE=auto; ACTIVITY=auto; BN=$(date +%Y%m%d%H%M); BNAME=""
+UPLOAD=1; VALIDATE=0; SHARE=auto; ACTIVITY=auto; NOTIFY=auto; BN=$(date +%Y%m%d%H%M); BNAME=""
 while (( $# )); do
   case $1 in
     --no-upload) UPLOAD=0 ;;
@@ -34,6 +36,8 @@ while (( $# )); do
     --no-share) SHARE=off ;;
     --activity) ACTIVITY=on ;;
     --no-activity) ACTIVITY=off ;;
+    --notify) NOTIFY=on ;;
+    --no-notify) NOTIFY=off ;;
     *) echo "unknown arg $1" >&2; exit 2 ;;
   esac
   shift
@@ -47,7 +51,7 @@ step() { echo "--- $* $(date '+%F %T')"; }
 die() { echo "FAILED: $*"; echo "TF_RC=1"; exit 1; }
 
 {
-step "start build=$BN upload=$UPLOAD validate=$VALIDATE share=$SHARE activity=$ACTIVITY"
+step "start build=$BN upload=$UPLOAD validate=$VALIDATE share=$SHARE activity=$ACTIVITY notify=$NOTIFY"
 
 step preflight
 # App Store validation (ITMS-90035) treats any bundled file starting with "#!" as unsigned script
@@ -83,12 +87,18 @@ if print -r -- "$PROFILE_OUT" | grep -q "^profile \"$ACTIVITY_PROFILE\" .* ACTIV
 if [[ $ACTIVITY == auto ]]; then ACTIVITY=$( (( HAVE_ACTIVITY )) && echo on || echo off ); fi
 [[ $ACTIVITY == on ]] && (( ! HAVE_ACTIVITY )) && die "--activity: no ACTIVE '$ACTIVITY_PROFILE' profile"
 echo "activity extension: $ACTIVITY (profile: $HAVE_ACTIVITY)"
+NOTIFY_PROFILE="dg $DG_BUNDLE_ID.notify"
+if print -r -- "$PROFILE_OUT" | grep -q "^profile \"$NOTIFY_PROFILE\" .* ACTIVE "; then HAVE_NOTIFY=1; else HAVE_NOTIFY=0; fi
+if [[ $NOTIFY == auto ]]; then NOTIFY=$( (( HAVE_NOTIFY )) && echo on || echo off ); fi
+[[ $NOTIFY == on ]] && (( ! HAVE_NOTIFY )) && die "--notify: no ACTIVE '$NOTIFY_PROFILE' profile"
+echo "notify extension: $NOTIFY (profile: $HAVE_NOTIFY)"
 
 XCCONFIG=$HERE/Signing.xcconfig
 EXPORT_OPTIONS=$HERE/ExportOptions.plist
 LEAVE_OUT=()
 [[ $SHARE == off ]] && LEAVE_OUT+=(ShareExtension)
 [[ $ACTIVITY == off ]] && LEAVE_OUT+=(WhaleWakeActivity)
+[[ $NOTIFY == off ]] && LEAVE_OUT+=(NotificationService)
 if (( ${#LEAVE_OUT} )); then
   # This archive only: those extensions neither built nor embedded (the project file is edited and
   # restored on exit; targets and code stay).
@@ -118,6 +128,7 @@ PY
     python3 -c "import plistlib,sys; p=sys.argv[1]; d=plistlib.load(open(p,'rb')); d['provisioningProfiles'].pop(sys.argv[2],None); plistlib.dump(d,open(p,'wb'))" $EXPORT_OPTIONS $1
   }
   [[ $ACTIVITY == off ]] && drop_export $DG_BUNDLE_ID.activity
+  [[ $NOTIFY == off ]] && drop_export $DG_BUNDLE_ID.notify
 fi
 if [[ $SHARE == off ]]; then
   # The app without the App Group entitlement (nothing to share it with).
@@ -154,10 +165,10 @@ xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Release \
 plutil -p "$A/Products/Applications/Runner.app/Info.plist" | grep -E 'CFBundle(Identifier|ShortVersionString|Version)"'
 codesign -dvv "$A/Products/Applications/Runner.app" 2>&1 | grep -E '^(Authority|TeamIdentifier)=' | head -2
 echo "plugins: $(ls $A/Products/Applications/Runner.app/PlugIns 2>/dev/null | tr '\n' ' ')"
-codesign -d --entitlements - --xml "$A/Products/Applications/Runner.app" 2>/dev/null | plutil -p - | grep -E 'aps-environment|application-groups|time-sensitive' -A1
+codesign -d --entitlements - --xml "$A/Products/Applications/Runner.app" 2>/dev/null | plutil -p - | grep -E 'aps-environment|application-groups|time-sensitive|keychain-access-groups' -A2
 for x in $A/Products/Applications/Runner.app/PlugIns/*.appex(N); do
   echo "${x:t}: $(plutil -extract CFBundleIdentifier raw -o - $x/Info.plist) $(codesign -dvv $x 2>&1 | grep -m1 '^Authority=')"
-  codesign -d --entitlements - --xml "$x" 2>/dev/null | plutil -p - | grep -E 'application-groups' -A1
+  codesign -d --entitlements - --xml "$x" 2>/dev/null | plutil -p - | grep -E 'application-groups|keychain-access-groups' -A2
 done
 
 step "export -> $E"

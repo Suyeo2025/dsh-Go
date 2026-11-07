@@ -4,7 +4,8 @@ import UserNotifications
 
 /// `dsh/push`: remote notifications for DSH Go (app/lib/push/push_channel.dart is the only caller).
 ///
-/// Dart → native: getStatus, requestPermission, register, takeLaunchTap, clearDelivered.
+/// Dart → native: getStatus, requestPermission, register, takeLaunchTap, clearDelivered,
+/// setNotificationSecrets, clearNotificationSecrets (notify-v3 §4.3: the NSE's key copy).
 /// Native → Dart (always on the main thread): onToken, onTokenError, onTap, shouldPresent.
 ///
 /// A tap that arrives before Dart is listening (a cold start from a notification) is kept for
@@ -78,6 +79,11 @@ final class PushChannel: NSObject {
       let tap = launchTap
       launchTap = nil
       result(tap)
+    case "setNotificationSecrets":
+      result(NotifyActions.setSecrets(call.arguments as? [String: Any] ?? [:]))
+    case "clearNotificationSecrets":
+      NotifyActions.clearSecrets()
+      result(nil)
     case "clearDelivered":
       guard let sessionId = (call.arguments as? [String: Any])?["sessionId"] as? String, !sessionId.isEmpty else {
         result(nil)
@@ -104,9 +110,10 @@ final class PushChannel: NSObject {
     onMain { self.channel?.invokeMethod("onTokenError", arguments: ["code": "failed"]) }
   }
 
-  /// The person tapped a notification.
-  func didTap(userInfo: [AnyHashable: Any]) {
-    guard let dg = PushChannel.dg(userInfo) else { return }
+  /// The person tapped a notification ([action]: the action id, notify-v3 §5 `a`).
+  func didTap(userInfo: [AnyHashable: Any], action: String? = nil) {
+    guard var dg = PushChannel.dg(userInfo) else { return }
+    if let action { dg["a"] = action }
     onMain {
       guard self.dartReady, let channel = self.channel else {
         self.launchTap = dg
