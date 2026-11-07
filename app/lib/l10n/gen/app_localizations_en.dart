@@ -16480,6 +16480,9 @@ class L10nEn extends L10n {
   String get smUiDragToReorder => 'Drag to reorder';
 
   @override
+  String get smUiPinNotRestored => 'Pin state not restored';
+
+  @override
   String starPromptTitle(int hours) {
     String _temp0 = intl.Intl.pluralLogic(
       hours,

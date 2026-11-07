@@ -64,15 +64,20 @@ class RecordingWorkspaces extends WorkspacesController {
     return true;
   }
 
+  /// Pin / unpin calls from now on are refused (recorded all the same).
+  bool pinFails = false;
+
   @override
   Future<void> pinSession(String sessionId) async {
     pins.add((sessionId, true));
+    if (pinFails) throw StateError('refused');
     state = state.copyWith(pinnedSessionIds: [sessionId, ...state.pinnedSessionIds]);
   }
 
   @override
   Future<void> unpinSession(String sessionId) async {
     pins.add((sessionId, false));
+    if (pinFails) throw StateError('refused');
     state = state.copyWith(pinnedSessionIds: [...state.pinnedSessionIds]..remove(sessionId));
   }
 }

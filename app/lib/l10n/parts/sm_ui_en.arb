@@ -39,5 +39,6 @@
   "smUiMoveLast": "Move to bottom",
   "smUiFolder": "Folder",
   "smUiMoreActions": "More actions",
-  "smUiDragToReorder": "Drag to reorder"
+  "smUiDragToReorder": "Drag to reorder",
+  "smUiPinNotRestored": "Pin state not restored"
 }

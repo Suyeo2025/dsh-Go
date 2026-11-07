@@ -28592,6 +28592,12 @@ abstract class L10n {
   /// **'拖动排序'**
   String get smUiDragToReorder;
 
+  /// No description provided for @smUiPinNotRestored.
+  ///
+  /// In zh, this message translates to:
+  /// **'置顶状态没有恢复'**
+  String get smUiPinNotRestored;
+
   /// The star prompt's first line. hours is the whole hours of use so far, rounded down; 0 is half an hour (the first ask comes after 30 minutes). The word joiner keeps the ~ on the line of the word before it.
   ///
   /// In zh, this message translates to:

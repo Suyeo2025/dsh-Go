@@ -312,6 +312,10 @@ Future<void> archiveSelectionFlow(BuildContext context, WidgetRef ref) async {
 /// Moves [sessionId] before [beforeId] (null: to the end) in [workspaceId]'s
 /// order on the Host. The new order shows at once; when the Host refuses or
 /// doesn't answer it goes back and a 「排序没有保存」 notice offers 重试.
+///
+/// Resolves with the final outcome: true once a try is saved (the first or
+/// a 重试), false when the notice goes without 重试 or there is nowhere to
+/// show it. So it may take until the notice is gone.
 Future<bool> moveRowFlow(
   BuildContext context,
   WidgetRef ref,
@@ -331,19 +335,21 @@ Future<bool> moveRowFlow(
     }
   }
 
-  final saved = await attempt();
-  if (!saved) {
-    _toast(
-      messenger,
-      appL10n.smStateReorderFailed,
-      undoLabel: appL10n.commonRetry,
-      onUndo: () {
-        if (!context.mounted) return;
-        unawaited(moveRowFlow(context, ref, workspaceId, sessionId, beforeId: beforeId));
-      },
-    );
+  while (true) {
+    if (await attempt()) return true;
+    if (messenger == null || !messenger.mounted) return false;
+    messenger.hideCurrentSnackBar();
+    final closed = messenger
+        .showSnackBar(
+          SnackBar(
+            content: Text(appL10n.smStateReorderFailed),
+            persist: false,
+            action: SnackBarAction(label: appL10n.commonRetry, onPressed: () {}),
+          ),
+        )
+        .closed;
+    if (await closed != SnackBarClosedReason.action || !context.mounted) return false;
   }
-  return saved;
 }
 
 /// 上移一位 / 下移一位 / 移到最前 / 移到最后 ([delta]: -1, +1, [rowMoveFirst],

@@ -121,6 +121,24 @@ TreeDrop? treeDropOf(List<TreeSlot> order, int to) {
   return TreeDrop(workspaceId: group, sessionId: id, beforeId: before, pin: pinned == moved.pinned ? null : pinned);
 }
 
+/// A drop across the pinned zone whose move did not stick: puts the pin back
+/// as it was ([pinned]: what the drop made it). Says 「置顶状态没有恢复」 when
+/// that fails too.
+Future<void> revertDropPin(
+  RowRead read,
+  String sessionId, {
+  required bool pinned,
+  ScaffoldMessengerState? messenger,
+}) async {
+  // Already back (another client, or the Host dropped it): nothing to undo.
+  if (read(workspacesProvider).pinnedSessionIds.contains(sessionId) != pinned) return;
+  final result = await togglePinWith(read, sessionId);
+  if (result == RowActionResult.ok) return;
+  if (messenger != null && messenger.mounted) {
+    messenger.showSnackBar(SnackBar(content: Text(appL10n.smUiPinNotRestored)));
+  }
+}
+
 // ── The list ─────────────────────────────────────────────────────────────────
 
 /// A list item's own key, around its row's [Key] (a row's widget keeps its
@@ -240,20 +258,22 @@ class _DrawerConversationListState extends ConsumerState<DrawerConversationList>
   }
 
   Future<void> _drop(TreeDrop drop) async {
-    if (drop.pin != null) {
-      final messenger = ScaffoldMessenger.maybeOf(context);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    // Outlives this list (the revert may come after the drawer rebuilt).
+    final read = ProviderScope.containerOf(context, listen: false).read;
+    final pin = drop.pin;
+    if (pin != null) {
       final result = await togglePin(ref, drop.sessionId);
       if (result != RowActionResult.ok) {
         if (result == RowActionResult.failed) {
-          messenger?.showSnackBar(
-            SnackBar(content: Text(drop.pin! ? appL10n.shellPinFailed : appL10n.shellUnpinFailed)),
-          );
+          messenger?.showSnackBar(SnackBar(content: Text(pin ? appL10n.shellPinFailed : appL10n.shellUnpinFailed)));
         }
         return;
       }
     }
-    if (!mounted) return;
-    await moveRowFlow(context, ref, drop.workspaceId, drop.sessionId, beforeId: drop.beforeId);
+    final moved = mounted && await moveRowFlow(context, ref, drop.workspaceId, drop.sessionId, beforeId: drop.beforeId);
+    if (moved || pin == null) return;
+    await revertDropPin(read, drop.sessionId, pinned: pin, messenger: messenger);
   }
 
   @override

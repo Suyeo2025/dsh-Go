@@ -15631,6 +15631,9 @@ class L10nZh extends L10n {
   String get smUiDragToReorder => '拖动排序';
 
   @override
+  String get smUiPinNotRestored => '置顶状态没有恢复';
+
+  @override
   String starPromptTitle(int hours) {
     String _temp0 = intl.Intl.pluralLogic(
       hours,

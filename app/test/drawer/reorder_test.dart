@@ -50,6 +50,14 @@ Future<void> _drag(WidgetTester tester, String id, double dy) async {
   await settleActions(tester);
 }
 
+/// Lets the 「排序没有保存」 notice run out (it times out once it is in).
+Future<void> _noticeGone(WidgetTester tester) async {
+  for (var i = 0; i < 8; i++) {
+    await tester.pump(const Duration(seconds: 1));
+  }
+  await settleActions(tester);
+}
+
 void main() {
   group('treeDropOf', () {
     test('within its group: the next row of its zone is the anchor, none at the end', () {
@@ -120,6 +128,60 @@ void main() {
     await _drag(tester, 'b', -100);
     expect(registry.pins, [('b', true)]);
     expect(registry.moves, [('w1', 'b', 'c')]);
+    // Saved: the pin stays, nothing is undone later either.
+    await tester.pump(const Duration(seconds: 6));
+    expect(registry.pins, [('b', true)]);
+    expect(registry.state.pinnedSessionIds, contains('b'));
+  });
+
+  group('across the pinned zone, the order not saved', () {
+    testWidgets('no 重试: the pin goes back as it was', (tester) async {
+      final registry = _registry(pinned: ['c'])..moveSaves = false;
+      await pumpSmList(tester, sessions: _sessions, workspaces: registry, view: _tree);
+      await _drag(tester, 'b', -100);
+      expect(registry.pins, [('b', true)]);
+      expect(find.text('排序没有保存'), findsOneWidget);
+      // The notice goes by itself.
+      await _noticeGone(tester);
+      expect(registry.pins, [('b', true), ('b', false)]);
+      expect(registry.state.pinnedSessionIds, ['c']);
+      expect(find.text('置顶状态没有恢复'), findsNothing);
+    });
+
+    testWidgets('dragged out of it: pinned again', (tester) async {
+      final registry = _registry(pinned: ['c', 'a'])..moveSaves = false;
+      await pumpSmList(tester, sessions: _sessions, workspaces: registry, view: _tree);
+      // Pinned zone: c, a (the Host's order); then b. Drag a below b.
+      await _drag(tester, 'a', 60);
+      expect(registry.pins, [('a', false)]);
+      await _noticeGone(tester);
+      expect(registry.pins, [('a', false), ('a', true)]);
+      expect(registry.state.pinnedSessionIds, containsAll(['a', 'c']));
+    });
+
+    testWidgets('重试 saves it: the pin stays', (tester) async {
+      final registry = _registry(pinned: ['c'])..moveSaves = false;
+      await pumpSmList(tester, sessions: _sessions, workspaces: registry, view: _tree);
+      await _drag(tester, 'b', -100);
+      registry.moveSaves = true;
+      await tester.pump(const Duration(seconds: 1));
+      await tester.tap(find.text('重试'));
+      await settleActions(tester);
+      await tester.pump(const Duration(seconds: 6));
+      expect(registry.moves, [('w1', 'b', 'c'), ('w1', 'b', 'c')]);
+      expect(registry.pins, [('b', true)]);
+      expect(registry.state.pinnedSessionIds, contains('b'));
+    });
+
+    testWidgets('the pin can\'t be put back either: 置顶状态没有恢复', (tester) async {
+      final registry = _registry(pinned: ['c'])..moveSaves = false;
+      await pumpSmList(tester, sessions: _sessions, workspaces: registry, view: _tree);
+      await _drag(tester, 'b', -100);
+      registry.pinFails = true;
+      await _noticeGone(tester);
+      expect(registry.pins, [('b', true), ('b', false)]);
+      expect(find.text('置顶状态没有恢复'), findsOneWidget);
+    });
   });
 
   testWidgets('a read-only list cannot drag: a long press does nothing to the order', (tester) async {

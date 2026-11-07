@@ -39,5 +39,6 @@
   "smUiMoveLast": "移到最后",
   "smUiFolder": "文件夹",
   "smUiMoreActions": "更多操作",
-  "smUiDragToReorder": "拖动排序"
+  "smUiDragToReorder": "拖动排序",
+  "smUiPinNotRestored": "置顶状态没有恢复"
 }
