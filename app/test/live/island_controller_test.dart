@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dsh_app/live/island_prefs_state.dart';
 import 'package:dsh_app/live/live_activity_channel.dart';
 import 'package:dsh_app/live/live_activity_state.dart';
@@ -63,17 +65,23 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final calls = <MethodCall>[];
   var listed = <Map<String, Object?>>[];
+  var supported = true;
+  var dwell = const Duration(hours: 1);
+  late StreamController<void> leaving;
 
   setUp(() {
     calls.clear();
     listed = [];
+    supported = true;
+    dwell = const Duration(hours: 1);
+    leaving = StreamController<void>.broadcast();
     SharedPreferences.setMockInitialValues({});
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
       liveActivityMethodChannel,
       (call) async {
         calls.add(call);
         return switch (call.method) {
-          'status' => {'supported': true, 'enabled': true, 'pushToStart': false, 'frequentUpdates': false},
+          'status' => {'supported': supported, 'enabled': supported, 'pushToStart': false, 'frequentUpdates': false},
           'start' => {'activityId': 'act-${(call.arguments as Map)['sessionId']}'},
           'list' => listed,
           'takePendingTokens' => {'activities': <Object?>[]},
@@ -99,6 +107,8 @@ void main() {
         islandLinksProvider.overrideWithValue((_) => () {}),
         islandClockProvider.overrideWithValue(() => _t0.add(const Duration(minutes: 1))),
         islandThrottleProvider.overrideWithValue(const Duration(milliseconds: 40)),
+        islandDwellProvider.overrideWithValue(dwell),
+        islandLeavingProvider.overrideWithValue(leaving.stream),
       ],
     );
     addTearDown(c.dispose);
@@ -149,7 +159,19 @@ void main() {
       expect(c.read(islandControllerProvider).activityId, 'act-s1');
     });
 
-    test('a turn started elsewhere (no local send) starts nothing', () async {
+    /// [id] open on screen, running: started elsewhere (no message from here).
+    Future<void> openRunning(ProviderContainer c, String id, [IslandSessionView? view]) async {
+      c.read(fakeViewsProvider.notifier).set(id, view ?? _running());
+      c.read(currentSessionProvider.notifier).select(id);
+      await settle();
+    }
+
+    Future<void> leave() async {
+      leaving.add(null);
+      await settle();
+    }
+
+    test('a turn started elsewhere starts nothing at once', () async {
       final c = await ready();
       c.read(currentSessionProvider.notifier).select('s1');
       await settle();
@@ -157,6 +179,90 @@ void main() {
       await settle();
       views.set('s1', _running());
       await settle();
+      expect(methods(), isNot(contains('start')));
+    });
+
+    test('running elsewhere, open on screen, the app leaves: started', () async {
+      final c = await ready();
+      await openRunning(c, 's1');
+      expect(methods(), isNot(contains('start')));
+      await leave();
+      expect(methods().where((m) => m == 'start'), hasLength(1));
+      expect(lastOf('start')['sessionId'], 's1');
+      expect(c.read(islandControllerProvider).activeSessionId, 's1');
+      // Leaving again (the shade, a second time): no second start.
+      await leave();
+      expect(methods().where((m) => m == 'start'), hasLength(1));
+    });
+
+    test('running elsewhere and looked at for the dwell: started before leaving', () async {
+      dwell = const Duration(milliseconds: 40);
+      final c = await ready();
+      await openRunning(c, 's1');
+      expect(methods(), isNot(contains('start')));
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      await settle();
+      expect(lastOf('start')['sessionId'], 's1');
+      await leave();
+      expect(methods().where((m) => m == 'start'), hasLength(1), reason: 'not twice for the same conversation');
+    });
+
+    test('not running, or already finished: leaving starts nothing', () async {
+      final c = await ready();
+      await openRunning(c, 's1', _idle());
+      await leave();
+      await openRunning(c, 's2', _ended('completed'));
+      await leave();
+      await openRunning(c, 's3', const IslandSessionView(running: true));
+      await leave();
+      expect(methods(), isNot(contains('start')), reason: 'a chat still loading is not taken for running');
+    });
+
+    test('an Activity waiting on an approval is not traded for another', () async {
+      final c = await ready();
+      await sendIn(c, 's1');
+      c
+          .read(fakeViewsProvider.notifier)
+          .set(
+            's1',
+            _running(
+              approvals: const [ApprovalRequest(eventId: 'ev1', sessionId: 's1', toolName: 'bash')],
+            ),
+          );
+      await settle();
+      calls.clear();
+      await openRunning(c, 's2');
+      await leave();
+      expect(methods(), isNot(contains('start')));
+      expect(methods(), isNot(contains('end')));
+      expect(c.read(islandControllerProvider).activeSessionId, 's1');
+
+      // Answered: the next conversation may take its place.
+      c.read(fakeViewsProvider.notifier).set('s1', _running(done: 1));
+      await settle();
+      c.read(currentSessionProvider.notifier).select(null);
+      await settle();
+      await openRunning(c, 's2');
+      await leave();
+      expect(lastOf('end'), {'sessionId': 's1', 'dismissal': 'immediate'});
+      expect(lastOf('start')['sessionId'], 's2');
+    });
+
+    test('灵动岛 off, or no Live Activities on this device: leaving starts nothing', () async {
+      final c = await ready();
+      await c.read(islandPrefsProvider.notifier).setMode(IslandMode.off);
+      await settle();
+      await openRunning(c, 's1');
+      await leave();
+      expect(methods(), isNot(contains('start')));
+    });
+
+    test('an iPad: nothing starts', () async {
+      supported = false;
+      final c = await ready();
+      await openRunning(c, 's1');
+      await leave();
+      await sendIn(c, 's2');
       expect(methods(), isNot(contains('start')));
     });
 

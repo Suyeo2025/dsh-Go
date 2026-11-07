@@ -1,10 +1,15 @@
 // The「鲸游」Live Activity's life on iOS (the Android status-bar activity is
 // lib/state/live_activity_state.dart, a different thing).
 //
-// * Start: a conversation starts running within a moment of a message sent
-//   from this phone, the app is in front, 灵动岛 is on and the system allows
-//   Live Activities. One Activity at a time: a message in another
-//   conversation ends the old one first.
+// * Start, while the app is in front, 灵动岛 is on and the system allows Live
+//   Activities (never on an iPad), for the conversation open on screen when:
+//   - it starts running within a moment of a message sent from this phone;
+//   - it has been running (started here or anywhere else) while open for
+//     [islandDwellProvider]: on the home screen it is there already;
+//   - the app is about to leave the screen (`inactive`) with it running and
+//     the wait not over yet.
+//   One Activity at a time: a new conversation ends the old one first, unless
+//   the old one waits on the person (an approval or a question keeps it).
 // * Update: while the app is in front, from the conversation's chat state
 //   (every 2 s at most; a request appearing or going away, done and failed at
 //   once). In the background the bridge takes over (live_activity_bridge_sync).
@@ -48,6 +53,24 @@ const islandLocalSendWindow = Duration(seconds: 2);
 
 /// Device clock (tests pin it).
 final islandClockProvider = Provider<DateTime Function()>((ref) => DateTime.now);
+
+/// Looking at a running conversation this long starts its Activity. Before
+/// the app leaves the screen, not at the moment it leaves: ActivityKit only
+/// starts one for an app in front, and `inactive` gives the native call a
+/// few hundred milliseconds at most, so leaving is the second chance only.
+final islandDwellProvider = Provider<Duration>((ref) => const Duration(seconds: 3));
+
+/// The app is about to leave the screen (`AppLifecycleState.inactive`: going
+/// home, the app switcher, a call; the notification shade too). Tests feed it.
+final islandLeavingProvider = Provider<Stream<void>>((ref) {
+  final leaving = StreamController<void>.broadcast();
+  final listener = AppLifecycleListener(onInactive: () => leaving.add(null));
+  ref.onDispose(() {
+    listener.dispose();
+    unawaited(leaving.close());
+  });
+  return leaving.stream;
+});
 
 /// At most one local update per this (requests and endings go at once).
 final islandThrottleProvider = Provider<Duration>((ref) => const Duration(seconds: 2));
@@ -266,6 +289,13 @@ class IslandController extends Notifier<IslandState> {
   Timer? _expiry;
   final _askedAt = <String, DateTime>{};
 
+  /// Waits [islandDwellProvider] on the running conversation open on screen.
+  Timer? _dwell;
+
+  /// The open conversation this run has already been tried for (watched or
+  /// left): no second try until it stops running or another one opens.
+  String? _triedFor;
+
   LiveActivityChannel get _channel => ref.read(liveActivityChannelProvider);
   LiveActivityBridgeSync get _bridge => ref.read(liveActivityBridgeSyncProvider);
   DateTime _now() => ref.read(islandClockProvider)();
@@ -279,7 +309,8 @@ class IslandController extends Notifier<IslandState> {
       ..add(channel.pushTokens.listen((t) => unawaited(_onPushToken(t.sessionId, t.token))))
       ..add(channel.pushToStartTokens.listen((t) => unawaited(_bridge.onPushToStartToken(t))))
       ..add(channel.activityStates.listen(_onActivityState))
-      ..add(channel.decisions.listen((_) => _schedule(urgent: true)));
+      ..add(channel.decisions.listen((_) => _schedule(urgent: true)))
+      ..add(ref.read(islandLeavingProvider).listen((_) => _onLeaving()));
     final off = ref.read(islandLinksProvider)(this);
     ref.onDispose(off);
     ref.listen<IslandPrefs>(islandPrefsProvider, (previous, next) {
@@ -311,6 +342,7 @@ class IslandController extends Notifier<IslandState> {
     _subs.clear();
     _throttle?.cancel();
     _expiry?.cancel();
+    _dwell?.cancel();
     _currentSub?.close();
     _activeSub?.close();
     _othersSub?.close();
@@ -335,6 +367,9 @@ class IslandController extends Notifier<IslandState> {
     _currentId = id;
     _currentView = null;
     _lastLocalSendAt = null;
+    _dwell?.cancel();
+    _dwell = null;
+    _triedFor = null;
     if (id == null) return;
     _currentSub = ref.listen<IslandSessionView>(
       islandSessionViewProvider(id),
@@ -355,7 +390,53 @@ class IslandController extends Notifier<IslandState> {
     if (view.localSend) _lastLocalSendAt = now;
     final started = previous != null && !previous.running && view.running;
     final local = _lastLocalSendAt != null && now.difference(_lastLocalSendAt!) <= islandLocalSendWindow;
-    if (started && local) scheduleMicrotask(() => unawaited(_start(id)));
+    if (started && local) {
+      _dwell?.cancel();
+      _dwell = null;
+      _triedFor = id;
+      scheduleMicrotask(() => unawaited(_start(id)));
+      return;
+    }
+    _armDwell(id, view);
+  }
+
+  /// Whether the open conversation [id] could get an Activity now: running,
+  /// fully loaded, and not the one already shown.
+  bool _wants(String id, IslandSessionView? view) =>
+      view != null && view.running && view.synced && !(state.activeSessionId == id && !state.ended);
+
+  void _armDwell(String id, IslandSessionView view) {
+    if (!view.running) {
+      _dwell?.cancel();
+      _dwell = null;
+      if (_triedFor == id) _triedFor = null;
+      return;
+    }
+    if (_dwell != null || _triedFor == id || !_wants(id, view)) return;
+    _dwell = Timer(ref.read(islandDwellProvider), () {
+      _dwell = null;
+      if (_currentId != id || !_wants(id, _currentView)) return;
+      _triedFor = id;
+      unawaited(_start(id));
+    });
+  }
+
+  /// Leaving the screen before the wait was over: try now, while still in front.
+  void _onLeaving() {
+    final id = _currentId;
+    if (id == null || _triedFor == id || !_wants(id, _currentView)) return;
+    _dwell?.cancel();
+    _dwell = null;
+    _triedFor = id;
+    unawaited(_start(id));
+  }
+
+  /// The Activity on screen waits on the person: it isn't traded for another.
+  bool get _activeWaits {
+    if (state.activeSessionId == null || state.ended) return false;
+    final view = _activeView;
+    if (view != null && view.synced) return view.approvals.isNotEmpty || view.questions.isNotEmpty;
+    return state.lastContent?.pending != null;
   }
 
   void _watchActive(String id) {
@@ -484,6 +565,8 @@ class IslandController extends Notifier<IslandState> {
         return;
       }
       final old = state.activeSessionId;
+      // One waiting on the person stays (its buttons are the point).
+      if (old != null && _activeWaits) return;
       if (old != null) {
         _unwatchActive();
         await _channel.end(sessionId: old, dismissal: LiveDismissal.immediate);
