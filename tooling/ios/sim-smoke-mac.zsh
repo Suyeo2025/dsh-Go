@@ -27,7 +27,7 @@
 # Ends with SMOKE_RC=<flutter test exit code>.
 set -uo pipefail
 source ${0:A:h}/env.sh
-KEEP=0; IPAD=0; TOUR=0; DARK=0; PERF=0; ISLANDS=0; LINKS=0; ONLY=""
+KEEP=0; IPAD=0; TOUR=0; DARK=0; PERF=0; ISLANDS=0; LINKS=0; ONLY=""; PORTRAIT=0
 for a in "$@"; do
   case $a in
     --keep) KEEP=1 ;;
@@ -38,6 +38,7 @@ for a in "$@"; do
     --islands) ISLANDS=1 ;;
     --links) LINKS=1 ;;
     --only=*) ONLY=${a#--only=} ;;
+    --portrait) PORTRAIT=1 ;;
     *) echo "unknown arg $a"; exit 2 ;;
   esac
 done
@@ -62,7 +63,8 @@ if (( TOUR )); then
   VARIANT=$( (( IPAD )) && echo ipad || { (( DARK )) && echo iphone-dark || echo iphone-light; } )
   OUT=$DG_LOGS/ux-tour/$VARIANT
   EXTRA=(--dart-define=TOUR_VARIANT=$VARIANT)
-  (( IPAD )) && EXTRA+=(--dart-define=TOUR_LANDSCAPE=true)
+  # --portrait: the iPad tour as the device stands (no emulated landscape).
+  (( IPAD && ! PORTRAIT )) && EXTRA+=(--dart-define=TOUR_LANDSCAPE=true)
   # --only=drawer,settings: those parts of the tour alone (onboarding always runs).
   [[ -n $ONLY ]] && EXTRA+=(--dart-define=TOUR_ONLY=$ONLY)
 fi

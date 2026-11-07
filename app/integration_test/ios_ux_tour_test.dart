@@ -50,6 +50,7 @@ import 'package:dsh_app/ui/settings/index/settings_pages.dart';
 import 'package:dsh_app/ui/settings/settings_widgets.dart';
 import 'package:dsh_app/ui/shell/drawer/drawer_filter_bar.dart' show DrawerViewButton;
 import 'package:dsh_app/ui/shell/home_shell.dart';
+import 'package:dsh_app/ui/shell/page_frame.dart' show GlassIconButton;
 import 'package:dsh_app/ui/shell/quick_panel.dart';
 import 'package:dsh_app/ui/shell/session_search_page.dart' show SessionSearchBar;
 import 'package:dsh_app/state/drawer_view_state.dart' show DrawerLayout, drawerViewProvider;
@@ -67,6 +68,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:webview_flutter/webview_flutter.dart' show WebViewWidget;
 
 const _out = String.fromEnvironment('SMOKE_OUT');
 const _url = String.fromEnvironment('SMOKE_DIRECT_URL');
@@ -450,6 +452,7 @@ class _Tour {
     if (_runs('quick-panel')) await quickPanel();
     if (_runs('settings')) await settings();
     if (_runs('web')) await web();
+    if (_only.split(',').contains('web-drawer')) await webDrawer();
     if (!_landscape && _runs('landscape')) await landscape();
   }
 
@@ -913,6 +916,150 @@ class _Tour {
       await tester.tap(tile.hitTestable().first);
       await frames(8000);
       await shot('web', '网页版（WebView）');
+      await home();
+    });
+  }
+
+  /// DSH Web's sidebar in the WebView (d9c45d30: the official _drawerMask hidden under the app's
+  /// phone drawer). A simulator test can't put a finger on a WKWebView (Flutter's synthesized
+  /// pointers never reach the platform view), so the page is asked through JS: what a touch at a
+  /// point would land on (elementFromPoint), whether the list scrolls, and the app's own handlers
+  /// fed the pointer events a touch makes.
+  Future<void> webDrawer() async {
+    await part('web-drawer', () async {
+      await home();
+      unawaited(rootNav().push(MaterialPageRoute<void>(builder: (_) => settingsPage(SettingsPageId.interface))));
+      await frames(1500);
+      final tile = find.byWidgetPredicate((w) => w is SettingsTile && w.spot?.id == Spots.openWeb.id);
+      if (!await reveal(tile)) throw StateError('no 打开网页版 row');
+      await tester.tap(tile.hitTestable().first);
+      await frames(3000);
+      final web = find.byType(WebViewWidget);
+      if (!await waitFor(web, seconds: 20)) throw StateError('no WebView');
+      final controller = (tester.widget(web.first) as WebViewWidget).platform.params.controller;
+      Future<Object?> js(String body) async {
+        try {
+          final raw = await controller.runJavaScriptReturningResult('JSON.stringify((function(){$body})())');
+          final text = raw is String ? raw : '$raw';
+          final once = jsonDecode(text);
+          return once is String ? jsonDecode(once) : once;
+        } catch (e) {
+          return {'error': '${e.runtimeType}'};
+        }
+      }
+
+      const helpers = '''
+        var f = document.querySelector('[data-slot="root"] > [class*="_frame"]');
+        var side = f && f.querySelector('[class*="_sidebarCol"]');
+        var rows = Array.prototype.slice.call(document.querySelectorAll('[role="treeitem"][class*="_sessionRow"]'));
+        function scroller(el) {
+          for (var e = el; e && e !== document.body; e = e.parentElement) {
+            var o = getComputedStyle(e).overflowY;
+            if ((o === 'auto' || o === 'scroll') && e.scrollHeight > e.clientHeight + 4) return e;
+          }
+          return null;
+        }
+        function where(x, y) {
+          var t = document.elementFromPoint(x, y);
+          if (!t) return 'nothing';
+          if (side && side.contains(t)) return 'sidebar';
+          var m = t.closest('[class*="_drawerMask"]');
+          return m ? 'drawerMask' : (t.className && String(t.className).slice(0, 40)) || t.tagName;
+        }
+        function open() { return !!(window.__dshApp && window.__dshApp.sidebarOpen()); }
+        function touch(t, type, x, y) {
+          t.dispatchEvent(new PointerEvent(type, {bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, pointerType: 'touch', isPrimary: true, pointerId: 7}));
+        }
+      ''';
+      final result = <String, Object?>{};
+      for (var i = 0; i < 40; i++) {
+        final r = await js(
+          '$helpers return {app: !!window.__dshApp, layout: document.documentElement.getAttribute("data-dsh-app-layout"), rows: rows.length};',
+        );
+        if (r is Map && r['app'] == true && (r['rows'] as num? ?? 0) > 0) {
+          result['page'] = r;
+          break;
+        }
+        await frames(500);
+      }
+      if (result['page'] == null) throw StateError('DSH Web did not come up with its conversation list');
+      final drawerLayout = (result['page']! as Map)['layout'] == 'drawer';
+
+      // Open: the app's menu key (the iPhone's drawer; on an iPad it unfolds the official sidebar).
+      final folded = await js('return !(window.__dshApp && window.__dshApp.sidebarOpen());');
+      result['startedFolded'] = folded;
+      if (drawerLayout || folded == true) {
+        final menu = find.byWidgetPredicate((w) => w is GlassIconButton && w.icon == AppIcons.menu);
+        if (menu.hitTestable().evaluate().isEmpty) throw StateError('no menu key on the web page');
+        await tester.tap(menu.hitTestable().first);
+        await frames(1500);
+      }
+      // A secret-looking text anywhere on the page: no pictures of it.
+      final secret = await js('return /${_secret.pattern.replaceAll('/', r'\/')}/i.test(document.body.innerText);');
+      final mayShoot = secret != true;
+      Future<void> webShot(String name, String what) async {
+        if (mayShoot) {
+          await shot(name, what);
+        } else {
+          skipped.add({'name': name, 'why': 'credential-like text on the web page'});
+        }
+      }
+
+      result['opened'] = await js('''$helpers
+        var mask = f && f.querySelector('[class*="_drawerMask"]');
+        var r = rows.length ? rows[Math.min(rows.length - 1, 3)].getBoundingClientRect() : null;
+        return {
+          open: open(),
+          mask: mask ? getComputedStyle(mask).display : 'absent',
+          rowHit: r ? where(r.left + r.width / 2, r.top + r.height / 2) : 'no row',
+          listHit: side ? where(side.getBoundingClientRect().left + 60, innerHeight * 0.6) : 'no sidebar',
+        };''');
+      await webShot('web-drawer-open', '网页版：打开侧栏');
+      // Scroll: the list's own scroller moves (a finger drag scrolls the same element).
+      result['scroll'] = await js(
+        '''$helpers
+        var sc = rows.length ? scroller(rows[0]) : null;
+        if (!sc) return {scrollable: false};
+        var before = sc.scrollTop;
+        sc.scrollTop = before + 400;
+        var after = sc.scrollTop;
+        var hit = sc.getBoundingClientRect();
+        return {scrollable: true, height: sc.clientHeight, content: sc.scrollHeight, before: before, after: after,
+                touchLandsOnList: sc.contains(document.elementFromPoint(hit.left + hit.width / 2, hit.top + hit.height / 2))};''',
+      );
+      await frames(800);
+      await webShot('web-drawer-scrolled', '网页版：侧栏列表往下滚');
+      await js('$helpers var sc = rows.length ? scroller(rows[0]) : null; if (sc) sc.scrollTop = 0; return 1;');
+      if (drawerLayout) {
+        // A tap beside the drawer (on the scrim): the app's handler closes it.
+        result['tapBeside'] = await js('''$helpers
+          var x = innerWidth - 24, y = innerHeight / 2, t = document.elementFromPoint(x, y);
+          var landed = where(x, y);
+          touch(t, 'pointerdown', x, y); touch(t, 'pointerup', x, y);
+          return {landed: landed};''');
+        await frames(1200);
+        (result['tapBeside']! as Map)['closed'] = (await js('$helpers return !open();')) == true;
+        await webShot('web-drawer-closed-by-scrim', '网页版：点侧栏右侧空白后收起');
+        final menu = find.byWidgetPredicate((w) => w is GlassIconButton && w.icon == AppIcons.menu);
+        await tester.tap(menu.hitTestable().first);
+        await frames(1500);
+      }
+      // Pick a conversation (not the selected one): it opens and the drawer closes.
+      result['pick'] = await js('''$helpers
+        var row = rows.filter(function (r) { return !/_selected/.test(r.className); })[1] || rows[0];
+        var r = row.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+        var landed = where(x, y);
+        window.__pickPath = location.pathname + location.hash;
+        row.click();
+        return {landed: landed};''');
+      await frames(3000);
+      final after = await js(
+        '$helpers return {open: open(), moved: (location.pathname + location.hash) !== window.__pickPath, selected: rows.filter(function (r) { return /_selected/.test(r.className); }).length};',
+      );
+      (result['pick']! as Map).addAll(after is Map ? after.cast<String, Object?>() : {'after': after});
+      await webShot('web-drawer-picked', '网页版：点会话后打开并收起侧栏');
+      debugPrint('WEB_DRAWER ${jsonEncode(result)}');
+      skipped.add({'name': 'web-drawer-result', 'why': jsonEncode(result)});
       await home();
     });
   }
