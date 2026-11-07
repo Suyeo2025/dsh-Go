@@ -49,6 +49,7 @@ import 'package:dsh_app/ui/settings/font_licenses.dart';
 import 'package:dsh_app/ui/settings/index/settings_pages.dart';
 import 'package:dsh_app/ui/settings/settings_widgets.dart';
 import 'package:dsh_app/ui/shell/drawer/drawer_filter_bar.dart' show DrawerViewButton;
+import 'package:dsh_app/ui/shell/drawer/swipe_actions.dart' show SwipeActions;
 import 'package:dsh_app/push/push_settings_page.dart' show ScheduleNotifySection;
 import 'package:dsh_app/ui/common/list_page_row.dart' show ListPageRow;
 import 'package:dsh_app/ui/engine_settings/subagent_settings_page.dart' show SubagentSettingsPage;
@@ -458,6 +459,7 @@ class _Tour {
     if (_runs('web')) await web();
     if (_only.split(',').contains('web-drawer')) await webDrawer();
     if (_only.split(',').contains('v3-ui')) await v3Ui();
+    if (_only.split(',').contains('drawer-ios')) await drawerIos();
     if (!_landscape && _runs('landscape')) await landscape();
   }
 
@@ -1274,6 +1276,64 @@ class _Tour {
       await home();
     });
     debugPrint('V3_UI ${jsonEncode(out)}');
+  }
+
+  /// 926613a9: on iOS the drawer groups by DSH workspace only — swipe keys pin / archive (no
+  /// 文件夹), the ⋯ sheet has no folders and no view segments, the segments read 按时间 / 按工作区.
+  Future<void> drawerIos() async {
+    final out = <String, Object?>{};
+    List<String> texts(Finder scope) => [
+      for (final e in find.descendant(of: scope, matching: find.byType(Text)).hitTestable().evaluate())
+        if ((e.widget as Text).data case final String t when t.trim().isNotEmpty) t,
+    ];
+    await part('drawer-ios', () async {
+      await home();
+      await openDrawer();
+      if (!await waitFor(find.byElementPredicate(_isSessionTile), seconds: 40)) throw StateError('no conversations');
+      await frames(2000);
+      final l = appL10n;
+      out['segments'] = {
+        'time': find.text(l.smUiLayoutTime).evaluate().isNotEmpty,
+        'tree': find.text(l.smUiLayoutTree).evaluate().isNotEmpty,
+      };
+      final swipes = find.descendant(of: find.byType(SessionsDrawer), matching: find.byType(SwipeActions));
+      out['swipeRows'] = swipes.evaluate().length;
+      out['swipeRowsWithFolder'] = swipes.evaluate().where((e) => (e.widget as SwipeActions).onFolder != null).length;
+      // A real left swipe on the first row: what keys come out.
+      final tile = find.byElementPredicate(_isSessionTile).hitTestable().first;
+      // 110 pt, slowly: past the keys' half (72) to open them, far below the 60 % that archives.
+      await tester.timedDrag(tile, const Offset(-110, 0), const Duration(milliseconds: 600));
+      await frames(900);
+      final row = find.ancestor(of: tile, matching: find.byType(SwipeActions)).first;
+      out['swipeKeys'] = [
+        for (final t in [l.commonPin, l.shellUnpin, l.smUiFolder, l.shellArchive])
+          if (find
+              .descendant(of: find.byType(SessionsDrawer), matching: find.text(t))
+              .hitTestable()
+              .evaluate()
+              .isNotEmpty)
+            t,
+      ];
+      await shot('drawer-ios-swipe', '抽屉：左滑一行（置顶 / 归档）');
+      await tester.timedDrag(row, const Offset(110, 0), const Duration(milliseconds: 600));
+      await frames(800);
+      await shot('drawer-ios-segments', '抽屉：按时间 / 按工作区');
+      final view = find.byType(DrawerViewButton);
+      if (!await reveal(view)) throw StateError('no ⋯ key');
+      final before = texts(find.byType(MaterialApp)).toSet();
+      await tester.tap(view.hitTestable().first);
+      await frames(1500);
+      final sheet = texts(find.byType(MaterialApp)).where((t) => !before.contains(t)).toList();
+      out['sheet'] = sheet;
+      out['sheetHasAddWorkspace'] = sheet.any((t) => t.contains('工作区'));
+      out['sheetHasFolder'] = sheet.any((t) => t.contains('文件夹'));
+      out['sheetHasViewSegments'] =
+          sheet.contains(l.smUiLayoutTime) || sheet.contains(l.smUiLayoutTree) || sheet.contains('视图');
+      await shot('drawer-ios-sheet', '抽屉 ⋯ 表');
+      await back(1000);
+      await home();
+    });
+    debugPrint('DRAWER_IOS ${jsonEncode(out)}');
   }
 
   Future<void> landscape() async {
