@@ -37,21 +37,41 @@
   // The toggle is the icon button in the sidebar's logo row, in both the rail
   // and the expanded state (its label is localized, so find it by place).
   function toggleButton() {
-    return document.querySelector(
-      '[data-slot="sidebar"] [class*="_logoRow"] button[class*="_iconButton"]'
-    );
+    return document.querySelector(TOGGLE);
   }
   var toggling = false;
+  // The official toggle takes focus when the app clicks it (rc.5 also
+  // focuses it as its own drawer opens), and focus shows its tooltip
+  // (「收起侧边栏 ⌥⌘B」), which then stayed over the page after the app's drawer
+  // closed. Focus the app moved there goes again: for a moment after each of
+  // the app's own clicks.
+  var TOGGLE = '[data-slot="sidebar"] [class*="_logoRow"] button[class*="_iconButton"]';
+  var quietUntil = 0;
+  function quietToggle() {
+    var a = document.activeElement;
+    if (a && a.closest && a.closest(TOGGLE)) a.blur();
+  }
+  document.addEventListener(
+    'focusin',
+    function (e) {
+      if (Date.now() > quietUntil || !e.target || !e.target.closest || !e.target.closest(TOGGLE)) return;
+      setTimeout(quietToggle, 0);
+    },
+    true
+  );
   function setExpanded(open) {
     if (expanded() === open) return;
     var b = toggleButton();
     if (!b) return;
     toggling = true;
+    quietUntil = Date.now() + 1000;
     try {
       b.click();
     } finally {
       toggling = false;
     }
+    quietToggle();
+    setTimeout(quietToggle, 60);
   }
 
   function sidebarOpen() {
