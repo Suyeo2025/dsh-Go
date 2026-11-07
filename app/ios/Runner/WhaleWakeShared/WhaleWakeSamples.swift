@@ -10,6 +10,12 @@ enum WhaleWakeSamples {
     "multi", "stale",
   ]
 
+  /// v2 (plan/design/live-activity-v2-contract.md): options, buoys, conclusion line, 「停止」.
+  static let v2Names = [
+    "v2-running-buoys", "v2-running-stop-armed", "v2-running-many", "v2-question-options", "v2-question-stop",
+    "v2-approval-stop", "v2-done-summary", "v2-failed-summary",
+  ]
+
   static func attributes(lang: String = "zh") -> WhaleWakeAttributes {
     WhaleWakeAttributes(
       sessionId: "session-demo-whale-wake", title: lang.hasPrefix("zh") ? "重构登录模块" : "Refactor the login module",
@@ -57,6 +63,37 @@ enum WhaleWakeSamples {
         othersCount: 1, othersPending: 1, updatedAt: now)
     case "stale":
       return S(phase: .running, startedAt: started, expectedEndAt: end, step: 14, toolLabel: bash, tokens: 34_000, updatedAt: now.addingTimeInterval(-180))
+    // v2: all text is made up (no real conversation).
+    case "v2-running-buoys", "v2-running-stop-armed":
+      return S(phase: .running, startedAt: started, expectedEndAt: end, progress: 3.0 / 5, step: 14, toolLabel: bash, tokens: 34_000,
+        updatedAt: now, v: 2, todos: [.init(.done), .init(.done), .init(.done), .init(.active), .init(.todo)], todoDone: 3, todoTotal: 5,
+        todoLabel: zh ? "跑测试" : "Run tests", showStop: true,
+        stopArmedUntil: name == "v2-running-stop-armed" ? now.addingTimeInterval(4) : nil)
+    case "v2-running-many":
+      return S(phase: .running, startedAt: started, expectedEndAt: end, progress: 9.0 / 20, step: 40, toolLabel: zh ? "读取文件" : "Read file",
+        tokens: 120_000, updatedAt: now, v: 2,
+        todos: [.init(.done), .init(.done), .init(.done), .init(.active), .init(.todo), .init(.todo), .init(.todo), .init(.todo)],
+        todoDone: 9, todoTotal: 20, todoLabel: zh ? "更新接口文档" : "Update API docs", showStop: true)
+    case "v2-question-options", "v2-question-stop":
+      return S(phase: .question, startedAt: started, expectedEndAt: end, progress: 3.0 / 8, step: 14, toolLabel: zh ? "思考中" : "Thinking",
+        tokens: 34_000,
+        pending: .init(eventId: "ev_demo_02", kind: .question, text: zh ? "要把旧接口一起删掉吗？" : "Remove the old API too?",
+          risk: "unknown", askedAt: now,
+          options: zh
+            ? [.init(id: "0", label: "删掉"), .init(id: "1", label: "保留并标废弃"), .init(id: "2", label: "先问我…")]
+            : [.init(id: "0", label: "Remove"), .init(id: "1", label: "Deprecate"), .init(id: "2", label: "Ask me…")]),
+        updatedAt: now, v: 2, showStop: name == "v2-question-stop")
+    case "v2-approval-stop":
+      return S(phase: .approval, startedAt: started, expectedEndAt: end, step: 14, toolLabel: bash, tokens: 34_000,
+        pending: pending(.approval, zh ? "运行 npm run migrate" : "npm run migrate"), updatedAt: now, v: 2, showStop: true)
+    case "v2-done-summary":
+      return S(phase: .done, startedAt: started, expectedEndAt: now, progress: 1, step: 14, tokens: 34_000,
+        summary: zh ? "14 步 · 12:34" : "14 steps · 12:34", breachTick: 1, updatedAt: now, ended: true, v: 2,
+        summaryLine: zh ? "登录模块已拆成三层，42 个测试全部通过，旧接口标为废弃。" : "Login split into three layers; all 42 tests pass, old API deprecated.")
+    case "v2-failed-summary":
+      return S(phase: .failed, startedAt: started, expectedEndAt: now, step: 9, tokens: 21_000, summary: zh ? "测试未通过" : "tests failed",
+        updatedAt: now, v: 2,
+        summaryLine: zh ? "迁移脚本在第 3 步报错：users 表缺少 email 列。" : "The migration failed at step 3: users has no email column.")
     default:
       return nil
     }

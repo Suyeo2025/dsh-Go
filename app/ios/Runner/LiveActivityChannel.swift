@@ -34,6 +34,10 @@ final class LiveActivityChannel: NSObject {
     WhaleWakeIntentHost.decide = { sessionId, eventId, decision in
       await LiveActivityDecision.decide(sessionId: sessionId, eventId: eventId, decision: decision, store: store)
     }
+    WhaleWakeIntentHost.answer = { sessionId, eventId, optionId in
+      await LiveActivityDecision.answer(sessionId: sessionId, eventId: eventId, optionId: optionId, store: store)
+    }
+    WhaleWakeIntentHost.stop = { sessionId in await LiveActivityDecision.stop(sessionId: sessionId, store: store) }
     WhaleWakeIntentHost.open = { url in _ = LinksChannel.shared.take(url) }
     #if targetEnvironment(simulator)
       if let demo = UserDefaults.standard.string(forKey: "DSHGOLADemo") {
@@ -287,6 +291,42 @@ final class WhaleWakeActivityStore {
       ActivityContent(state: state, staleDate: Date().addingTimeInterval(Self.staleAfter), relevanceScore: state.relevance))
   }
 
+  // MARK: v2 stop
+
+  func stopArmedUntil(sessionId: String) -> Date? { activity(sessionId)?.content.state.stopArmedUntil }
+
+  /// First tap: 「再点一次停止」 until [until] (a local update; nothing sent).
+  func armStop(sessionId: String, until: Date) async {
+    await edit(sessionId) { $0.stopArmedUntil = until }
+  }
+
+  /// The window passed without a second tap (only if this arming is still the current one).
+  func disarmStop(sessionId: String, ifUntil until: Date) async {
+    guard let a = activity(sessionId), a.content.state.stopArmedUntil == until else { return }
+    await edit(sessionId) { $0.stopArmedUntil = nil }
+  }
+
+  /// The bridge took the stop: no key any more, 「正在停止」 until the turn's end arrives.
+  func stopping(sessionId: String) async {
+    guard let a = activity(sessionId) else { return }
+    let s = WhaleWakeStrings(lang: a.attributes.lang)
+    await edit(sessionId) {
+      $0.showStop = false
+      $0.stopArmedUntil = nil
+      $0.toolLabel = s.stopping
+    }
+  }
+
+  private func edit(_ sessionId: String, _ change: (inout WhaleWakeAttributes.ContentState) -> Void) async {
+    guard let activity = activity(sessionId) else { return }
+    var state = activity.content.state
+    change(&state)
+    await activity.update(
+      ActivityContent(
+        state: state, staleDate: activity.content.staleDate ?? Date().addingTimeInterval(Self.staleAfter),
+        relevanceScore: state.relevance))
+  }
+
   func pendingRisk(sessionId: String, eventId: String) -> String? {
     guard let p = activity(sessionId)?.content.state.pending, p.eventId == eventId else { return nil }
     return p.risk
@@ -329,6 +369,8 @@ final class WhaleWakeActivityStore {
     case "immediate": return .immediate
     case "after4s": return .after(Date().addingTimeInterval(4))
     case "after15m": return .after(Date().addingTimeInterval(15 * 60))
+    // v2: a finished turn stays on the lock screen for 20 minutes (gone from the island at once).
+    case "after20m": return .after(Date().addingTimeInterval(20 * 60))
     default: return .default
     }
   }

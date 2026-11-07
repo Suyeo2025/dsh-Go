@@ -182,12 +182,14 @@ class LiveActivityChannel {
         return null;
       case 'onDecision':
         final session = _str(args, 'sessionId', _id);
-        final event = _str(args, 'eventId', _id);
+        // A stop has no event (Swift sends an empty eventId).
+        final decision = _str(args, 'decision') ?? '';
+        final event = decision == 'stop' ? '' : _str(args, 'eventId', _id);
         if (session != null && event != null) {
           _decisions.add((
             sessionId: session,
             eventId: event,
-            decision: _str(args, 'decision') ?? '',
+            decision: decision,
             result: _str(args, 'result') ?? '',
           ));
         }

@@ -4,6 +4,11 @@
 // status icon). Plain SwiftUI views over (attributes, state, isStale) so WhaleWakeActivity wires them
 // into ActivityConfiguration and RunnerTests renders them with ImageRenderer.
 //
+// v2 (plan/design/live-activity-v2-contract.md): option keys on a question, todo buoys on the lane,
+// the conclusion line on done / failed, a two-tap 「停止」, the minimal as a progress ring, and the
+// iOS 27 width-limited island (landscape). Each appears only when its keys are present: a v1
+// payload draws the v1 views.
+//
 // Pixel frames come from WhaleWakeActivity/Assets.xcassets at their own size (@3x 72×48 → 24×16 pt,
 // 180×180 → 60×60 pt), nearest neighbour, never resized.
 
@@ -227,6 +232,40 @@ extension EnvironmentValues {
   }
 }
 
+/// Boards (RunnerTests) can ask for the width-limited island the simulator never shows.
+private struct WhaleWakeForceLimitedKey: EnvironmentKey { static let defaultValue = false }
+
+extension EnvironmentValues {
+  var whaleWakeForceLimited: Bool {
+    get { self[WhaleWakeForceLimitedKey.self] }
+    set { self[WhaleWakeForceLimitedKey.self] = newValue }
+  }
+}
+
+/// iOS 27: the island limited in width (landscape) — its compact must fit a 28 pt circle.
+struct WhaleWakeLimitedWidth<Content: View>: View {
+  @ViewBuilder let content: (Bool) -> Content
+  @Environment(\.whaleWakeForceLimited) private var forced
+
+  var body: some View {
+    if forced {
+      content(true)
+    } else if #available(iOS 27.0, *) {
+      WhaleWakeLimitedReader(content: content)
+    } else {
+      content(false)
+    }
+  }
+}
+
+@available(iOS 27.0, *)
+private struct WhaleWakeLimitedReader<Content: View>: View {
+  let content: (Bool) -> Content
+  @Environment(\.isDynamicIslandLimitedInWidth) private var limited
+
+  var body: some View { content(limited) }
+}
+
 /// The swim lane: track, wave, fill (todo progress, or the system clock), the whale riding it.
 @available(iOS 16.1, *)
 struct WhaleWakeLane: View {
@@ -239,6 +278,14 @@ struct WhaleWakeLane: View {
   private let height: CGFloat = 10
 
   var body: some View {
+    if !state.buoys.isEmpty && state.phase != .done {
+      WhaleWakeBuoyLane(state: state, isStale: isStale, palette: palette)
+    } else {
+      clockLane
+    }
+  }
+
+  private var clockLane: some View {
     GeometryReader { geo in
       let w = geo.size.width
       let fraction = state.laneFraction(now: now)
@@ -272,6 +319,176 @@ struct WhaleWakeLane: View {
     }
     .frame(height: 22)
     .opacity(isStale ? 0.8 : 1)
+  }
+}
+
+/// v2 C3: one buoy per todo on the water line — done ones ticked, the active one lit, the rest
+/// hollow — and the whale resting at the active one. Static: it moves only with an update.
+@available(iOS 16.1, *)
+struct WhaleWakeBuoyLane: View {
+  let state: WhaleWakeState
+  let isStale: Bool
+  let palette: WhaleWakePalette
+
+  private let size: CGFloat = 11
+
+  var body: some View {
+    GeometryReader { geo in
+      let w = geo.size.width
+      let n = CGFloat(state.buoys.count)
+      let y = geo.size.height / 2 + 4
+      ZStack(alignment: .topLeading) {
+        WhaleWakeWave().stroke(palette.fillEnd.opacity(isStale ? 0.25 : 0.55), lineWidth: 1.2)
+          .frame(width: w, height: 8)
+          .offset(y: y - 4)
+        ForEach(Array(state.buoys.enumerated()), id: \.offset) { i, todo in
+          buoy(todo.s)
+            .position(x: w * (CGFloat(i) + 0.5) / n, y: y)
+        }
+        WhaleWakeFrame(name: "compact-swim", width: 24, height: 16)
+          .position(x: min(w - 12, max(12, w * CGFloat(state.buoyWhaleFraction))), y: y - 13)
+          .animation(.easeOut(duration: 0.6), value: state.buoyWhaleFraction)
+      }
+    }
+    .frame(height: 30)
+    .opacity(isStale ? 0.8 : 1)
+    .accessibilityElement()
+    .accessibilityLabel(Text("\(state.todoDone ?? 0)/\(state.todoTotal ?? state.buoys.count)"))
+  }
+
+  @ViewBuilder private func buoy(_ s: WhaleWakeState.Todo.State) -> some View {
+    switch s {
+    case .done:
+      Circle().fill(palette.green).frame(width: size, height: size)
+        .overlay(Image(systemName: "checkmark").font(.system(size: 6, weight: .heavy)).foregroundColor(.white))
+    case .active:
+      Circle().fill(palette.fillEnd).frame(width: size + 2, height: size + 2)
+        .overlay(Circle().strokeBorder(Color.white.opacity(0.85), lineWidth: 1.5))
+        .shadow(color: palette.fillEnd.opacity(0.9), radius: 4)
+    case .todo:
+      Circle().strokeBorder(palette.status, lineWidth: 1.5).frame(width: size, height: size)
+    }
+  }
+}
+
+/// v2 C2: 「停止」, then 「再点一次停止 0:05」 after the first tap. Only the intent's own time check
+/// decides; this is what the person sees.
+@available(iOS 16.1, *)
+struct WhaleWakeStopKey: View {
+  let attributes: WhaleWakeAttributes
+  let state: WhaleWakeState
+  let palette: WhaleWakePalette
+  var now: Date = Date()
+
+  var body: some View {
+    if #available(iOS 17.0, *) {
+      let s = WhaleWakeStrings(lang: attributes.lang)
+      let armed = state.stopArmed(now: now)
+      Button(intent: StopIntent(sessionId: attributes.sessionId)) {
+        HStack(spacing: 4) {
+          Image(systemName: "stop.fill").font(.system(size: 9, weight: .bold))
+          Text(armed ? s.stopAgain : s.stop).lineLimit(1)
+          if armed, let until = state.stopArmedUntil {
+            Text(timerInterval: now...max(now, until), countsDown: true)
+              .monospacedDigit()
+              .frame(width: 30, alignment: .leading)
+          }
+        }
+        .font(.caption.weight(.semibold))
+        .foregroundColor(armed ? .white : palette.red)
+        .padding(.horizontal, 11)
+        .frame(height: 28)
+        .background(Capsule().fill(armed ? palette.red : palette.neutralBg))
+        .fixedSize()
+      }
+      .buttonStyle(.plain)
+      .invalidatableContent()
+    }
+  }
+}
+
+/// v2 C1: a question's options as equal keys, 10 pt apart, then 「去回答」 (the other options, or
+/// typing an answer) — always last.
+@available(iOS 16.1, *)
+struct WhaleWakeAnswerKeys: View {
+  let attributes: WhaleWakeAttributes
+  let state: WhaleWakeState
+  let isStale: Bool
+  let palette: WhaleWakePalette
+
+  var body: some View {
+    let s = WhaleWakeStrings(lang: attributes.lang)
+    let eventId = state.pending?.eventId
+    let url = WhaleWakeAttributes.sessionURL(attributes.sessionId, eventId: eventId)
+    let options = isStale ? [] : state.answerOptions
+    HStack(spacing: 10) {
+      ForEach(options, id: \.id) { o in
+        option(o, eventId: eventId ?? "", url: url)
+      }
+      Link(destination: url) {
+        label(
+          s.answer, fill: options.isEmpty ? palette.amber : .clear, stroke: options.isEmpty ? nil : palette.amber,
+          text: options.isEmpty ? palette.allowText : palette.amber)
+      }
+    }
+  }
+
+  @ViewBuilder private func option(_ o: WhaleWakeState.Pending.Option, eventId: String, url: URL) -> some View {
+    let l = label(o.label, fill: palette.neutralBg, stroke: nil, text: palette.neutralText)
+    if #available(iOS 17.0, *) {
+      Button(intent: AnswerIntent(sessionId: attributes.sessionId, eventId: eventId, optionId: o.id)) { l }
+        .buttonStyle(.plain)
+        .invalidatableContent()
+    } else {
+      Link(destination: url) { l }
+    }
+  }
+
+  private func label(_ t: String, fill: Color, stroke: Color?, text: Color) -> some View {
+    Text(t)
+      .font(.footnote.weight(.semibold))
+      .lineLimit(1)
+      .minimumScaleFactor(0.75)
+      .foregroundColor(text)
+      .padding(.horizontal, 6)
+      .frame(maxWidth: .infinity)
+      .frame(height: 36)
+      .background(Capsule().fill(fill))
+      .overlay(Capsule().strokeBorder(stroke ?? .clear, lineWidth: 1.5))
+  }
+}
+
+/// v2 C4: the conclusion's first sentence on a finished card (stays on the lock screen for the
+/// 20 minutes the ended Activity is kept).
+@available(iOS 16.1, *)
+struct WhaleWakeSummaryLine: View {
+  let state: WhaleWakeState
+  let color: Color
+  let font: Font
+  var lines = 2
+
+  var body: some View {
+    if let line = state.summaryLine, !line.isEmpty, state.phase == .done || state.phase == .failed {
+      Text(line)
+        .font(font)
+        .foregroundColor(color)
+        .lineLimit(lines)
+        .truncationMode(.tail)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .privacySensitive()
+    }
+  }
+}
+
+@available(iOS 16.1, *)
+extension WhaleWakeAttributes.ContentState {
+  /// The running line under the lane when there are todos: 「3/8 · 跑测试 · 运行 Bash」.
+  func laneCaption(_ s: WhaleWakeStrings) -> String? {
+    guard let total = todoTotal ?? (buoys.isEmpty ? nil : buoys.count), total > 0 else { return nil }
+    let done = todoDone ?? buoys.filter { $0.s == .done }.count
+    let head = s.todoLine(done: done, total: total, label: todoLabel)
+    return toolLabel.isEmpty || toolLabel == todoLabel ? head : "\(head) · \(toolLabel)"
   }
 }
 
@@ -373,7 +590,13 @@ struct WhaleWakeCompactLeading: View {
   let state: WhaleWakeState
 
   var body: some View {
-    WhaleWakeFrame(name: "compact-" + state.frame(compact: true), width: 24, height: 16)
+    WhaleWakeLimitedWidth { limited in
+      if limited {
+        WhaleWakeMinimal(state: state, diameter: 28)
+      } else {
+        WhaleWakeFrame(name: "compact-" + state.frame(compact: true), width: 24, height: 16)
+      }
+    }
   }
 }
 
@@ -384,9 +607,16 @@ struct WhaleWakeCompactTrailing: View {
   let isStale: Bool
 
   var body: some View {
+    // Width-limited (iOS 27 landscape): the system may hide the trailing side; leave it empty.
+    WhaleWakeLimitedWidth { limited in
+      if !limited { full }
+    }
+  }
+
+  private var full: some View {
     let s = WhaleWakeStrings(lang: attributes.lang)
     let p = WhaleWakePalette.dark
-    Group {
+    return Group {
       if state.isMulti {
         HStack(spacing: 4) {
           Text(s.sessionsShort(state.othersCount + 1)).font(.footnote.weight(.medium)).monospacedDigit()
@@ -411,17 +641,48 @@ struct WhaleWakeCompactTrailing: View {
   }
 }
 
+/// v2: the minimal (and the width-limited compact) is a progress ring around the whale — the
+/// todo share with todos, else the turn's clock (system-driven, like the lane); full in the
+/// colour of a waiting / finished / failed turn.
 @available(iOS 16.1, *)
 struct WhaleWakeMinimal: View {
   let state: WhaleWakeState
+  var diameter: CGFloat = 34
+  @Environment(\.whaleWakeStaticLane) private var staticLane
 
   var body: some View {
-    WhaleWakeFrame(name: "compact-" + state.frame(compact: true), width: 24, height: 16)
-      .overlay(alignment: .topTrailing) {
-        if state.needsYou {
-          Circle().fill(WhaleWakePalette.dark.amber).frame(width: 6, height: 6).offset(x: 3, y: -3)
-        }
+    let p = WhaleWakePalette.dark
+    let color = state.color(p)
+    let line: CGFloat = diameter >= 32 ? 2.5 : 2
+    ZStack {
+      Circle().stroke(color.opacity(0.25), lineWidth: line)
+      ring(color, line)
+      WhaleWakeFrame(name: "compact-" + state.frame(compact: true), width: 24, height: 16)
+        .scaleEffect(diameter >= 32 ? 1 : 0.75)
+    }
+    .frame(width: diameter, height: diameter)
+    .overlay(alignment: .topTrailing) {
+      if state.needsYou {
+        Circle().fill(p.amber).frame(width: 6, height: 6).offset(x: 1, y: -1)
       }
+    }
+  }
+
+  @ViewBuilder private func ring(_ color: Color, _ line: CGFloat) -> some View {
+    let whole = state.phase != .running || state.isMulti
+    if let f = whole ? 1 : (state.ringFraction ?? (staticLane ? state.laneFraction() : nil)) {
+      Circle().trim(from: 0, to: max(0.02, f))
+        .stroke(color, style: StrokeStyle(lineWidth: line, lineCap: .round))
+        .rotationEffect(.degrees(-90))
+    } else {
+      ProgressView(timerInterval: state.startedAt...state.laneClockEnd, countsDown: false) {
+        EmptyView()
+      } currentValueLabel: {
+        EmptyView()
+      }
+      .progressViewStyle(.circular)
+      .tint(color)
+    }
   }
 }
 
@@ -490,12 +751,25 @@ struct WhaleWakeExpandedTrailing: View {
     case .running:
       WhaleWakeTimer(state: state, isStale: isStale).frame(maxWidth: 76, alignment: .trailing)
     case .question:
-      WhaleWakeLinkKey(title: s.answer, url: url, background: p.amber, foreground: p.allowText)
+      if state.hasAnswerRow(isStale: isStale) {
+        if state.stopShown && !isStale { WhaleWakeStopKey(attributes: attributes, state: state, palette: p) }
+      } else {
+        WhaleWakeLinkKey(title: s.answer, url: url, background: p.amber, foreground: p.allowText)
+      }
     case .done, .failed:
       WhaleWakeLinkKey(title: s.view, url: url, background: p.neutralBg, foreground: .white)
     case .approval:
-      EmptyView()
+      if state.stopShown && !isStale { WhaleWakeStopKey(attributes: attributes, state: state, palette: p) }
     }
+  }
+}
+
+@available(iOS 16.1, *)
+extension WhaleWakeAttributes.ContentState {
+  /// A question gets a row of keys under it (options and 「去回答」) when it has options, or when
+  /// 「停止」 takes the trailing spot 「去回答」 had in v1.
+  func hasAnswerRow(isStale: Bool) -> Bool {
+    phase == .question && (!(isStale ? [] : answerOptions).isEmpty || (stopShown && !isStale))
   }
 }
 
@@ -516,16 +790,25 @@ struct WhaleWakeExpandedBottom: View {
         case .running:
           VStack(spacing: 4) {
             WhaleWakeLane(state: state, isStale: isStale, palette: p)
-            HStack {
-              WhaleWakeSubtitle(state: state, strings: s, isStale: isStale, color: p.status, font: .caption)
+            HStack(spacing: 8) {
+              if !isStale, let caption = state.laneCaption(s) {
+                Text(caption).font(.caption).foregroundColor(p.status).lineLimit(1)
+              } else {
+                WhaleWakeSubtitle(state: state, strings: s, isStale: isStale, color: p.status, font: .caption)
+              }
               Spacer(minLength: 6)
-              if let t = state.tokens { Text(s.tokens(t)).font(.caption).monospacedDigit().foregroundColor(p.status) }
+              if let t = state.tokens, !state.stopArmed() { Text(s.tokens(t)).font(.caption).monospacedDigit().foregroundColor(p.status) }
+              if state.stopShown && !isStale { WhaleWakeStopKey(attributes: attributes, state: state, palette: p) }
             }
           }
         case .approval:
           WhaleWakeApprovalKeys(attributes: attributes, state: state, isStale: isStale, palette: p)
-        case .question, .done, .failed:
-          EmptyView()
+        case .question:
+          if state.hasAnswerRow(isStale: isStale) {
+            WhaleWakeAnswerKeys(attributes: attributes, state: state, isStale: isStale, palette: p)
+          }
+        case .done, .failed:
+          WhaleWakeSummaryLine(state: state, color: p.status, font: .caption, lines: 2)
         }
       }
     }
@@ -640,11 +923,15 @@ struct WhaleWakeLockView: View {
       WhaleWakeTimer(state: state, isStale: isStale, font: .title3.weight(.medium), color: p.title)
         .frame(maxWidth: 84, alignment: .trailing)
     case .question:
-      WhaleWakeLinkKey(title: s.answer, url: url, background: p.amber, foreground: p.allowText)
+      if state.hasAnswerRow(isStale: isStale) {
+        if state.stopShown && !isStale { WhaleWakeStopKey(attributes: attributes, state: state, palette: p) }
+      } else {
+        WhaleWakeLinkKey(title: s.answer, url: url, background: p.amber, foreground: p.allowText)
+      }
     case .done, .failed:
       WhaleWakeLinkKey(title: s.view, url: url, background: p.neutralBg, foreground: p.neutralText)
     case .approval:
-      EmptyView()
+      if state.stopShown && !isStale { WhaleWakeStopKey(attributes: attributes, state: state, palette: p) }
     }
   }
 
@@ -660,6 +947,8 @@ struct WhaleWakeLockView: View {
             Group {
               if isStale {
                 Text(s.running(step: state.step, tool: state.toolLabel))
+              } else if let caption = state.laneCaption(s) {
+                Text(caption)
               } else if let left = minutesLeft {
                 Text(s.minutesLeft(left))
               } else {
@@ -668,13 +957,18 @@ struct WhaleWakeLockView: View {
             }
             .font(.caption).foregroundColor(p.status).lineLimit(1)
             Spacer(minLength: 6)
-            if let t = state.tokens { Text(s.tokens(t)).font(.caption).monospacedDigit().foregroundColor(p.status) }
+            if let t = state.tokens, !state.stopArmed() { Text(s.tokens(t)).font(.caption).monospacedDigit().foregroundColor(p.status) }
+            if state.stopShown && !isStale { WhaleWakeStopKey(attributes: attributes, state: state, palette: p) }
           }
         }
       case .approval:
         WhaleWakeApprovalKeys(attributes: attributes, state: state, isStale: isStale, palette: p)
-      default:
-        EmptyView()
+      case .question:
+        if state.hasAnswerRow(isStale: isStale) {
+          WhaleWakeAnswerKeys(attributes: attributes, state: state, isStale: isStale, palette: p)
+        }
+      case .done, .failed:
+        WhaleWakeSummaryLine(state: state, color: p.title, font: .subheadline, lines: 2)
       }
     }
   }

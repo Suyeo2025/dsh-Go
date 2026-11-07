@@ -85,6 +85,9 @@ for it and restored) and the app is signed without the App Group entitlement. `-
   rendered boards of every state (`boards/la-*.png`), and every sample Activity started on a throwaway
   simulator (`-DSHGOLADemo <sample>`, simulator builds only). The Dynamic Island itself can't be shot here:
   a simulator without Simulator.app suppresses it, and simctl can't long-press or lock.
+- v2 (`plan/design/live-activity-v2-contract.md`): option keys (`AnswerIntent`), todo buoys, the
+  conclusion line, two-tap 「停止」 (`StopIntent`; the five-second check is `WhaleWakeStopGate`), the
+  minimal as a progress ring, the iOS 27 width-limited compact. Its boards land in `logs/live-activity/v2/`.
 
 ## Notes / pitfalls
 

@@ -49,6 +49,17 @@ struct WhaleWakeStrings {
   var open: String { zh ? "打开" : "Open" }
   var hint: String { zh ? "解锁后确认 · 2 分钟内未处理将收回按钮" : "Confirm after unlock · buttons hide after 2 min" }
 
+  // v2
+  var stop: String { zh ? "停止" : "Stop" }
+  var stopAgain: String { zh ? "再点一次停止" : "Tap again to stop" }
+  var stopping: String { zh ? "正在停止" : "Stopping" }
+  /// 「3/7 · 跑测试」.
+  func todoLine(done: Int, total: Int, label: String?) -> String {
+    let head = "\(done)/\(total)"
+    guard let label, !label.isEmpty else { return head }
+    return "\(head) · \(label)"
+  }
+
   func minutesLeft(_ m: Int) -> String { zh ? "预计还需约 \(m) 分钟" : "About \(m) min left" }
 
   /// 「3.4 万 tok」/「34k tok」.

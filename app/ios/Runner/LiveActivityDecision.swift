@@ -45,12 +45,20 @@ struct BridgeCredentials: Equatable {
   }
 
   /// `POST <bridge>/v1/approvals/<eventId>/decision`.
-  func decisionURL(eventId: String) -> URL? {
+  func decisionURL(eventId: String) -> URL? { url("approvals", eventId, "decision") }
+
+  /// v2: `POST <bridge>/v1/questions/<eventId>/answer`.
+  func answerURL(eventId: String) -> URL? { url("questions", eventId, "answer") }
+
+  /// v2: `POST <bridge>/v1/sessions/<sessionId>/cancel`.
+  func cancelURL(sessionId: String) -> URL? { url("sessions", sessionId, "cancel") }
+
+  private func url(_ kind: String, _ id: String, _ action: String) -> URL? {
     var allowed = CharacterSet.urlPathAllowed
     allowed.remove(charactersIn: "/")
-    guard let id = eventId.addingPercentEncoding(withAllowedCharacters: allowed) else { return nil }
+    guard !id.isEmpty, let id = id.addingPercentEncoding(withAllowedCharacters: allowed) else { return nil }
     let base = bridge.absoluteString.hasSuffix("/") ? String(bridge.absoluteString.dropLast()) : bridge.absoluteString
-    return URL(string: "\(base)/v1/approvals/\(id)/decision")
+    return URL(string: "\(base)/v1/\(kind)/\(id)/\(action)")
   }
 }
 
@@ -98,21 +106,92 @@ enum LiveActivityDecision {
   /// 2xx within 8 seconds.
   static func post(_ c: BridgeCredentials, eventId: String, decision: WhaleWakeDecision) async -> Bool {
     guard let url = c.decisionURL(eventId: eventId) else { return false }
+    return (await send(c, url, ["decision": decision.wire]))?.ok == true
+  }
+
+  /// One bridge request: the HTTP status and the JSON body's `status`, or nil (no answer in 8 s).
+  static func send(_ c: BridgeCredentials, _ url: URL, _ body: [String: Any]) async -> (ok: Bool, status: String?)? {
     var request = URLRequest(url: url, timeoutInterval: 8)
     request.httpMethod = "POST"
     request.setValue("Bearer \(c.token)", forHTTPHeaderField: "authorization")
     request.setValue(UUID().uuidString.lowercased(), forHTTPHeaderField: "idempotency-key")
     request.setValue("application/json", forHTTPHeaderField: "content-type")
-    request.httpBody = try? JSONSerialization.data(withJSONObject: ["decision": decision.wire])
+    request.httpBody = try? JSONSerialization.data(withJSONObject: body)
     let config = URLSessionConfiguration.ephemeral
     config.timeoutIntervalForRequest = 8
     config.timeoutIntervalForResource = 8
     let session = URLSession(configuration: config, delegate: PinningDelegate(pin: c.pin), delegateQueue: nil)
     defer { session.finishTasksAndInvalidate() }
-    guard let (_, response) = try? await session.data(for: request), let http = response as? HTTPURLResponse else {
-      return false
+    guard let (data, response) = try? await session.data(for: request), let http = response as? HTTPURLResponse else {
+      return nil
     }
-    return (200..<300).contains(http.statusCode)
+    let status = ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any])?["status"] as? String
+    return ((200..<300).contains(http.statusCode), status)
+  }
+
+  // MARK: v2
+
+  /// What a bridge reply to an answer / cancel means for the Activity.
+  static func settled(_ reply: (ok: Bool, status: String?)?, accept: Set<String>) -> Bool {
+    guard let reply, reply.ok else { return false }
+    // A 2xx without a status (an older bridge) counts as done.
+    return reply.status.map(accept.contains) ?? true
+  }
+
+  /// One-tap answer (v2 §2.3 AnswerIntent).
+  static func answer(sessionId: String, eventId: String, optionId: String, store: WhaleWakeActivityStore) async
+    -> WhaleWakeOutcome
+  {
+    let protected = await MainActor.run { UIApplication.shared.isProtectedDataAvailable }
+    func report(_ result: String) async {
+      await store.decided(["sessionId": sessionId, "eventId": eventId, "decision": "answer", "result": result])
+    }
+    guard protected else {
+      await report("locked")
+      return .openApp
+    }
+    guard let c = BridgeCredentials.load(), let url = c.answerURL(eventId: eventId),
+      settled(await send(c, url, ["optionId": optionId]), accept: ["submitted", "already-settled"])
+    else {
+      await report("failed")
+      return .openApp
+    }
+    await store.clearPending(sessionId: sessionId, eventId: eventId)
+    await report("ok")
+    return .decided
+  }
+
+  /// 「停止」 (v2 §2.3 StopIntent): the first tap arms, a second within five seconds stops.
+  static func stop(sessionId: String, store: WhaleWakeActivityStore, now: Date = Date()) async -> WhaleWakeOutcome {
+    let protected = await MainActor.run { UIApplication.shared.isProtectedDataAvailable }
+    let armed = await store.stopArmedUntil(sessionId: sessionId)
+    func report(_ result: String) async {
+      await store.decided(["sessionId": sessionId, "eventId": "", "decision": "stop", "result": result])
+    }
+    switch WhaleWakeStopGate.step(protectedDataAvailable: protected, armedUntil: armed, now: now) {
+    case .openApp:
+      await report("locked")
+      return .openApp
+    case .arm:
+      let until = now.addingTimeInterval(WhaleWakeStopGate.window)
+      await store.armStop(sessionId: sessionId, until: until)
+      // Best effort: the key back to 「停止」 when the window passes (a tap after it re-arms anyway).
+      Task {
+        try? await Task.sleep(nanoseconds: UInt64((WhaleWakeStopGate.window + 0.3) * 1_000_000_000))
+        await store.disarmStop(sessionId: sessionId, ifUntil: until)
+      }
+      return .decided
+    case .send:
+      guard let c = BridgeCredentials.load(), let url = c.cancelURL(sessionId: sessionId),
+        settled(await send(c, url, [:]), accept: ["submitted", "not-running"])
+      else {
+        await report("failed")
+        return .openApp
+      }
+      await store.stopping(sessionId: sessionId)
+      await report("ok")
+      return .decided
+    }
   }
 }
 

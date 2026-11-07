@@ -1,5 +1,8 @@
 // 「鲸游」Live Activity: attributes and content state (plan/design/live-activity-a/contract.md §1,
 // with the plan/ios-wave2-design.md revision: Pending.approvalExpiresAt / expired).
+// v2 (plan/design/live-activity-v2-contract.md §1): pending.options, todos, todoDone / todoTotal /
+// todoLabel, summaryLine, showStop, stopArmedUntil, stepStartedAt, v. All optional: a v1 payload
+// decodes exactly as before, and a v1 Activity (no v2 keys) draws the v1 views.
 // Compiled into Runner (LiveActivityChannel, the intents' perform) and WhaleWakeActivity (the views).
 //
 // Dates are Unix seconds on every wire this crosses (the dsh/live_activity channel map, the bridge's
@@ -45,6 +48,43 @@ struct WhaleWakeAttributes: ActivityAttributes {
     /// instead of the leap).
     var ended: Bool?
 
+    // v2 (all optional; absent = the v1 view)
+    /// Payload version, diagnostics only: views branch on the keys present, never on this.
+    var v: Int?
+    /// One buoy per todo (≤ 8, compressed by Dart / bridge).
+    var todos: [Todo]?
+    var todoDone: Int?
+    var todoTotal: Int?
+    /// The current todo, ≤ 12 characters.
+    var todoLabel: String?
+    /// The conclusion's first sentence (done / failed), ≤ 60 characters.
+    var summaryLine: String?
+    /// Draw 「停止」 (running / approval / question while the turn runs).
+    var showStop: Bool?
+    /// Written only here (StopIntent's first tap): a second tap before it stops the turn.
+    var stopArmedUntil: Date?
+    /// When the current tool call started (reserved; not drawn yet).
+    var stepStartedAt: Date?
+
+    struct Todo: Codable, Hashable {
+      enum State: String, Hashable { case done, active, todo }
+      let s: State
+
+      init(_ s: State) { self.s = s }
+
+      private enum Keys: String, CodingKey { case s }
+
+      init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        s = State(rawValue: (try? c.decode(String.self, forKey: .s)) ?? "") ?? .todo
+      }
+
+      func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: Keys.self)
+        try c.encode(s.rawValue, forKey: .s)
+      }
+    }
+
     struct Pending: Codable, Hashable {
       enum Kind: String, Codable, Hashable { case approval, question }
       let eventId: String
@@ -58,8 +98,18 @@ struct WhaleWakeAttributes: ActivityAttributes {
       let approvalExpiresAt: Date
       /// Set by one update when approvalExpiresAt passed (bridge or App).
       let expired: Bool
+      /// v2: a single-choice question's first ≤ 3 options (id = index in the original list).
+      let options: [Option]?
 
-      init(eventId: String, kind: Kind, text: String, risk: String, askedAt: Date, approvalExpiresAt: Date? = nil, expired: Bool = false) {
+      struct Option: Codable, Hashable {
+        let id: String
+        let label: String
+      }
+
+      init(
+        eventId: String, kind: Kind, text: String, risk: String, askedAt: Date, approvalExpiresAt: Date? = nil,
+        expired: Bool = false, options: [Option]? = nil
+      ) {
         self.eventId = eventId
         self.kind = kind
         self.text = text
@@ -67,9 +117,10 @@ struct WhaleWakeAttributes: ActivityAttributes {
         self.askedAt = askedAt
         self.approvalExpiresAt = approvalExpiresAt ?? askedAt.addingTimeInterval(120)
         self.expired = expired
+        self.options = options.map { Array($0.prefix(3)) }
       }
 
-      private enum Keys: String, CodingKey { case eventId, kind, text, risk, askedAt, approvalExpiresAt, expired }
+      private enum Keys: String, CodingKey { case eventId, kind, text, risk, askedAt, approvalExpiresAt, expired, options }
 
       init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: Keys.self)
@@ -81,7 +132,8 @@ struct WhaleWakeAttributes: ActivityAttributes {
           risk: (try? c.decode(String.self, forKey: .risk)) ?? "unknown",
           askedAt: asked,
           approvalExpiresAt: try WhaleWakeWire.dateIfPresent(c, .approvalExpiresAt),
-          expired: (try? c.decodeIfPresent(Bool.self, forKey: .expired)) ?? false
+          expired: (try? c.decodeIfPresent(Bool.self, forKey: .expired)) ?? false,
+          options: (try? c.decodeIfPresent([Option].self, forKey: .options)).flatMap { $0?.isEmpty == false ? $0 : nil }
         )
       }
 
@@ -94,6 +146,7 @@ struct WhaleWakeAttributes: ActivityAttributes {
         try c.encode(WhaleWakeWire.seconds(askedAt), forKey: .askedAt)
         try c.encode(WhaleWakeWire.seconds(approvalExpiresAt), forKey: .approvalExpiresAt)
         try c.encode(expired, forKey: .expired)
+        try c.encodeIfPresent(options, forKey: .options)
       }
     }
 
@@ -128,7 +181,9 @@ struct WhaleWakeAttributes: ActivityAttributes {
     init(
       phase: Phase, startedAt: Date, expectedEndAt: Date, progress: Double? = nil, step: Int = 1, toolLabel: String = "",
       tokens: Int? = nil, pending: Pending? = nil, others: [Other] = [], othersCount: Int = 0, othersPending: Int = 0,
-      summary: String? = nil, breachTick: Int = 0, updatedAt: Date? = nil, ended: Bool? = nil
+      summary: String? = nil, breachTick: Int = 0, updatedAt: Date? = nil, ended: Bool? = nil,
+      v: Int? = nil, todos: [Todo]? = nil, todoDone: Int? = nil, todoTotal: Int? = nil, todoLabel: String? = nil,
+      summaryLine: String? = nil, showStop: Bool? = nil, stopArmedUntil: Date? = nil, stepStartedAt: Date? = nil
     ) {
       self.phase = phase
       self.startedAt = startedAt
@@ -145,11 +200,21 @@ struct WhaleWakeAttributes: ActivityAttributes {
       self.breachTick = breachTick
       self.updatedAt = updatedAt
       self.ended = ended
+      self.v = v
+      self.todos = todos.flatMap { $0.isEmpty ? nil : Array($0.prefix(8)) }
+      self.todoDone = todoDone
+      self.todoTotal = todoTotal
+      self.todoLabel = todoLabel
+      self.summaryLine = summaryLine
+      self.showStop = showStop
+      self.stopArmedUntil = stopArmedUntil
+      self.stepStartedAt = stepStartedAt
     }
 
     private enum Keys: String, CodingKey {
       case phase, startedAt, expectedEndAt, progress, step, toolLabel, tokens, pending, others, othersCount
       case othersPending, summary, breachTick, updatedAt, ended
+      case v, todos, todoDone, todoTotal, todoLabel, summaryLine, showStop, stopArmedUntil, stepStartedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -170,7 +235,16 @@ struct WhaleWakeAttributes: ActivityAttributes {
         summary: try? c.decodeIfPresent(String.self, forKey: .summary),
         breachTick: (try? c.decodeIfPresent(Int.self, forKey: .breachTick)) ?? 0,
         updatedAt: try WhaleWakeWire.dateIfPresent(c, .updatedAt),
-        ended: try? c.decodeIfPresent(Bool.self, forKey: .ended)
+        ended: try? c.decodeIfPresent(Bool.self, forKey: .ended),
+        v: try? c.decodeIfPresent(Int.self, forKey: .v),
+        todos: (try? c.decodeIfPresent([Todo].self, forKey: .todos)) ?? nil,
+        todoDone: try? c.decodeIfPresent(Int.self, forKey: .todoDone),
+        todoTotal: try? c.decodeIfPresent(Int.self, forKey: .todoTotal),
+        todoLabel: try? c.decodeIfPresent(String.self, forKey: .todoLabel),
+        summaryLine: try? c.decodeIfPresent(String.self, forKey: .summaryLine),
+        showStop: try? c.decodeIfPresent(Bool.self, forKey: .showStop),
+        stopArmedUntil: try? WhaleWakeWire.dateIfPresent(c, .stopArmedUntil),
+        stepStartedAt: try? WhaleWakeWire.dateIfPresent(c, .stepStartedAt)
       )
     }
 
@@ -191,6 +265,15 @@ struct WhaleWakeAttributes: ActivityAttributes {
       try c.encode(breachTick, forKey: .breachTick)
       try c.encodeIfPresent(updatedAt.map(WhaleWakeWire.seconds), forKey: .updatedAt)
       try c.encodeIfPresent(ended, forKey: .ended)
+      try c.encodeIfPresent(v, forKey: .v)
+      try c.encodeIfPresent(todos, forKey: .todos)
+      try c.encodeIfPresent(todoDone, forKey: .todoDone)
+      try c.encodeIfPresent(todoTotal, forKey: .todoTotal)
+      try c.encodeIfPresent(todoLabel, forKey: .todoLabel)
+      try c.encodeIfPresent(summaryLine, forKey: .summaryLine)
+      try c.encodeIfPresent(showStop, forKey: .showStop)
+      try c.encodeIfPresent(stopArmedUntil.map(WhaleWakeWire.seconds), forKey: .stopArmedUntil)
+      try c.encodeIfPresent(stepStartedAt.map(WhaleWakeWire.seconds), forKey: .stepStartedAt)
     }
 
     // MARK: Derived
@@ -221,6 +304,47 @@ struct WhaleWakeAttributes: ActivityAttributes {
     /// startedAt...laneClockEnd is at 0.9 of the track at expectedEndAt and stays full after.
     var laneClockEnd: Date {
       expectedEndAt > startedAt ? expectedEndAt : startedAt.addingTimeInterval(600)
+    }
+
+    // MARK: v2 derived
+
+    /// 「停止」 is drawn (never after the turn ended).
+    var stopShown: Bool { showStop == true && (phase == .running || phase == .approval || phase == .question) }
+
+    /// The stop key waits for its second tap at [now].
+    func stopArmed(now: Date = Date()) -> Bool {
+      guard let until = stopArmedUntil else { return false }
+      return now < until
+    }
+
+    /// One-tap answers: a question with options, while the data is current.
+    var answerOptions: [Pending.Option] {
+      guard phase == .question, let p = pending, p.kind == .question, !p.expired else { return [] }
+      return p.options ?? []
+    }
+
+    /// Buoys on the lane (todos present).
+    var buoys: [Todo] { todos ?? [] }
+
+    /// Where the whale rests on a buoy lane, 0…1: on the active buoy, else just past the last
+    /// done one, else at the start; all done: the last buoy.
+    var buoyWhaleFraction: Double {
+      let b = buoys
+      guard !b.isEmpty else { return 0 }
+      let n = Double(b.count)
+      if let i = b.firstIndex(where: { $0.s == .active }) { return (Double(i) + 0.5) / n }
+      if let i = b.lastIndex(where: { $0.s == .done }) {
+        return i == b.count - 1 ? (Double(i) + 0.5) / n : (Double(i) + 1) / n
+      }
+      return 0.5 / n
+    }
+
+    /// Minimal ring: the todo share when there are todos (else nil: the clock ring).
+    var ringFraction: Double? {
+      if phase == .done { return 1 }
+      if let d = todoDone, let t = todoTotal, t > 0 { return min(1, max(0, Double(d) / Double(t))) }
+      if !buoys.isEmpty { return Double(buoys.filter { $0.s == .done }.count) / Double(buoys.count) }
+      return nil
     }
 
     /// relevance-score (contract.md §2).

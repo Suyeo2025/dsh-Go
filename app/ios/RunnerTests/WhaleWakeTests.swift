@@ -216,6 +216,213 @@ final class WhaleWakeTests: XCTestCase {
     XCTAssertEqual(outcome, .openApp)
   }
 
+  // MARK: v2 (plan/design/live-activity-v2-contract.md)
+
+  /// Contract §1.4, the extreme payload.
+  let v2Extreme = """
+    {"v":2,"phase":"question","startedAt":1762399200,"expectedEndAt":1762400400,"progress":0.375,"step":14,
+     "toolLabel":"思考中","tokens":34000,
+     "pending":{"eventId":"ev_01J","kind":"question","text":"要把旧接口一起删掉吗？","risk":"unknown","askedAt":1762400000,
+       "approvalExpiresAt":1762400120,"expired":false,
+       "options":[{"id":"0","label":"删掉"},{"id":"1","label":"保留并标废弃"},{"id":"2","label":"先问我…"}]},
+     "todos":[{"s":"done"},{"s":"done"},{"s":"done"},{"s":"active"},{"s":"todo"},{"s":"todo"},{"s":"todo"},{"s":"todo"}],
+     "todoDone":3,"todoTotal":8,"todoLabel":"跑测试",
+     "others":[],"othersCount":0,"othersPending":0,"summary":null,"summaryLine":null,"showStop":true,"breachTick":0}
+    """
+
+  func testV2ExtremePayloadDecodes() throws {
+    let s = try decode(v2Extreme)
+    XCTAssertEqual(s.v, 2)
+    XCTAssertEqual(s.pending?.options?.map(\.id), ["0", "1", "2"])
+    XCTAssertEqual(s.answerOptions.map(\.label), ["删掉", "保留并标废弃", "先问我…"])
+    XCTAssertEqual(s.buoys.count, 8)
+    XCTAssertEqual(s.buoys[3].s, .active)
+    XCTAssertEqual(s.todoDone, 3)
+    XCTAssertEqual(s.todoTotal, 8)
+    XCTAssertEqual(s.todoLabel, "跑测试")
+    XCTAssertNil(s.summaryLine)
+    XCTAssertTrue(s.stopShown)
+    XCTAssertNil(s.stopArmedUntil)
+    XCTAssertTrue(s.hasAnswerRow(isStale: false))
+    XCTAssertLessThan(s.encodedSize, 4096)
+    // Round trip keeps every v2 key.
+    XCTAssertEqual(try JSONDecoder().decode(State.self, from: JSONEncoder().encode(s)), s)
+  }
+
+  /// A v1 payload (no v2 key): nothing v2 shows, the v1 layout stays.
+  func testV1PayloadDrawsV1() throws {
+    for json in [contractUpdate, contractEnd] {
+      let s = try decode(json)
+      XCTAssertNil(s.v)
+      XCTAssertNil(s.todos)
+      XCTAssertNil(s.pending?.options)
+      XCTAssertNil(s.summaryLine)
+      XCTAssertFalse(s.stopShown)
+      XCTAssertTrue(s.buoys.isEmpty)
+      XCTAssertNil(s.laneCaption(WhaleWakeStrings(lang: "zh")))
+      XCTAssertFalse(s.hasAnswerRow(isStale: false))
+    }
+    // A v1 question keeps 「去回答」 in the trailing spot (no row under it).
+    var q = try decode(contractUpdate)
+    q.phase = .question
+    XCTAssertFalse(q.hasAnswerRow(isStale: false))
+  }
+
+  func testV2ChannelMapNullsAndCaps() throws {
+    let map: [String: Any] = [
+      "v": 2, "phase": "running", "startedAt": 100, "expectedEndAt": 700, "step": 2, "toolLabel": "", "progress": NSNull(),
+      "pending": NSNull(), "others": [Any](), "othersCount": 0, "othersPending": 0, "breachTick": 0,
+      "todos": (0..<11).map { ["s": $0 == 3 ? "active" : ($0 < 3 ? "done" : "weird")] },
+      "todoDone": NSNull(), "todoTotal": NSNull(), "todoLabel": NSNull(), "summaryLine": NSNull(), "showStop": NSNull(),
+      "stepStartedAt": 150,
+    ]
+    let s = try State(channelMap: map)
+    XCTAssertEqual(s.buoys.count, 8)
+    XCTAssertEqual(s.buoys[4].s, .todo)  // unknown state reads as todo
+    XCTAssertNil(s.todoTotal)
+    XCTAssertFalse(s.stopShown)
+    XCTAssertEqual(s.stepStartedAt?.timeIntervalSince1970, 150)
+    // Options: more than 3 are cut, an empty list is none.
+    let q: [String: Any] = [
+      "phase": "question", "startedAt": 100, "expectedEndAt": 700,
+      "pending": ["eventId": "e", "kind": "question", "text": "?", "risk": "unknown", "askedAt": 200,
+        "options": (0..<5).map { ["id": "\($0)", "label": "o\($0)"] }],
+    ]
+    XCTAssertEqual(try State(channelMap: q).answerOptions.count, 3)
+    var empty = q
+    empty["pending"] = ["eventId": "e", "kind": "question", "text": "?", "risk": "unknown", "askedAt": 200, "options": [Any]()]
+    XCTAssertNil(try State(channelMap: empty).pending?.options)
+  }
+
+  func testOptionsHiddenWhenStaleOrExpiredOrNotAQuestion() throws {
+    let now = Date()
+    let q = try XCTUnwrap(WhaleWakeSamples.state("v2-question-options", now: now))
+    XCTAssertEqual(q.answerOptions.count, 3)
+    XCTAssertTrue(q.hasAnswerRow(isStale: false))
+    XCTAssertFalse(q.hasAnswerRow(isStale: true))  // stale: 「去回答」 alone, back in the trailing spot
+    var expired = q
+    expired.pending = .init(eventId: "e", kind: .question, text: "?", risk: "unknown", askedAt: now, expired: true,
+      options: q.pending?.options)
+    XCTAssertTrue(expired.answerOptions.isEmpty)
+    var approval = q
+    approval.phase = .approval
+    XCTAssertTrue(approval.answerOptions.isEmpty)
+  }
+
+  // MARK: Stop: the time check is the safety
+
+  func testStopGate() {
+    let now = Date(timeIntervalSince1970: 1_000_000)
+    typealias G = WhaleWakeStopGate
+    // Locked: into the App, never armed, never sent.
+    XCTAssertEqual(G.step(protectedDataAvailable: false, armedUntil: nil, now: now), .openApp)
+    XCTAssertEqual(G.step(protectedDataAvailable: false, armedUntil: now.addingTimeInterval(3), now: now), .openApp)
+    // First tap: arm.
+    XCTAssertEqual(G.step(protectedDataAvailable: true, armedUntil: nil, now: now), .arm)
+    // Second tap inside the window: stop.
+    XCTAssertEqual(G.step(protectedDataAvailable: true, armedUntil: now.addingTimeInterval(4.9), now: now), .send)
+    XCTAssertEqual(G.step(protectedDataAvailable: true, armedUntil: now.addingTimeInterval(0.1), now: now), .send)
+    // At or after the end of the window (the view may still say 「再点一次」): arm again, don't stop.
+    XCTAssertEqual(G.step(protectedDataAvailable: true, armedUntil: now, now: now), .arm)
+    XCTAssertEqual(G.step(protectedDataAvailable: true, armedUntil: now.addingTimeInterval(-30), now: now), .arm)
+    // An arming that reaches implausibly far ahead (not ours): arm again.
+    XCTAssertEqual(G.step(protectedDataAvailable: true, armedUntil: now.addingTimeInterval(600), now: now), .arm)
+  }
+
+  func testStopArmedView() {
+    let now = Date()
+    let armed = WhaleWakeSamples.state("v2-running-stop-armed", now: now)!
+    XCTAssertTrue(armed.stopArmed(now: now))
+    XCTAssertFalse(armed.stopArmed(now: now.addingTimeInterval(5)))
+    XCTAssertFalse(WhaleWakeSamples.state("v2-running-buoys", now: now)!.stopArmed(now: now))
+    // Never on a finished turn, whatever showStop says.
+    var done = WhaleWakeSamples.state("v2-done-summary", now: now)!
+    done.showStop = true
+    XCTAssertFalse(done.stopShown)
+  }
+
+  func testStopAndAnswerWithoutPairingOpenNothingRemote() async throws {
+    let store = WhaleWakeActivityStore { _, _ in }
+    // No Activity here: the first tap arms (a local update with nothing to update) and sends nothing.
+    let first = await LiveActivityDecision.stop(sessionId: "session-x", store: store)
+    XCTAssertEqual(first, .decided)
+    // No pairing: an answer can't be sent; the App opens.
+    let answer = await LiveActivityDecision.answer(sessionId: "session-x", eventId: "ev", optionId: "0", store: store)
+    XCTAssertEqual(answer, .openApp)
+  }
+
+  func testBridgeReplies() throws {
+    typealias D = LiveActivityDecision
+    XCTAssertFalse(D.settled(nil, accept: ["submitted"]))
+    XCTAssertTrue(D.settled((true, "submitted"), accept: ["submitted", "already-settled"]))
+    XCTAssertTrue(D.settled((true, "already-settled"), accept: ["submitted", "already-settled"]))
+    XCTAssertFalse(D.settled((true, "expired"), accept: ["submitted", "already-settled"]))
+    XCTAssertFalse(D.settled((false, "submitted"), accept: ["submitted"]))
+    XCTAssertTrue(D.settled((true, nil), accept: ["submitted"]))
+    let c = try XCTUnwrap(BridgeCredentials.parse(pairingJSON: #"{"bridge":"https://b.example.com/"}"#, token: "t"))
+    XCTAssertEqual(c.answerURL(eventId: "ev/1")?.absoluteString, "https://b.example.com/v1/questions/ev%2F1/answer")
+    XCTAssertEqual(c.cancelURL(sessionId: "session-a")?.absoluteString, "https://b.example.com/v1/sessions/session-a/cancel")
+    XCTAssertNil(c.cancelURL(sessionId: ""))
+  }
+
+  // MARK: Buoys, ring, copy
+
+  func testBuoysRingAndCaption() throws {
+    let zh = WhaleWakeStrings(lang: "zh"), en = WhaleWakeStrings(lang: "en")
+    let b = try XCTUnwrap(WhaleWakeSamples.state("v2-running-buoys"))
+    XCTAssertEqual(b.buoyWhaleFraction, 3.5 / 5, accuracy: 1e-9)  // on the active buoy
+    XCTAssertEqual(b.ringFraction ?? -1, 0.6, accuracy: 1e-9)
+    XCTAssertEqual(b.laneCaption(zh), "3/5 · 跑测试 · 运行 Bash")
+    XCTAssertEqual(try XCTUnwrap(WhaleWakeSamples.state("v2-running-buoys", lang: "en")).laneCaption(en), "3/5 · Run tests · Run Bash")
+    var none = b
+    none.todos = [.init(.done), .init(.done), .init(.todo)]
+    XCTAssertEqual(none.buoyWhaleFraction, 2.0 / 3, accuracy: 1e-9)  // just past the last done
+    none.todos = [.init(.done), .init(.done)]
+    XCTAssertEqual(none.buoyWhaleFraction, 1.5 / 2, accuracy: 1e-9)  // all done: on the last
+    none.todos = [.init(.todo), .init(.todo)]
+    XCTAssertEqual(none.buoyWhaleFraction, 0.25, accuracy: 1e-9)  // none yet: the first
+    // No todos: the ring runs on the clock (nil here, the system draws it).
+    XCTAssertNil(try XCTUnwrap(WhaleWakeSamples.state("running")).ringFraction)
+    XCTAssertEqual(try XCTUnwrap(WhaleWakeSamples.state("done")).ringFraction, 1)
+    XCTAssertEqual(zh.stopAgain, "再点一次停止")
+    XCTAssertEqual(en.stopping, "Stopping")
+    XCTAssertEqual(zh.todoLine(done: 3, total: 7, label: nil), "3/7")
+    for n in WhaleWakeSamples.v2Names {
+      XCTAssertNotNil(WhaleWakeSamples.state(n), n)
+      XCTAssertLessThan(WhaleWakeSamples.state(n)!.encodedSize, 4096, n)
+    }
+  }
+
+  @MainActor
+  func testRenderBoardsV2() throws {
+    let now = Date()
+    for lang in ["zh", "en"] {
+      let a = WhaleWakeSamples.attributes(lang: lang)
+      var expanded: [AnyView] = []
+      var lockDark: [AnyView] = []
+      var lockLight: [AnyView] = []
+      for name in WhaleWakeSamples.v2Names {
+        let s = try XCTUnwrap(WhaleWakeSamples.state(name, lang: lang, now: now))
+        expanded.append(AnyView(labelled(name, IslandExpanded(attributes: a, state: s, isStale: false))))
+        lockDark.append(AnyView(labelled(name, LockOnWallpaper(attributes: a, state: s, isStale: false, dark: true))))
+        lockLight.append(AnyView(labelled(name, LockOnWallpaper(attributes: a, state: s, isStale: false, dark: false))))
+      }
+      try attach("v2-expanded-\(lang)", grid(expanded, columns: 2))
+      try attach("v2-lock-dark-\(lang)", grid(lockDark, columns: 2))
+      try attach("v2-lock-light-\(lang)", grid(lockLight, columns: 2))
+      // Minimal rings and the iOS 27 width-limited compact (landscape), over v1 and v2 states.
+      var small: [AnyView] = []
+      for name in ["running", "v2-running-buoys", "v2-running-many", "approval", "v2-question-options", "multi", "done", "failed"] {
+        let s = try XCTUnwrap(WhaleWakeSamples.state(name, lang: lang, now: now))
+        small.append(AnyView(labelled(name, HStack(spacing: 14) {
+          IslandMinimal(state: s)
+          IslandLimited(attributes: a, state: s)
+        })))
+      }
+      try attach("v2-minimal-limited-\(lang)", grid(small, columns: 4))
+    }
+  }
+
   // MARK: Rendered boards
 
   @MainActor
@@ -318,6 +525,25 @@ private struct IslandMinimal: View {
     WhaleWakeMinimal(state: state)
       .frame(width: 45, height: 37)
       .background(Capsule().fill(.black))
+  }
+}
+
+/// iOS 27's width-limited island: the compact leading alone in a 28 pt circle, the trailing empty.
+@available(iOS 17.0, *)
+private struct IslandLimited: View {
+  let attributes: WhaleWakeAttributes
+  let state: WhaleWakeState
+
+  var body: some View {
+    HStack(spacing: 6) {
+      WhaleWakeCompactLeading(state: state)
+      WhaleWakeCompactTrailing(attributes: attributes, state: state, isStale: false)
+    }
+    .padding(.horizontal, 6)
+    .frame(height: 37)
+    .background(Capsule().fill(.black))
+    .environment(\.colorScheme, .dark)
+    .environment(\.whaleWakeForceLimited, true)
   }
 }
 

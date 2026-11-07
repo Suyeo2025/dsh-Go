@@ -126,12 +126,19 @@ void main() {
     await ch.handle(
       const MethodCall('onDecision', {'sessionId': 's1', 'eventId': 'ev1', 'decision': 'allow', 'result': 'ok'}),
     );
+    // A stop has no event: Swift sends an empty eventId.
+    await ch.handle(
+      const MethodCall('onDecision', {'sessionId': 's1', 'eventId': '', 'decision': 'stop', 'result': 'ok'}),
+    );
     await pumpEventQueue();
     expect(tokens, [(sessionId: 's1', token: 'ab' * 32)]);
     expect(starts, ['ef' * 40]);
     expect(states.single.state, LiveActivityPhase.dismissed);
     expect(states.single.state.over, isTrue);
-    expect(decisions.single, (sessionId: 's1', eventId: 'ev1', decision: 'allow', result: 'ok'));
+    expect(decisions, [
+      (sessionId: 's1', eventId: 'ev1', decision: 'allow', result: 'ok'),
+      (sessionId: 's1', eventId: '', decision: 'stop', result: 'ok'),
+    ]);
     expect(() => ch.handle(const MethodCall('nope')), throwsA(isA<MissingPluginException>()));
   });
 }

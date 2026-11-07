@@ -72,6 +72,9 @@ if os.path.exists(m):
                 os.replace(src, os.path.join(d, hit.group(1) + '.png'))
 PY
     rm -f $OUT/boards/manifest.json
+    # v2 boards (plan/design/live-activity-v2-contract.md) on their own: logs/live-activity/v2/.
+    mkdir -p $OUT/v2
+    for f in $OUT/boards/la-v2-*.png(N); do mv $f $OUT/v2/${${f:t}#la-v2-}; done
     echo "boards: $(ls $OUT/boards | tr '\n' ' ')"
   fi
 fi
@@ -88,7 +91,10 @@ import plistlib, sys
 plistlib.dump({'flutter.onboarding_welcome_seen': True, 'flutter.onboarding_local_declined': True}, open(sys.argv[1], 'wb'))
 PY
 : > $OUT/demo.log
-for sample in running running-todo approval approval-high approval-expired question done failed multi stale; do
+SAMPLES=(running running-todo approval approval-high approval-expired question done failed multi stale
+  v2-running-buoys v2-running-stop-armed v2-running-many v2-question-options v2-question-stop v2-approval-stop
+  v2-done-summary v2-failed-summary)
+for sample in $SAMPLES; do
   xcrun simctl terminate $UDID $DG_BUNDLE_ID 2>/dev/null
   xcrun simctl launch --terminate-running-process $UDID $DG_BUNDLE_ID -DSHGOLADemo $sample -DSHGOLADemoLang $LANG_ARG > /dev/null || RC=1
   sleep 5
@@ -97,7 +103,7 @@ done
 cp "$(xcrun simctl get_app_container $UDID $DG_BUNDLE_ID data)/Documents/la-demo.log" $OUT/demo.log 2>/dev/null
 cat $OUT/demo.log
 grep -q 'DSHGO_LA_DEMO failed' $OUT/demo.log && RC=1
-[[ $(grep -c 'DSHGO_LA_DEMO started' $OUT/demo.log) -ge 10 ]] || { echo "not every demo Activity started"; RC=1; }
+[[ $(grep -c 'DSHGO_LA_DEMO started' $OUT/demo.log) -ge ${#SAMPLES} ]] || { echo "not every demo Activity started"; RC=1; }
 
 echo "--- cleanup $(date '+%F %T')"
 xcrun simctl uninstall $UDID $DG_BUNDLE_ID 2>/dev/null
