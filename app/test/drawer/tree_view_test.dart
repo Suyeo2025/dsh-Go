@@ -1,4 +1,4 @@
-// The workspace tree on screen: the 按时间 / 工作区树 switch (greyed under a
+// The workspace tree on screen: the 按时间 / 按工作区 switch (greyed under a
 // status filter), groups in the Host's order with their pinned zone first,
 // folding a group, 其它对话, an empty group, and the ⋯ key that replaces the
 // long-press menu where a long press drags.
@@ -51,7 +51,7 @@ void main() {
 
   testWidgets('the switch turns the list into the tree, and is kept', (tester) async {
     final container = await pumpSmList(tester, sessions: _sessions, workspaces: _registry());
-    await tester.tap(find.text('工作区树'));
+    await tester.tap(find.text('按工作区'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(container.read(drawerViewProvider).layout, DrawerLayout.tree);

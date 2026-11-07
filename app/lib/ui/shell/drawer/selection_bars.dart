@@ -148,18 +148,21 @@ class DoneButton extends StatelessWidget {
   }
 }
 
-/// Replaces the identity bar: four equal keys, icon over label. Off until
+/// Replaces the identity bar: four equal keys (three on iOS, without
+/// 移到文件夹), icon over label. Off until
 /// something is chosen.
 class SelectionActionBar extends ConsumerWidget {
   const SelectionActionBar({
     super.key,
-    required this.onMove,
+    this.onMove,
     required this.onPin,
     required this.onArchive,
     required this.onDelete,
   });
 
-  final VoidCallback onMove;
+  /// 移到文件夹; null: no such key (iOS, where workspaces are the only
+  /// grouping).
+  final VoidCallback? onMove;
   final VoidCallback onPin;
   final VoidCallback onArchive;
   final VoidCallback onDelete;
@@ -190,14 +193,16 @@ class SelectionActionBar extends ConsumerWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: _ActionKey(
-              icon: AppIcons.moveToFolder,
-              label: l10n.shellMoveToFolder,
-              onTap: none || busy ? null : onMove,
+          if (onMove case final onMove?) ...[
+            Expanded(
+              child: _ActionKey(
+                icon: AppIcons.moveToFolder,
+                label: l10n.shellMoveToFolder,
+                onTap: none || busy ? null : onMove,
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
+            const SizedBox(width: 8),
+          ],
           Expanded(
             child: _ActionKey(
               icon: allPinned ? AppIcons.pinActive : AppIcons.pin,

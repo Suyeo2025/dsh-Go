@@ -15669,13 +15669,10 @@ class L10nZh extends L10n {
   String get smUiLayoutTime => '按时间';
 
   @override
-  String get smUiLayoutTree => '工作区树';
+  String get smUiLayoutTree => '按工作区';
 
   @override
   String get smUiLayoutFilterHint => '清除筛选后可切换';
-
-  @override
-  String get smUiLayoutTitle => '视图';
 
   @override
   String get smUiOtherChats => '其它对话';
@@ -15716,6 +15713,9 @@ class L10nZh extends L10n {
 
   @override
   String get smUiPinNotRestored => '置顶状态没有恢复';
+
+  @override
+  String get smUiFoldersRetired => '文件夹已并入工作区：对话按工作区分组，和网页版同步。原来的文件夹仍保存在本机。';
 
   @override
   String starPromptTitle(int hours) {

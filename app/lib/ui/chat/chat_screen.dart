@@ -397,7 +397,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     final current = ref.read(currentSessionProvider);
     if (current != null) return current;
     if (_creating != null) return null;
-    final pendingFolder = ref.read(pendingSessionFolderProvider);
+    final pendingFolder = drawerFoldersShown ? ref.read(pendingSessionFolderProvider) : null;
     final attempt = Object();
     bool ownsCreation() => identical(_creating, attempt) && isCurrent();
     setState(() {
@@ -417,7 +417,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       // A completed create may outlive its page, client or new-chat draft.
       // Check before any selection, migration, deletion or model side effect.
       if (!ownsCreation() || _draftKey != 'new' || ref.read(currentSessionProvider) != null) return null;
-      if (ref.read(pendingSessionFolderProvider) != pendingFolder) return null;
+      if (drawerFoldersShown && ref.read(pendingSessionFolderProvider) != pendingFolder) return null;
       if (pendingFolder != null) {
         await ref
             .read(drawerViewProvider.notifier)
@@ -1389,7 +1389,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     final newFolder = sessionId == null
         ? ref.watch(drawerViewProvider).byId(ref.watch(pendingSessionFolderProvider))
         : null;
-    final hasFolders = sessionId == null && ref.watch(drawerViewProvider).folders.isNotEmpty;
+    // iOS groups by workspace only: no folder to start a new chat in.
+    final hasFolders = drawerFoldersShown && sessionId == null && ref.watch(drawerViewProvider).folders.isNotEmpty;
     final commands = ref.watch(slashCommandsProvider(sessionId));
     final contextFraction = sessionId == null
         ? null

@@ -125,7 +125,7 @@ void main() {
       expect(container.read(workspacePrefsProvider).selected, isNull);
     });
 
-    testWidgets('工作区树: a workspace key opens its group and folds the others', (tester) async {
+    testWidgets('按工作区: a workspace key opens its group and folds the others', (tester) async {
       final container = await _pumpOutline(
         tester,
         view: const DrawerView(loaded: true, layout: DrawerLayout.tree, collapsedWorkspaces: {'w2'}),

@@ -20,7 +20,7 @@ const _groupMargin = EdgeInsets.fromLTRB(SheetTitleBar.inset, 0, SheetTitleBar.i
 
 // ── 对话列表 ─────────────────────────────────────────────────────────────────
 
-enum DrawerViewAction { newFolder, manageFolders, select, archived }
+enum DrawerViewAction { newFolder, manageFolders, addWorkspace, select, archived }
 
 /// Sort (applies at once), then 新建文件夹 / 管理文件夹 / 多选.
 Future<DrawerViewAction?> showDrawerViewSheet(BuildContext context) =>
@@ -33,7 +33,6 @@ class DrawerViewSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final sort = ref.watch(drawerViewProvider.select((v) => v.sort));
-    final layout = ref.watch(drawerViewProvider.select((v) => v.layout));
     final hasFolders = ref.watch(drawerViewProvider.select((v) => v.folders.isNotEmpty));
     return SafeArea(
       top: false,
@@ -46,22 +45,6 @@ class DrawerViewSheet extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               SheetTitleBar(l10n.shellChatList),
-              // 按时间 / 工作区树 (the same choice as the list's own switch).
-              Padding(
-                padding: const EdgeInsets.fromLTRB(SheetTitleBar.inset + 8, 0, SheetTitleBar.inset, 8),
-                child: Semantics(header: true, child: Text(l10n.smUiLayoutTitle, style: groupTitleStyle(context))),
-              ),
-              Padding(
-                padding: _groupMargin.copyWith(bottom: 16),
-                child: SegmentedPill<DrawerLayout>(
-                  segments: [
-                    PillSegment(DrawerLayout.time, l10n.smUiLayoutTime),
-                    PillSegment(DrawerLayout.tree, l10n.smUiLayoutTree),
-                  ],
-                  selected: layout,
-                  onChanged: (value) => ref.read(drawerViewProvider.notifier).setLayout(value),
-                ),
-              ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(SheetTitleBar.inset + 8, 0, SheetTitleBar.inset, 8),
                 child: Semantics(header: true, child: Text(l10n.shellSort, style: groupTitleStyle(context))),
@@ -80,13 +63,23 @@ class DrawerViewSheet extends ConsumerWidget {
               SheetGroup(
                 margin: _groupMargin,
                 children: [
-                  ListPageRow(
-                    icon: AppIcons.newFolder,
-                    title: l10n.shellNewFolder,
-                    chevron: false,
-                    onTap: () => Navigator.of(context).pop(DrawerViewAction.newFolder),
-                  ),
-                  if (hasFolders)
+                  // iOS groups by workspace only: no folders to make or manage;
+                  // a new group is a workspace (the switcher's same flow).
+                  if (!drawerFoldersShown)
+                    ListPageRow(
+                      icon: AppIcons.newFolder,
+                      title: l10n.remoteWorkspaceAdd,
+                      chevron: false,
+                      onTap: () => Navigator.of(context).pop(DrawerViewAction.addWorkspace),
+                    ),
+                  if (drawerFoldersShown)
+                    ListPageRow(
+                      icon: AppIcons.newFolder,
+                      title: l10n.shellNewFolder,
+                      chevron: false,
+                      onTap: () => Navigator.of(context).pop(DrawerViewAction.newFolder),
+                    ),
+                  if (drawerFoldersShown && hasFolders)
                     ListPageRow(
                       icon: AppIcons.manageFolders,
                       title: l10n.shellManageFolders,

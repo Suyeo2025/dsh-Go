@@ -16526,13 +16526,10 @@ class L10nEn extends L10n {
   String get smUiLayoutTime => 'By time';
 
   @override
-  String get smUiLayoutTree => 'Workspace tree';
+  String get smUiLayoutTree => 'By workspace';
 
   @override
   String get smUiLayoutFilterHint => 'Clear the filter to switch';
-
-  @override
-  String get smUiLayoutTitle => 'View';
 
   @override
   String get smUiOtherChats => 'Other chats';
@@ -16573,6 +16570,10 @@ class L10nEn extends L10n {
 
   @override
   String get smUiPinNotRestored => 'Pin state not restored';
+
+  @override
+  String get smUiFoldersRetired =>
+      'Folders have given way to workspaces: chats are grouped by workspace, in sync with DSH Web. Your old folders are still saved on this device.';
 
   @override
   String starPromptTitle(int hours) {

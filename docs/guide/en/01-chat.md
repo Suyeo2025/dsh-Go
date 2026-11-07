@@ -96,6 +96,8 @@ Touch and hold a chat for **Pin**, **Rename**, **Move to folder**, **Share**, **
 - After selecting several chats, **Delete** in the action bar removes them in one go; failures are listed one by one and only acknowledged chats leave the list. If the connection drops and the result is unconfirmed, the rest of the batch stops — refresh the list before deciding.
 - To get an archived chat back, tap **Search chats**, find it and tap **Restore and open**.
 - Filter the list with **All**, **Running**, **Pending** and **Unread**. The ⋯ at the end of the workspace row sorts by **Recent activity** or **Date created**, and has **New folder** and **Manage folders**.
+- The list goes **By time** or **By workspace**: the same chats, ordered two ways. Switch at the top of the list.
+- iPhone and iPad have no folders: chats are grouped by workspace only, as on DSH Web and in sync across devices; swiping a row left shows **Pin** and **Archive**. Folders made on this device before are still saved, just not shown.
 
 ## Swipe-left shortcuts
 

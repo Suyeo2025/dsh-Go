@@ -18,6 +18,7 @@ import '../../../state/hosts_state.dart';
 import '../../../state/read_list_identity.dart';
 import '../../../state/sessions_state.dart';
 import '../../../state/workspaces_state.dart';
+import '../../workspace/workspace_actions.dart' show addWorkspace;
 import 'folder_sheets.dart';
 import '../session_search_page.dart' show showSessionSearch;
 import 'archive_notice.dart';
@@ -48,6 +49,8 @@ Future<void> openDrawerViewOptions(BuildContext context, WidgetRef ref, {VoidCal
       onClose?.call();
     case DrawerViewAction.newFolder:
       await createFolderFlow(context, ref);
+    case DrawerViewAction.addWorkspace:
+      await addWorkspace(context);
     case DrawerViewAction.manageFolders:
       await showManageFolders(context, onEdit: (folder) => editFolderFlow(context, ref, folder));
     case DrawerViewAction.select:

@@ -7,6 +7,10 @@
 // the settings document is a validated schema. So folders live on this phone,
 // per host, in shared preferences — like the workspace pins and groups in
 // workspaces_state.dart. A conversation is in at most one folder.
+//
+// On iOS ([drawerFoldersShown] false) the one way to group conversations is
+// the Host's workspaces, the grouping DSH Web shows too: folders are neither
+// shown nor offered there, and a host's stored folders are kept untouched.
 
 import 'dart:async';
 import 'dart:convert';
@@ -16,6 +20,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/l10n.dart';
+import '../platform/platform_caps.dart';
 import 'bots_state.dart';
 import 'hosts_state.dart';
 import 'read_list_cache.dart';
@@ -26,6 +31,55 @@ import 'sessions_state.dart';
 import 'workspaces_state.dart';
 
 // ── Folders ──────────────────────────────────────────────────────────────────
+
+/// Whether this phone's own folders take part in the drawer: not on iOS,
+/// where conversations are grouped by the Host's workspaces only (synced
+/// with DSH Web). Stored folders stay in the preferences either way.
+bool get drawerFoldersShown => !isRemoteOnlyPlatform;
+
+/// The once-only note that folders gave way to workspaces, shown on iOS
+/// where a host still has stored folders. False once closed (on this phone,
+/// for every host).
+class FoldersRetiredNoticeController extends Notifier<bool> {
+  static const _key = 'drawer.folders_retired_notice_closed';
+
+  @override
+  bool build() {
+    if (drawerFoldersShown) return false;
+    unawaited(_load());
+    return false;
+  }
+
+  /// Null until the stored choice is read.
+  bool? _closed;
+
+  Future<void> _load() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _closed = prefs.getBool(_key) ?? false;
+    } catch (_) {
+      _closed = false;
+    }
+    if (ref.mounted && !_closed!) state = true;
+  }
+
+  Future<void> close() async {
+    _closed = true;
+    state = false;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_key, true);
+    } catch (_) {
+      // Closed for this run.
+    }
+  }
+}
+
+/// True while the note may show (iOS, not closed); the drawer shows it only
+/// where the host has stored folders.
+final foldersRetiredNoticeProvider = NotifierProvider<FoldersRetiredNoticeController, bool>(
+  FoldersRetiredNoticeController.new,
+);
 
 /// One user folder. [tint] indexes `DshColors.identity` (0–7); [emoji]
 /// replaces the folder glyph. Neither: the plain folder glyph.
@@ -108,7 +162,7 @@ enum DrawerLayout {
   /// 按时间: 置顶, folders, then days (the list as it has always been).
   time,
 
-  /// 工作区树: one collapsible group per workspace in the Host's manual
+  /// 按工作区: one collapsible group per workspace in the Host's manual
   /// order, then 其它对话.
   tree,
 }
@@ -397,7 +451,7 @@ class DrawerViewController extends Notifier<DrawerView> {
 
   Future<void> setSort(DrawerSort sort) => _update((view) => view.copyWith(sort: sort));
 
-  /// 按时间 / 工作区树, remembered per host.
+  /// 按时间 / 按工作区, remembered per host.
   Future<void> setLayout(DrawerLayout layout) => _update((view) => view.copyWith(layout: layout));
 
   /// Folds or unfolds [workspaceId]'s group in the tree.
@@ -975,12 +1029,14 @@ final drawerClockProvider = Provider<DateTime Function()>((ref) => DateTime.now)
   unread: scope.readOnly ? const {} : ref.watch(unreadSessionIdsProvider),
 );
 
-/// [drawerBlocks] (按时间) or [drawerTreeBlocks] (工作区树, by
+/// [drawerBlocks] (按时间) or [drawerTreeBlocks] (按工作区, by
 /// [DrawerView.layout]) over the live providers; null while the list loads.
 List<DrawerBlock>? watchDrawerBlocks(WidgetRef ref, {DateTime? now}) {
   final scope = ref.watch(drawerScopeProvider);
   if (scope == null) return null;
-  final view = ref.watch(drawerViewProvider);
+  final stored = ref.watch(drawerViewProvider);
+  // No folders on iOS: their members list by day like the rest.
+  final view = drawerFoldersShown ? stored : stored.copyWith(folders: const []);
   final marks = _watchDrawerMarks(ref, scope);
   if (view.layout == DrawerLayout.tree) {
     final sections = ref.watch(workspaceSectionsProvider);

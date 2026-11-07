@@ -213,6 +213,22 @@ void main() {
     expect(tester.getSize(find.byType(HappeningSection)).height, 0);
   });
 
+  testWidgets('under 运行中 / 待确认 the list below is the same rows: none here', (tester) async {
+    final container = await _pump(tester, entries: [_e('r', HappeningPhase.running)]);
+    expect(find.text('正在发生'), findsOneWidget);
+    for (final filter in [DrawerFilter.running, DrawerFilter.pending]) {
+      container.read(drawerFilterProvider.notifier).set(filter);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('正在发生'), findsNothing, reason: filter.name);
+      expect(tester.getSize(find.byType(HappeningSection)).height, 0);
+    }
+    container.read(drawerFilterProvider.notifier).set(DrawerFilter.unread);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('正在发生'), findsOneWidget, reason: '未读 is another list');
+  });
+
   testWidgets('past three rows: 还有 N 个, then all of them', (tester) async {
     await _pump(tester, entries: [for (var i = 0; i < 5; i++) _e('r$i', HappeningPhase.running)]);
     expect(find.byKey(const ValueKey('happening-r3')), findsNothing);

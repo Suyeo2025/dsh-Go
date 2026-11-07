@@ -28655,7 +28655,7 @@ abstract class L10n {
   /// No description provided for @smUiLayoutTree.
   ///
   /// In zh, this message translates to:
-  /// **'工作区树'**
+  /// **'按工作区'**
   String get smUiLayoutTree;
 
   /// No description provided for @smUiLayoutFilterHint.
@@ -28663,12 +28663,6 @@ abstract class L10n {
   /// In zh, this message translates to:
   /// **'清除筛选后可切换'**
   String get smUiLayoutFilterHint;
-
-  /// No description provided for @smUiLayoutTitle.
-  ///
-  /// In zh, this message translates to:
-  /// **'视图'**
-  String get smUiLayoutTitle;
 
   /// No description provided for @smUiOtherChats.
   ///
@@ -28741,6 +28735,12 @@ abstract class L10n {
   /// In zh, this message translates to:
   /// **'置顶状态没有恢复'**
   String get smUiPinNotRestored;
+
+  /// No description provided for @smUiFoldersRetired.
+  ///
+  /// In zh, this message translates to:
+  /// **'文件夹已并入工作区：对话按工作区分组，和网页版同步。原来的文件夹仍保存在本机。'**
+  String get smUiFoldersRetired;
 
   /// The star prompt's first line. hours is the whole hours of use so far, rounded down; 0 is half an hour (the first ask comes after 30 minutes). The word joiner keeps the ~ on the line of the word before it.
   ///

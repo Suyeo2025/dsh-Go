@@ -1,7 +1,7 @@
 // The outline column at the left of the wide-window sidebar (56 wide): 正在发生
 // with its count, 全部对话, each workspace (pinned ones first), each folder,
 // and 已归档 at the bottom. A key brings its part of the list into view the
-// way the list allows: it filters (按时间) or folds the others away (工作区树),
+// way the list allows: it filters (按时间) or folds the others away (按工作区),
 // and asks the shell to scroll the list back to its top.
 //
 // Nothing here moves on its own: no frames at rest.
@@ -34,7 +34,9 @@ class OutlinePane extends ConsumerWidget {
     final l10n = context.l10n;
     final happening = ref.watch(happeningProvider.select((list) => list.length));
     final sections = ref.watch(workspaceSectionsProvider);
-    final folders = ref.watch(drawerViewProvider.select((v) => v.folders));
+    final folders = drawerFoldersShown
+        ? ref.watch(drawerViewProvider.select((v) => v.folders))
+        : const <DrawerFolder>[];
     final marks = ref.watch(outlineMarksProvider);
     final workspaces = [for (final section in sections) ...section.items];
     return Semantics(

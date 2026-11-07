@@ -100,7 +100,11 @@ class _HappeningSectionState extends ConsumerState<HappeningSection> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final entries = ref.watch(happeningProvider);
+    // Under 运行中 / 待确认 the list below is these same conversations: no
+    // second copy above it.
+    final filter = ref.watch(drawerFilterProvider);
+    final duplicated = filter == DrawerFilter.running || filter == DrawerFilter.pending;
+    final entries = duplicated ? const <HappeningEntry>[] : ref.watch(happeningProvider);
     final now = ref.watch(drawerClockProvider)();
     final extra = entries.length - HappeningSection.maxRows;
     final shown = _all || extra <= 1 ? entries : entries.take(HappeningSection.maxRows).toList();

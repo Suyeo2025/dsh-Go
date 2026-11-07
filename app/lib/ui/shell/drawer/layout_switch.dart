@@ -1,4 +1,4 @@
-// 按时间 / 工作区树 at the top of the drawer's list (it scrolls with the
+// 按时间 / 按工作区 at the top of the drawer's list (it scrolls with the
 // list). A status filter lists matches flat in either layout, so while one
 // is on the switch is greyed and says why.
 

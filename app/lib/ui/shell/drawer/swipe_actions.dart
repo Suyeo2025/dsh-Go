@@ -1,5 +1,6 @@
 // A drawer row's quick actions behind a left swipe: 置顶 / 取消置顶, 文件夹 and
-// 归档, from the content to the edge. A swipe past 60% of the row archives
+// 归档, from the content to the edge (no 文件夹 on iOS, where workspaces are
+// the only grouping). A swipe past 60% of the row archives
 // (the edge key). One row is open at a time ([openSwipeRowProvider]); a
 // scroll, a tap anywhere, another row opening or the drawer closing put it
 // back. With a mouse the same keys fade in at the row's end on hover.
@@ -39,7 +40,7 @@ class SwipeActions extends ConsumerStatefulWidget {
     required this.id,
     required this.pinned,
     required this.onPin,
-    required this.onFolder,
+    this.onFolder,
     required this.onArchive,
     required this.child,
     this.enabled = true,
@@ -53,15 +54,20 @@ class SwipeActions extends ConsumerStatefulWidget {
   final String id;
   final bool pinned;
   final VoidCallback onPin;
-  final VoidCallback onFolder;
+
+  /// 文件夹; null: no such key (iOS, where workspaces are the only grouping).
+  final VoidCallback? onFolder;
   final VoidCallback onArchive;
   final Widget child;
 
   /// One key's width.
   static const keyWidth = 72.0;
 
-  /// All three keys.
+  /// All three keys (with 文件夹).
   static const keysWidth = keyWidth * 3;
+
+  /// The keys this row shows, side by side.
+  double get shownKeysWidth => keyWidth * (onFolder == null ? 2 : 3);
 
   /// A swipe past this share of the row archives on release.
   static const archiveShare = 0.6;
@@ -130,13 +136,13 @@ class SwipeActionsState extends ConsumerState<SwipeActions> with TickerProviderS
   }
 
   void _update(double dx) {
-    final max = math.max(_width, SwipeActions.keysWidth);
+    final max = math.max(_width, widget.shownKeysWidth);
     setState(() => _shift = (_shift - dx).clamp(0.0, max));
   }
 
   void _end(double velocity) {
     _dragging = false;
-    final width = _width <= 0 ? SwipeActions.keysWidth : _width;
+    final width = _width <= 0 ? widget.shownKeysWidth : _width;
     if (_shift >= width * SwipeActions.archiveShare) {
       _animateTo(
         width,
@@ -148,10 +154,10 @@ class SwipeActionsState extends ConsumerState<SwipeActions> with TickerProviderS
       );
       return;
     }
-    final open = velocity < -300 || (velocity <= 300 && _shift > SwipeActions.keysWidth / 2);
+    final open = velocity < -300 || (velocity <= 300 && _shift > widget.shownKeysWidth / 2);
     if (open) {
       ref.read(openSwipeRowProvider.notifier).open(widget.id);
-      _animateTo(SwipeActions.keysWidth);
+      _animateTo(widget.shownKeysWidth);
     } else {
       close();
     }
@@ -206,7 +212,7 @@ class SwipeActionsState extends ConsumerState<SwipeActions> with TickerProviderS
     });
     return LayoutBuilder(
       builder: (context, constraints) {
-        _width = constraints.maxWidth.isFinite ? constraints.maxWidth : SwipeActions.keysWidth;
+        _width = constraints.maxWidth.isFinite ? constraints.maxWidth : widget.shownKeysWidth;
         final open = _shift > 0;
         Widget content = Transform.translate(offset: Offset(-_shift, 0), child: widget.child);
         if (open) {
@@ -229,7 +235,8 @@ class SwipeActionsState extends ConsumerState<SwipeActions> with TickerProviderS
                     width: _shift,
                     pinned: widget.pinned,
                     onPin: () => _key(widget.onPin),
-                    onFolder: () => _key(widget.onFolder),
+                    keysWidth: widget.shownKeysWidth,
+                    onFolder: widget.onFolder == null ? null : () => _key(widget.onFolder!),
                     onArchive: () => _key(widget.onArchive),
                   ),
                 ),
@@ -289,14 +296,16 @@ class _Keys extends StatelessWidget {
     required this.width,
     required this.pinned,
     required this.onPin,
+    required this.keysWidth,
     required this.onFolder,
     required this.onArchive,
   });
 
   final double width;
+  final double keysWidth;
   final bool pinned;
   final VoidCallback onPin;
-  final VoidCallback onFolder;
+  final VoidCallback? onFolder;
   final VoidCallback onArchive;
 
   @override
@@ -304,8 +313,8 @@ class _Keys extends StatelessWidget {
     final l10n = context.l10n;
     final scheme = Theme.of(context).colorScheme;
     final colors = DshColors.of(context);
-    // Past the three keys (towards archive) the edge key grows.
-    final extra = math.max(0.0, width - SwipeActions.keysWidth);
+    // Past the keys (towards archive) the edge key grows.
+    final extra = math.max(0.0, width - keysWidth);
     return ClipRRect(
       borderRadius: AppShape.radiusMd,
       child: OverflowBox(
@@ -323,14 +332,15 @@ class _Keys extends StatelessWidget {
               label: pinned ? l10n.shellUnpin : l10n.commonPin,
               onTap: onPin,
             ),
-            _SwipeKey(
-              width: SwipeActions.keyWidth,
-              color: scheme.surfaceContainerHighest,
-              onColor: scheme.onSurface,
-              icon: AppIcons.moveToFolder,
-              label: l10n.smUiFolder,
-              onTap: onFolder,
-            ),
+            if (onFolder case final onFolder?)
+              _SwipeKey(
+                width: SwipeActions.keyWidth,
+                color: scheme.surfaceContainerHighest,
+                onColor: scheme.onSurface,
+                icon: AppIcons.moveToFolder,
+                label: l10n.smUiFolder,
+                onTap: onFolder,
+              ),
             _SwipeKey(
               width: SwipeActions.keyWidth + extra,
               color: colors.warning,
@@ -396,11 +406,11 @@ class _SwipeKey extends StatelessWidget {
 
 /// With a mouse: the same three actions as small keys at the row's end.
 class _HoverKeys extends StatelessWidget {
-  const _HoverKeys({required this.pinned, required this.onPin, required this.onFolder, required this.onArchive});
+  const _HoverKeys({required this.pinned, required this.onPin, this.onFolder, required this.onArchive});
 
   final bool pinned;
   final VoidCallback onPin;
-  final VoidCallback onFolder;
+  final VoidCallback? onFolder;
   final VoidCallback onArchive;
 
   @override
@@ -421,7 +431,7 @@ class _HoverKeys extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             key(pinned ? AppIcons.pinActive : AppIcons.pin, pinned ? l10n.shellUnpin : l10n.commonPin, onPin),
-            key(AppIcons.moveToFolder, l10n.smUiFolder, onFolder),
+            if (onFolder case final onFolder?) key(AppIcons.moveToFolder, l10n.smUiFolder, onFolder),
             key(AppIcons.archive, l10n.shellArchive, onArchive),
           ],
         ),

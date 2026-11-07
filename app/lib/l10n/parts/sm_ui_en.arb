@@ -15,9 +15,8 @@
     }
   },
   "smUiLayoutTime": "By time",
-  "smUiLayoutTree": "Workspace tree",
+  "smUiLayoutTree": "By workspace",
   "smUiLayoutFilterHint": "Clear the filter to switch",
-  "smUiLayoutTitle": "View",
   "smUiOtherChats": "Other chats",
   "smUiWorkspaceRunning": "{n} running",
   "@smUiWorkspaceRunning": {
@@ -40,5 +39,6 @@
   "smUiFolder": "Folder",
   "smUiMoreActions": "More actions",
   "smUiDragToReorder": "Drag to reorder",
-  "smUiPinNotRestored": "Pin state not restored"
+  "smUiPinNotRestored": "Pin state not restored",
+  "smUiFoldersRetired": "Folders have given way to workspaces: chats are grouped by workspace, in sync with DSH Web. Your old folders are still saved on this device."
 }

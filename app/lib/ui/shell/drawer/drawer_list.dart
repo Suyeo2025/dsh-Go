@@ -1,13 +1,15 @@
 // The drawer's conversation list once it has loaded: DS Bot's row, the
-// 按时间 / 工作区树 switch, then
+// 按时间 / 按工作区 switch, then
 // * 按时间: 置顶, the folders (opening and closing in place), then the rest
 //   by day;
-// * 工作区树: one foldable group per workspace in the Host's manual order
+// * 按工作区: one foldable group per workspace in the Host's manual order
 //   (its pinned zone first), rows dragged within their group after a long
 //   press, then 其它对话;
 // or, under a status filter, just the matches. A left swipe on a row shows
-// 置顶 / 文件夹 / 归档 (swipe_actions.dart). Loading, error and empty-host
-// states stay with the drawer (sessions_drawer.dart).
+// 置顶 / 文件夹 / 归档 (swipe_actions.dart). On iOS there are no folders
+// ([drawerFoldersShown]): workspaces are the one grouping, as on DSH Web.
+// Loading, error and empty-host states stay with the drawer
+// (sessions_drawer.dart).
 
 import 'dart:async';
 
@@ -292,7 +294,8 @@ class _DrawerConversationListState extends ConsumerState<DrawerConversationList>
     final sort = ref.watch(drawerViewProvider.select((v) => v.sort));
     final layout = ref.watch(drawerViewProvider.select((v) => v.layout));
     final folders = ref.watch(drawerViewProvider);
-    final folderOf = folders.folderOf;
+    // iOS groups by workspace only: no folder marks or 文件夹 key there.
+    final folderOf = drawerFoldersShown ? folders.folderOf : const <String, String>{};
     final selectedWorkspace = ref.watch(selectedWorkspaceIdProvider);
     final tree = layout == DrawerLayout.tree && filter == DrawerFilter.all;
     if (!readOnly && sort == DrawerSort.created) {
@@ -313,7 +316,7 @@ class _DrawerConversationListState extends ConsumerState<DrawerConversationList>
       id: s.sessionId,
       pinned: pinned.contains(s.sessionId),
       onPin: () => unawaited(_togglePin(s)),
-      onFolder: () => unawaited(moveToFolderFlow(context, ref, [s.sessionId])),
+      onFolder: drawerFoldersShown ? () => unawaited(moveToFolderFlow(context, ref, [s.sessionId])) : null,
       onArchive: () => _archive(s),
       child: child,
     );
@@ -362,6 +365,11 @@ class _DrawerConversationListState extends ConsumerState<DrawerConversationList>
     if (!selecting) {
       const key = ValueKey('layout-switch');
       add(key, (_) => const DrawerLayoutSwitch(key: key));
+    }
+    // iOS, a host with folders from before: once, say where they went.
+    if (!selecting && !drawerFoldersShown && folders.folders.isNotEmpty && ref.watch(foldersRetiredNoticeProvider)) {
+      const key = ValueKey('folders-retired');
+      add(key, (_) => const FoldersRetiredNote(key: key));
     }
 
     if (tree) {
@@ -719,6 +727,56 @@ class _PinnedZone extends StatelessWidget {
         border: last ? Border(bottom: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.6))) : null,
       ),
       child: child,
+    );
+  }
+}
+
+/// On iOS, where a host still has folders made on this phone: they are not
+/// shown any more, grouping is by workspace (as on DSH Web), the folders
+/// themselves are kept. Closed once, it does not come back.
+class FoldersRetiredNote extends ConsumerWidget {
+  const FoldersRetiredNote({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final colors = DshColors.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 4, 0, 4),
+      child: DecoratedBox(
+        decoration: ShapeDecoration(
+          color: theme.colorScheme.onSurface.withValues(alpha: theme.brightness == Brightness.dark ? 0.06 : 0.035),
+          shape: Squircle.border(AppShape.md),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 8, 2, 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: Icon(AppIcons.info, size: 16, color: colors.textTertiary),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  l10n.smUiFoldersRetired,
+                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant, height: 1.4),
+                ),
+              ),
+              IconButton(
+                key: const ValueKey('folders-retired-close'),
+                tooltip: l10n.commonClose,
+                onPressed: () => unawaited(ref.read(foldersRetiredNoticeProvider.notifier).close()),
+                icon: Icon(AppIcons.close, size: 14, color: colors.textTertiary),
+                style: IconButton.styleFrom(minimumSize: const Size.square(28), padding: EdgeInsets.zero),
+                constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

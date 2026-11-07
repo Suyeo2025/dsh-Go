@@ -159,7 +159,7 @@ void main() {
         final search = tester.getRect(find.text('搜索对话').first);
         expect(search.left, greaterThan(side + 10));
         // Scrolling the list takes the brand, search and filters with it.
-        // (With 正在发生 and the 按时间 / 工作区树 row on top, the first
+        // (With 正在发生 and the 按时间 / 按工作区 row on top, the first
         // conversations start below the fold: the top itself is dragged.)
         final filters = find.text('全部').last;
         final before = tester.getRect(filters).top;

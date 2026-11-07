@@ -38,7 +38,7 @@ abstract final class AppIcons {
   static const sidebar = DshGlyphs.sidebarSimpleRight;
   static const dragHandle = DshGlyphs.dotsSixVertical;
 
-  /// 工作区树里移动一行(⋯ 选单):上移 / 下移一位是尖角,移到最前 / 最后是箭头。
+  /// 按工作区里移动一行(⋯ 选单):上移 / 下移一位是尖角,移到最前 / 最后是箭头。
   static const moveUp = DshGlyphs.caretUp;
   static const moveDown = DshGlyphs.caretDown;
   static const moveFirst = DshGlyphs.arrowUp;

@@ -270,15 +270,18 @@ class SessionsDrawer extends ConsumerWidget {
                         child: selecting
                             ? SelectionActionBar(
                                 key: const ValueKey('selecting'),
-                                onMove: () {
-                                  if (ref.read(drawerScopeProvider)?.readOnly == false) {
-                                    moveToFolderFlow(
-                                      context,
-                                      ref,
-                                      ref.read(drawerSelectionProvider)?.toList() ?? const [],
-                                    );
-                                  }
-                                },
+                                // No folders on iOS: no 移到文件夹 key.
+                                onMove: !drawerFoldersShown
+                                    ? null
+                                    : () {
+                                        if (ref.read(drawerScopeProvider)?.readOnly == false) {
+                                          moveToFolderFlow(
+                                            context,
+                                            ref,
+                                            ref.read(drawerSelectionProvider)?.toList() ?? const [],
+                                          );
+                                        }
+                                      },
                                 onPin: () {
                                   if (ref.read(drawerScopeProvider)?.readOnly == false) pinSelectionFlow(context, ref);
                                 },
@@ -487,7 +490,7 @@ class _SessionList extends ConsumerWidget {
     // fold into one row that opens the Bot pages.
     final botReady = ref.watch(dsBotProvider.select((s) => s.ready));
     final showBots = scope.bots.isNotEmpty || (workspace == null && botReady);
-    if (scope.sessions.isEmpty && !showBots && ref.watch(drawerViewProvider).folders.isEmpty) {
+    if (scope.sessions.isEmpty && !showBots && (!drawerFoldersShown || ref.watch(drawerViewProvider).folders.isEmpty)) {
       if (scope.readOnly) return _Centered(child: Text(readListStatusText(scope.status)));
       return workspace == null ? const _EmptyState() : const _WorkspaceEmptyState();
     }
@@ -619,11 +622,12 @@ class _SessionList extends ConsumerWidget {
                       title: Text(context.l10n.commonRename),
                       onTap: () => Navigator.pop(sheet, 'rename'),
                     ),
-                    ListTile(
-                      leading: const Icon(AppIcons.moveToFolder),
-                      title: Text(inFolder ? context.l10n.shellMoveToOtherFolder : context.l10n.shellMoveToFolder),
-                      onTap: () => Navigator.pop(sheet, 'folder'),
-                    ),
+                    if (drawerFoldersShown)
+                      ListTile(
+                        leading: const Icon(AppIcons.moveToFolder),
+                        title: Text(inFolder ? context.l10n.shellMoveToOtherFolder : context.l10n.shellMoveToFolder),
+                        onTap: () => Navigator.pop(sheet, 'folder'),
+                      ),
                     ListTile(
                       leading: const Icon(AppIcons.share),
                       title: Text(context.l10n.commonShare),
