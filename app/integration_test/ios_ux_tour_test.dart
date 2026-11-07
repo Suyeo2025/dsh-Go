@@ -967,6 +967,13 @@ class _Tour {
           return m ? 'drawerMask' : (t.className && String(t.className).slice(0, 40)) || t.tagName;
         }
         function open() { return !!(window.__dshApp && window.__dshApp.sidebarOpen()); }
+        // Read-only: another existing conversation of the open workspace (a sibling row of the
+        // selected one), never one that would switch the workspace.
+        function sameWorkspace() {
+          var sel = rows.filter(function (r) { return /_selected/.test(r.className); })[0];
+          if (!sel) return null;
+          return rows.filter(function (r) { return r !== sel && r.parentElement === sel.parentElement; })[0] || null;
+        }
         function touch(t, type, x, y) {
           t.dispatchEvent(new PointerEvent(type, {bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, pointerType: 'touch', isPrimary: true, pointerId: 7}));
         }
@@ -984,14 +991,24 @@ class _Tour {
       }
       if (result['page'] == null) throw StateError('DSH Web did not come up with its conversation list');
       final drawerLayout = (result['page']! as Map)['layout'] == 'drawer';
+      if ((result['page']! as Map)['layout'] == 'official') {
+        await officialDrawer(js, helpers, result);
+        return;
+      }
 
       // Open: the app's menu key (the iPhone's drawer; on an iPad it unfolds the official sidebar).
       final folded = await js('return !(window.__dshApp && window.__dshApp.sidebarOpen());');
       result['startedFolded'] = folded;
       if (drawerLayout || folded == true) {
+        debugPrint('WEB_DRAWER_PAGE ${jsonEncode(result['page'])} folded=$folded');
         final menu = find.byWidgetPredicate((w) => w is GlassIconButton && w.icon == AppIcons.menu);
-        if (menu.hitTestable().evaluate().isEmpty) throw StateError('no menu key on the web page');
-        await tester.tap(menu.hitTestable().first);
+        if (menu.hitTestable().evaluate().isNotEmpty) {
+          await tester.tap(menu.hitTestable().first);
+        } else {
+          // No app menu key in this chrome (a wide page): the page's own toggle, as the key would.
+          result['openedBy'] = 'page toggle (no app menu key)';
+          await js('window.__dshApp && window.__dshApp.toggleSidebar(); return 1;');
+        }
         await frames(1500);
       }
       // A secret-looking text anywhere on the page: no pictures of it.
@@ -1046,7 +1063,7 @@ class _Tour {
       }
       // Pick a conversation (not the selected one): it opens and the drawer closes.
       result['pick'] = await js('''$helpers
-        var row = rows.filter(function (r) { return !/_selected/.test(r.className); })[1] || rows[0];
+        var row = sameWorkspace(); if (!row) return {skipped: 'no other conversation in the open workspace'};
         var r = row.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
         var landed = where(x, y);
         window.__pickPath = location.pathname + location.hash;
@@ -1062,6 +1079,137 @@ class _Tour {
       skipped.add({'name': 'web-drawer-result', 'why': jsonEncode(result)});
       await home();
     });
+  }
+
+  /// DSH Web's own narrow drawer (layout "official", rc.5 frame[data-sidebar-drawer]): the app
+  /// keeps one 36 pt button before the page's menu key and fades it while the drawer is open.
+  Future<void> officialDrawer(Future<Object?> Function(String) js, String helpers, Map<String, Object?> result) async {
+    const more = '''
+      var seat = f && f.querySelector(':scope > [class*="_leadingSeat"]');
+      var menu = seat && seat.querySelector('button');
+      var mask = f && f.querySelector(':scope > [class*="_drawerMask"]');
+      function bg(el) {
+        for (var e = el; e; e = e.parentElement) {
+          var c = getComputedStyle(e).backgroundColor;
+          if (c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent') return c;
+        }
+        return 'none';
+      }
+      function at(x, y) { var t = document.elementFromPoint(x, y); return {where: where(x, y), bg: bg(t)}; }
+      function collapsed() { return f.hasAttribute('data-sidebar-collapsed'); }
+    ''';
+    final web = tester.getRect(find.byType(WebViewWidget).first);
+    Rect? appButton() {
+      final f = find.byKey(const ValueKey('web-controls-official'));
+      return f.evaluate().isEmpty ? null : tester.getRect(f);
+    }
+
+    double? appOpacity() {
+      final f = find.descendant(
+        of: find.byKey(const ValueKey('web-controls-official')),
+        matching: find.byType(AnimatedOpacity),
+      );
+      return f.evaluate().isEmpty ? null : (tester.widget(f.first) as AnimatedOpacity).opacity;
+    }
+
+    final secret = await js('return /${_secret.pattern.replaceAll('/', r'\\/')}/i.test(document.body.innerText);');
+    Future<void> webShot(String name, String what) async {
+      if (secret != true) {
+        await shot(name, what);
+      } else {
+        skipped.add({'name': name, 'why': 'credential-like text on the web page'});
+      }
+    }
+
+    // Closed: the app's button and the page's menu key side by side on one line; the bars' bands
+    // the page's colour.
+    final closed = await js('''$helpers $more
+      var m = menu && menu.getBoundingClientRect();
+      return {drawerAttr: f.hasAttribute('data-sidebar-drawer'), collapsed: collapsed(),
+        menu: m ? [m.left, m.top, m.width, m.height] : null,
+        page: bg(document.querySelector('[data-slot="main"]') || f),
+        status: at(innerWidth / 2, 4), gesture: at(innerWidth / 2, innerHeight - 6)};''');
+    final c = closed is Map ? closed.cast<String, Object?>() : <String, Object?>{'error': closed};
+    final button = appButton();
+    final m = c['menu'];
+    if (button != null && m is List && m.length == 4) {
+      final menuRect = Rect.fromLTWH(
+        web.left + (m[0] as num).toDouble(),
+        web.top + (m[1] as num).toDouble(),
+        (m[2] as num).toDouble(),
+        (m[3] as num).toDouble(),
+      );
+      c['app'] = [button.left, button.top, button.width, button.height];
+      c['overlap'] = button.overlaps(menuRect);
+      c['gapPt'] = double.parse((menuRect.left - button.right).toStringAsFixed(1));
+      c['centreDyPt'] = double.parse((menuRect.center.dy - button.center.dy).toStringAsFixed(1));
+    }
+    c['appOpacity'] = appOpacity();
+    result['closed'] = c;
+    await webShot('web-official-closed', '网页版（官方抽屉）：关闭状态，App 按钮 + 官方菜单键');
+
+    Future<void> openDrawer() async {
+      await js('$helpers $more if (menu) menu.click(); return 1;');
+      await frames(1800);
+    }
+
+    await openDrawer();
+    result['opened'] = {
+      ...((await js('''$helpers $more
+        var s = side && side.getBoundingClientRect(), k = mask && mask.getBoundingClientRect();
+        var r = rows.length ? rows[Math.min(rows.length - 1, 3)].getBoundingClientRect() : null;
+        return {collapsed: collapsed(), side: s ? [s.top, s.bottom, s.right] : null, height: innerHeight,
+          mask: k ? [k.top, k.bottom, getComputedStyle(mask).display] : null,
+          statusOverSide: at(20, 4), statusOverMask: at(innerWidth - 20, 4), gestureOverSide: at(20, innerHeight - 6),
+          rowHit: r ? where(r.left + r.width / 2, r.top + r.height / 2) : 'no row'};''')) as Map? ??
+              {})
+          .cast<String, Object?>(),
+      'appOpacity': appOpacity(),
+    };
+    await webShot('web-official-open', '网页版（官方抽屉）：打开');
+    result['scroll'] = await js(
+      '''$helpers
+      var sc = rows.length ? scroller(rows[0]) : null;
+      if (!sc) return {scrollable: false};
+      var hit = sc.getBoundingClientRect();
+      var lands = sc.contains(document.elementFromPoint(hit.left + hit.width / 2, hit.top + hit.height / 2));
+      var before = sc.scrollTop; sc.scrollTop = before + 400;
+      return {scrollable: true, height: sc.clientHeight, content: sc.scrollHeight, before: before, after: sc.scrollTop, touchLandsOnList: lands};''',
+    );
+    await frames(800);
+    await webShot('web-official-scrolled', '网页版（官方抽屉）：列表往下滚');
+    await js('$helpers var sc = rows.length ? scroller(rows[0]) : null; if (sc) sc.scrollTop = 0; return 1;');
+    // Pick a conversation: it opens, the drawer folds, the app's button comes back.
+    result['pick'] = await js('''$helpers $more
+      var row = sameWorkspace(); if (!row) return {skipped: 'no other conversation in the open workspace'};
+      var r = row.getBoundingClientRect();
+      var landed = where(r.left + r.width / 2, r.top + r.height / 2);
+      row.click();
+      return {landed: landed};''');
+    await frames(3000);
+    (result['pick']! as Map)['after'] = await js(
+      '$helpers $more return {collapsed: collapsed(), selected: rows.filter(function (r) { return /_selected/.test(r.className); }).length};',
+    );
+    (result['pick']! as Map)['appOpacity'] = appOpacity();
+    await webShot('web-official-picked', '网页版（官方抽屉）：点会话后打开并收起');
+    // Reopen, tap the mask beside the drawer: it folds.
+    await openDrawer();
+    result['mask'] = await js('''$helpers $more
+      var x = innerWidth - 24, y = innerHeight / 2, t = document.elementFromPoint(x, y);
+      var onMask = !!(mask && mask.contains(t));
+      if (t) {
+        t.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true, clientX: x, clientY: y, pointerType: 'touch', isPrimary: true}));
+        t.dispatchEvent(new PointerEvent('pointerup', {bubbles: true, clientX: x, clientY: y, pointerType: 'touch', isPrimary: true}));
+        t.click();
+      }
+      return {onMask: onMask, collapsedBefore: collapsed()};''');
+    await frames(1800);
+    (result['mask']! as Map)['collapsedAfter'] = (await js('$helpers $more return collapsed();')) == true;
+    (result['mask']! as Map)['appOpacity'] = appOpacity();
+    await webShot('web-official-closed-by-mask', '网页版（官方抽屉）：点遮罩收起');
+    debugPrint('WEB_DRAWER ${jsonEncode(result)}');
+    skipped.add({'name': 'web-drawer-result', 'why': jsonEncode(result)});
+    await home();
   }
 
   Future<void> landscape() async {
